@@ -1,6 +1,6 @@
 import type { RisuaiApi, AsyncKeyValueStore } from '../contracts/risuai.js'
 import type { DirectorSettings, DirectorPluginState } from '../contracts/types.js'
-import { DEFAULT_DIRECTOR_SETTINGS } from '../contracts/types.js'
+import { DEFAULT_DIRECTOR_SETTINGS, createEmptyState } from '../contracts/types.js'
 import { buildDashboardCss, DASHBOARD_STYLE_ID, DASHBOARD_ROOT_CLASS } from './dashboardCss.js'
 import { buildDashboardMarkup, DASHBOARD_TABS } from './dashboardDom.js'
 import type { DashboardMarkupInput } from './dashboardDom.js'
@@ -30,6 +30,8 @@ import {
 import type { ConnectionTestResult } from './dashboardModel.js'
 import { t, setLocale, getLocale } from './i18n.js'
 import type { DashboardLocale } from './i18n.js'
+import { DIRECTOR_STATE_STORAGE_KEY } from '../memory/canonicalStore.js'
+import { deleteSummary, deleteContinuityFact } from '../memory/memoryMutations.js'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -57,6 +59,7 @@ let activeInstance: DashboardInstance | null = null
 export interface DashboardStore {
   storage: AsyncKeyValueStore
   mirrorToCanonical?: (settings: DirectorSettings) => Promise<void>
+  readCanonical?: () => Promise<DirectorPluginState>
 }
 
 /**
@@ -119,6 +122,18 @@ function createShellPluginState(settings: DirectorSettings): DirectorPluginState
 }
 
 // ---------------------------------------------------------------------------
+// Canonical state reader
+// ---------------------------------------------------------------------------
+
+async function readCanonicalState(store: DashboardStore): Promise<DirectorPluginState> {
+  if (store.readCanonical) {
+    return structuredClone(await store.readCanonical())
+  }
+  const raw = await store.storage.getItem<DirectorPluginState>(DIRECTOR_STATE_STORAGE_KEY)
+  return raw ? structuredClone(raw) : createEmptyState()
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard instance
 // ---------------------------------------------------------------------------
 
@@ -134,6 +149,7 @@ class DashboardInstance {
   private modelOptions: string[]
   private connectionStatus: { kind: string; message: string }
   private root: HTMLElement | null = null
+  private canonicalState: DirectorPluginState
 
   constructor(
     api: RisuaiApi,
@@ -142,6 +158,7 @@ class DashboardInstance {
     draft: DashboardDraft,
     profiles: ProfileManifest,
     modelOptions: string[],
+    canonicalState: DirectorPluginState,
   ) {
     this.api = api
     this.store = store
@@ -151,6 +168,7 @@ class DashboardInstance {
     this.activeTab = DASHBOARD_TABS[0]?.id ?? 'general'
     this.modelOptions = modelOptions
     this.connectionStatus = { kind: 'idle', message: t('connection.notTested') }
+    this.canonicalState = canonicalState
   }
 
   // ── public ────────────────────────────────────────────────────────────
@@ -191,7 +209,7 @@ class DashboardInstance {
   private buildMarkupInput(): DashboardMarkupInput {
     return {
       settings: this.draft.settings,
-      pluginState: createShellPluginState(this.draft.settings),
+      pluginState: this.canonicalState,
       profiles: this.profiles,
       activeTab: this.activeTab,
       modelOptions: this.modelOptions,
@@ -406,6 +424,12 @@ class DashboardInstance {
         break
       case 'switch-lang':
         await this.handleSwitchLang(btn)
+        break
+      case 'delete-summary':
+        await this.handleDeleteMemoryItem(btn, 'summary')
+        break
+      case 'delete-continuity-fact':
+        await this.handleDeleteMemoryItem(btn, 'continuity-fact')
         break
     }
   }
@@ -652,6 +676,26 @@ class DashboardInstance {
     }
   }
 
+  // ── Memory delete ──────────────────────────────────────────────────────
+
+  private async handleDeleteMemoryItem(
+    btn: HTMLElement,
+    kind: 'summary' | 'continuity-fact',
+  ): Promise<void> {
+    const itemId = btn.getAttribute('data-da-item-id')
+    if (!itemId) return
+
+    const state = await readCanonicalState(this.store)
+    if (kind === 'summary') {
+      deleteSummary(state, itemId)
+    } else {
+      deleteContinuityFact(state, itemId)
+    }
+    await this.store.storage.setItem(DIRECTOR_STATE_STORAGE_KEY, structuredClone(state))
+    this.canonicalState = state
+    this.fullReRender()
+  }
+
   // ── Language switch ──────────────────────────────────────────────────
 
   private async handleSwitchLang(btn: HTMLElement): Promise<void> {
@@ -756,6 +800,9 @@ export async function openDashboard(
     // Non-fatal: show the current model only
   }
 
+  // Load canonical memory state for the memory page
+  const canonicalState = await readCanonicalState(store)
+
   const instance = new DashboardInstance(
     api,
     store,
@@ -763,6 +810,7 @@ export async function openDashboard(
     draft,
     profiles,
     modelOptions,
+    canonicalState,
   )
   activeInstance = instance
   await instance.mount()

@@ -499,6 +499,32 @@ export function buildDashboardCss(): string {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
+.da-memory-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.da-memory-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--da-border);
+  border-radius: var(--da-radius-sm);
+  background: color-mix(in srgb, var(--da-bg) 92%, black);
+}
+
+.da-btn--sm {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
 @media (max-width: 960px) {
   .${DASHBOARD_ROOT_CLASS},
   .da-dashboard {

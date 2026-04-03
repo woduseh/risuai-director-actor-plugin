@@ -303,8 +303,16 @@ function buildModelSettingsPage(input: DashboardMarkupInput): string {
       </div>`
 }
 
-function buildMemoryCachePage(_input: DashboardMarkupInput): string {
-  return `
+function buildMemoryCachePage(input: DashboardMarkupInput): string {
+  const { pluginState } = input
+  const summaries = pluginState.memory.summaries
+  const facts = pluginState.memory.continuityFacts
+  const isEmpty = summaries.length === 0 && facts.length === 0
+
+  const filterHtml = `<input type="text" class="da-input" data-da-role="memory-filter" placeholder="${t('memory.filterPlaceholder')}" />`
+
+  if (isEmpty) {
+    return `
       <div class="da-grid">
         <section class="da-card">
           <div class="da-card-header">
@@ -313,7 +321,44 @@ function buildMemoryCachePage(_input: DashboardMarkupInput): string {
               <p class="da-card-copy">${t('card.memoryCache.copy')}</p>
             </div>
           </div>
-          <p class="da-hint">${t('card.memoryCache.hint')}</p>
+          ${filterHtml}
+          <p class="da-empty" data-da-role="memory-empty">${t('memory.emptyHint')}</p>
+        </section>
+      </div>`
+  }
+
+  const summaryItems = summaries
+    .map(
+      (s) =>
+        `<li class="da-memory-item"><span>${s.text}</span><button class="da-btn da-btn--danger da-btn--sm" data-da-action="delete-summary" data-da-item-id="${s.id}">${t('btn.delete')}</button></li>`,
+    )
+    .join('')
+
+  const factItems = facts
+    .map(
+      (f) =>
+        `<li class="da-memory-item"><span>${f.text}</span><button class="da-btn da-btn--danger da-btn--sm" data-da-action="delete-continuity-fact" data-da-item-id="${f.id}">${t('btn.delete')}</button></li>`,
+    )
+    .join('')
+
+  return `
+      ${filterHtml}
+      <div class="da-grid">
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">${t('card.memorySummaries.title')}</h3>
+            </div>
+          </div>
+          <ul class="da-memory-list">${summaryItems}</ul>
+        </section>
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">${t('card.continuityFacts.title')}</h3>
+            </div>
+          </div>
+          <ul class="da-memory-list">${factItems}</ul>
         </section>
       </div>`
 }

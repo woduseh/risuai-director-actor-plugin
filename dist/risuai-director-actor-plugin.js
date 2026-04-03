@@ -521,6 +521,12 @@ ${MEMORY_UPDATE_SCHEMA}`
   function uniqueStrings(values) {
     return [...new Set(values.map((v) => v.trim()).filter(Boolean))];
   }
+  function deleteSummary(state, id) {
+    const idx = state.memory.summaries.findIndex((s) => s.id === id);
+    if (idx === -1) return false;
+    state.memory.summaries.splice(idx, 1);
+    return true;
+  }
   function upsertContinuityFact(state, input) {
     const { id, text, priority, sceneId, entityIds } = input;
     let resolvedId = id;
@@ -2114,6 +2120,32 @@ ${MEMORY_UPDATE_SCHEMA}`
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
+.da-memory-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.da-memory-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--da-border);
+  border-radius: var(--da-radius-sm);
+  background: color-mix(in srgb, var(--da-bg) 92%, black);
+}
+
+.da-btn--sm {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
 @media (max-width: 960px) {
   .${DASHBOARD_ROOT_CLASS},
   .da-dashboard {
@@ -2598,6 +2630,11 @@ ${MEMORY_UPDATE_SCHEMA}`
     "card.memoryCache.title": "Memory & Cache",
     "card.memoryCache.copy": "Inspect the long-memory substrate and keep an eye on the cache/memory write behavior.",
     "card.memoryCache.hint": "Memory summaries, entity graphs, and cache controls will appear here.",
+    "card.memorySummaries.title": "Summaries",
+    "card.continuityFacts.title": "Continuity Facts",
+    "btn.delete": "Delete",
+    "memory.filterPlaceholder": "Filter memory\u2026",
+    "memory.emptyHint": "No memory items yet. Summaries and continuity facts will appear here as the story progresses.",
     // Card: Settings Profiles
     "card.settingsProfiles.title": "Settings Profiles",
     "card.settingsProfiles.copy": "Save reusable presets, swap them in one click, and move them between saves with JSON import/export.",
@@ -2740,6 +2777,11 @@ ${MEMORY_UPDATE_SCHEMA}`
     "card.memoryCache.title": "\uBA54\uBAA8\uB9AC & \uCE90\uC2DC",
     "card.memoryCache.copy": "\uC7A5\uAE30 \uBA54\uBAA8\uB9AC \uAE30\uBC18\uACFC \uCE90\uC2DC/\uBA54\uBAA8\uB9AC \uC4F0\uAE30 \uB3D9\uC791\uC744 \uC810\uAC80\uD558\uC138\uC694.",
     "card.memoryCache.hint": "\uBA54\uBAA8\uB9AC \uC694\uC57D, \uC5D4\uD2F0\uD2F0 \uADF8\uB798\uD504, \uCE90\uC2DC \uC81C\uC5B4\uAC00 \uC5EC\uAE30\uC5D0 \uD45C\uC2DC\uB429\uB2C8\uB2E4.",
+    "card.memorySummaries.title": "\uC694\uC57D",
+    "card.continuityFacts.title": "\uC5F0\uC18D\uC131 \uC0AC\uC2E4",
+    "btn.delete": "\uC0AD\uC81C",
+    "memory.filterPlaceholder": "\uBA54\uBAA8\uB9AC \uD544\uD130\u2026",
+    "memory.emptyHint": "\uC544\uC9C1 \uBA54\uBAA8\uB9AC \uD56D\uBAA9\uC774 \uC5C6\uC2B5\uB2C8\uB2E4. \uC774\uC57C\uAE30\uAC00 \uC9C4\uD589\uB428\uC5D0 \uB530\uB77C \uC694\uC57D \uBC0F \uC5F0\uC18D\uC131 \uC0AC\uC2E4\uC774 \uC5EC\uAE30\uC5D0 \uD45C\uC2DC\uB429\uB2C8\uB2E4.",
     // Card: Settings Profiles
     "card.settingsProfiles.title": "\uC124\uC815 \uD504\uB85C\uD544",
     "card.settingsProfiles.copy": "\uC7AC\uC0AC\uC6A9 \uAC00\uB2A5\uD55C \uD504\uB9AC\uC14B\uC744 \uC800\uC7A5\uD558\uACE0, \uD55C \uBC88\uC758 \uD074\uB9AD\uC73C\uB85C \uAD50\uCCB4\uD558\uBA70, JSON \uAC00\uC838\uC624\uAE30/\uB0B4\uBCF4\uB0B4\uAE30\uB85C \uC774\uB3D9\uD558\uC138\uC694.",
@@ -3073,8 +3115,14 @@ ${MEMORY_UPDATE_SCHEMA}`
         </section>${embeddingSection}
       </div>`;
   }
-  function buildMemoryCachePage(_input) {
-    return `
+  function buildMemoryCachePage(input) {
+    const { pluginState } = input;
+    const summaries = pluginState.memory.summaries;
+    const facts = pluginState.memory.continuityFacts;
+    const isEmpty = summaries.length === 0 && facts.length === 0;
+    const filterHtml = `<input type="text" class="da-input" data-da-role="memory-filter" placeholder="${t("memory.filterPlaceholder")}" />`;
+    if (isEmpty) {
+      return `
       <div class="da-grid">
         <section class="da-card">
           <div class="da-card-header">
@@ -3083,7 +3131,35 @@ ${MEMORY_UPDATE_SCHEMA}`
               <p class="da-card-copy">${t("card.memoryCache.copy")}</p>
             </div>
           </div>
-          <p class="da-hint">${t("card.memoryCache.hint")}</p>
+          ${filterHtml}
+          <p class="da-empty" data-da-role="memory-empty">${t("memory.emptyHint")}</p>
+        </section>
+      </div>`;
+    }
+    const summaryItems = summaries.map(
+      (s) => `<li class="da-memory-item"><span>${s.text}</span><button class="da-btn da-btn--danger da-btn--sm" data-da-action="delete-summary" data-da-item-id="${s.id}">${t("btn.delete")}</button></li>`
+    ).join("");
+    const factItems = facts.map(
+      (f) => `<li class="da-memory-item"><span>${f.text}</span><button class="da-btn da-btn--danger da-btn--sm" data-da-action="delete-continuity-fact" data-da-item-id="${f.id}">${t("btn.delete")}</button></li>`
+    ).join("");
+    return `
+      ${filterHtml}
+      <div class="da-grid">
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">${t("card.memorySummaries.title")}</h3>
+            </div>
+          </div>
+          <ul class="da-memory-list">${summaryItems}</ul>
+        </section>
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">${t("card.continuityFacts.title")}</h3>
+            </div>
+          </div>
+          <ul class="da-memory-list">${factItems}</ul>
         </section>
       </div>`;
   }
@@ -3255,50 +3331,12 @@ ${MEMORY_UPDATE_SCHEMA}`
     }
     return store;
   }
-  function createShellPluginState(settings) {
-    const now = Date.now();
-    return {
-      schemaVersion: 1,
-      projectKey: "",
-      characterKey: "",
-      sessionKey: "",
-      updatedAt: now,
-      settings,
-      director: {
-        currentSceneId: "",
-        scenePhase: "setup",
-        pacingMode: "steady",
-        registerLock: null,
-        povLock: null,
-        continuityFacts: [],
-        activeArcs: [],
-        ensembleWeights: {},
-        failureHistory: [],
-        cooldown: { failures: 0, untilTs: null }
-      },
-      actor: {
-        identityAnchor: [],
-        decisionChain: [],
-        behavioralLocks: [],
-        relationshipMap: {},
-        currentIntentHints: []
-      },
-      memory: {
-        summaries: [],
-        entities: [],
-        relations: [],
-        worldFacts: [],
-        sceneLedger: [],
-        turnArchive: [],
-        continuityFacts: []
-      },
-      metrics: {
-        totalDirectorCalls: 0,
-        totalDirectorFailures: 0,
-        totalMemoryWrites: 0,
-        lastUpdatedAt: now
-      }
-    };
+  async function readCanonicalState(store) {
+    if (store.readCanonical) {
+      return structuredClone(await store.readCanonical());
+    }
+    const raw = await store.storage.getItem(DIRECTOR_STATE_STORAGE_KEY);
+    return raw ? structuredClone(raw) : createEmptyState();
   }
   var DashboardInstance = class {
     api;
@@ -3311,7 +3349,8 @@ ${MEMORY_UPDATE_SCHEMA}`
     modelOptions;
     connectionStatus;
     root = null;
-    constructor(api, store, doc, draft, profiles, modelOptions) {
+    canonicalState;
+    constructor(api, store, doc, draft, profiles, modelOptions, canonicalState) {
       this.api = api;
       this.store = store;
       this.doc = doc;
@@ -3320,6 +3359,7 @@ ${MEMORY_UPDATE_SCHEMA}`
       this.activeTab = DASHBOARD_TABS[0]?.id ?? "general";
       this.modelOptions = modelOptions;
       this.connectionStatus = { kind: "idle", message: t("connection.notTested") };
+      this.canonicalState = canonicalState;
     }
     // ── public ────────────────────────────────────────────────────────────
     async mount() {
@@ -3351,7 +3391,7 @@ ${MEMORY_UPDATE_SCHEMA}`
     buildMarkupInput() {
       return {
         settings: this.draft.settings,
-        pluginState: createShellPluginState(this.draft.settings),
+        pluginState: this.canonicalState,
         profiles: this.profiles,
         activeTab: this.activeTab,
         modelOptions: this.modelOptions,
@@ -3524,6 +3564,12 @@ ${MEMORY_UPDATE_SCHEMA}`
           break;
         case "switch-lang":
           await this.handleSwitchLang(btn);
+          break;
+        case "delete-summary":
+          await this.handleDeleteMemoryItem(btn, "summary");
+          break;
+        case "delete-continuity-fact":
+          await this.handleDeleteMemoryItem(btn, "continuity-fact");
           break;
       }
     }
@@ -3731,6 +3777,20 @@ ${MEMORY_UPDATE_SCHEMA}`
         await this.api.alertError(t("toast.failedParseProfile"));
       }
     }
+    // ── Memory delete ──────────────────────────────────────────────────────
+    async handleDeleteMemoryItem(btn, kind) {
+      const itemId = btn.getAttribute("data-da-item-id");
+      if (!itemId) return;
+      const state = await readCanonicalState(this.store);
+      if (kind === "summary") {
+        deleteSummary(state, itemId);
+      } else {
+        deleteContinuityFact(state, itemId);
+      }
+      await this.store.storage.setItem(DIRECTOR_STATE_STORAGE_KEY, structuredClone(state));
+      this.canonicalState = state;
+      this.fullReRender();
+    }
     // ── Language switch ──────────────────────────────────────────────────
     async handleSwitchLang(btn) {
       const nextLocale = btn.getAttribute("data-da-lang") ?? "en";
@@ -3788,13 +3848,15 @@ ${MEMORY_UPDATE_SCHEMA}`
       }
     } catch {
     }
+    const canonicalState = await readCanonicalState(store);
     const instance = new DashboardInstance(
       api,
       store,
       targetDoc,
       draft,
       profiles,
-      modelOptions
+      modelOptions,
+      canonicalState
     );
     activeInstance = instance;
     await instance.mount();

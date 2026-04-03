@@ -141,6 +141,11 @@ const EN_CATALOG = {
   'card.memoryCache.title': 'Memory & Cache',
   'card.memoryCache.copy': 'Inspect the long-memory substrate and keep an eye on the cache/memory write behavior.',
   'card.memoryCache.hint': 'Memory summaries, entity graphs, and cache controls will appear here.',
+  'card.memorySummaries.title': 'Summaries',
+  'card.continuityFacts.title': 'Continuity Facts',
+  'btn.delete': 'Delete',
+  'memory.filterPlaceholder': 'Filter memory\u2026',
+  'memory.emptyHint': 'No memory items yet. Summaries and continuity facts will appear here as the story progresses.',
 
   // Card: Settings Profiles
   'card.settingsProfiles.title': 'Settings Profiles',
@@ -308,6 +313,11 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'card.memoryCache.title': '메모리 & 캐시',
   'card.memoryCache.copy': '장기 메모리 기반과 캐시/메모리 쓰기 동작을 점검하세요.',
   'card.memoryCache.hint': '메모리 요약, 엔티티 그래프, 캐시 제어가 여기에 표시됩니다.',
+  'card.memorySummaries.title': '요약',
+  'card.continuityFacts.title': '연속성 사실',
+  'btn.delete': '삭제',
+  'memory.filterPlaceholder': '메모리 필터\u2026',
+  'memory.emptyHint': '아직 메모리 항목이 없습니다. 이야기가 진행됨에 따라 요약 및 연속성 사실이 여기에 표시됩니다.',
 
   // Card: Settings Profiles
   'card.settingsProfiles.title': '설정 프로필',
