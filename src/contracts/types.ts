@@ -41,6 +41,44 @@ export type PromptSegmentKind =
 export type ScenePhase = 'setup' | 'pressure' | 'turn' | 'aftermath'
 export type BriefPacing = 'breathe' | 'steady' | 'tight' | 'accelerate'
 export type MemoryOpKind = 'insert' | 'update' | 'merge' | 'archive' | 'drop'
+
+// ── Virtual Memdir types ─────────────────────────────────────────────
+
+/** RP memory taxonomy — mirrors Claude Code CLAUDE.md document types. */
+export const MEMDIR_DOCUMENT_TYPES = [
+  'character',
+  'relationship',
+  'world',
+  'plot',
+  'continuity',
+  'operator',
+] as const
+
+export type MemdirDocumentType = (typeof MEMDIR_DOCUMENT_TYPES)[number]
+
+export type MemdirFreshness = 'current' | 'stale' | 'archived'
+export type MemdirSource = 'extraction' | 'operator' | 'migration' | 'manual'
+
+/** A single addressable memory document in the virtual memdir. */
+export interface MemdirDocument {
+  id: string
+  type: MemdirDocumentType
+  title: string
+  description: string
+  scopeKey: string
+  updatedAt: number
+  source: MemdirSource
+  freshness: MemdirFreshness
+  tags: string[]
+}
+
+/** Manifest / index for a scope's memdir documents. */
+export interface MemdirIndex {
+  scopeKey: string
+  docIds: string[]
+  createdAt: number
+  updatedAt: number
+}
 export type ValidationStatus = 'pass' | 'soft-fail' | 'hard-fail'
 
 export interface DirectorPromptPreset {
@@ -85,6 +123,14 @@ export interface DirectorSettings {
   embeddingDimensions: number
   promptPresetId: string
   promptPresets: Record<string, StoredDirectorPromptPreset>
+  /** Minimum turn interval before the next memory extraction (turns). */
+  extractionMinTurnInterval: number
+  /** Cooldown in ms before re-issuing a recall query. */
+  recallCooldownMs: number
+  /** Minimum hours elapsed before a dream/consolidation pass. */
+  dreamMinHoursElapsed: number
+  /** Minimum sessions elapsed before a dream/consolidation pass. */
+  dreamMinSessionsElapsed: number
 }
 
 export interface ContinuityFact {
@@ -333,7 +379,11 @@ export const DEFAULT_DIRECTOR_SETTINGS: DirectorSettings = {
   embeddingModel: 'text-embedding-3-small',
   embeddingDimensions: 1536,
   promptPresetId: 'builtin-default',
-  promptPresets: {}
+  promptPresets: {},
+  extractionMinTurnInterval: 3,
+  recallCooldownMs: 10_000,
+  dreamMinHoursElapsed: 4,
+  dreamMinSessionsElapsed: 2,
 }
 
 export function createEmptyState(seed?: Partial<Pick<DirectorPluginState, 'projectKey' | 'characterKey' | 'sessionKey'>>): DirectorPluginState {

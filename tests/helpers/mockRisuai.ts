@@ -13,7 +13,7 @@ import type {
 } from '../../src/contracts/risuai.js'
 import type { HookRequestType, OpenAIChat, ScriptMode } from '../../src/contracts/types.js'
 
-class InMemoryAsyncStore implements AsyncKeyValueStore {
+export class InMemoryAsyncStore implements AsyncKeyValueStore {
   private readonly data = new Map<string, unknown>()
 
   async getItem<T = unknown>(key: string): Promise<T | null> {
