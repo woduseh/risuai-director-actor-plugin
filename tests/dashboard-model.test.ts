@@ -14,6 +14,30 @@ describe('dashboardModel', () => {
     )
   })
 
+  test('includes copilot and vertex providers plus latest curated model families', () => {
+    expect(DIRECTOR_PROVIDER_CATALOG.map((entry: { id: string }) => entry.id)).toEqual(
+      expect.arrayContaining(['openai', 'anthropic', 'google', 'copilot', 'vertex', 'custom'])
+    )
+
+    const openai = resolveProviderDefaults('openai') as unknown as Record<string, unknown>
+    const anthropic = resolveProviderDefaults('anthropic') as unknown as Record<string, unknown>
+    const google = resolveProviderDefaults('google') as unknown as Record<string, unknown>
+    const copilot = resolveProviderDefaults(
+      'copilot' as unknown as Parameters<typeof resolveProviderDefaults>[0]
+    ) as unknown as Record<string, unknown>
+    const vertex = resolveProviderDefaults(
+      'vertex' as unknown as Parameters<typeof resolveProviderDefaults>[0]
+    ) as unknown as Record<string, unknown>
+
+    expect(openai.curatedModels).toEqual(expect.arrayContaining(['gpt-5.4']))
+    expect(anthropic.curatedModels).toEqual(expect.arrayContaining(['claude-opus-4-6']))
+    expect(google.curatedModels).toEqual(expect.arrayContaining(['gemini-3.1-pro-preview']))
+    expect(copilot.label).toBe('GitHub Copilot')
+    expect(copilot.authMode).toBe('oauth-device-flow')
+    expect(vertex.label).toBe('Google Vertex AI')
+    expect(vertex.authMode).toBe('manual-advanced')
+  })
+
   test('resolves provider defaults for openai', () => {
     const defaults = resolveProviderDefaults('openai')
 
@@ -52,6 +76,20 @@ describe('dashboardModel', () => {
 
     expect(models.length).toBeGreaterThan(0)
     expect(models.some((entry: string) => entry.includes('claude'))).toBe(true)
+  })
+
+  test('returns latest curated Google model suggestions when listing is provider-managed', async () => {
+    const api = createMockRisuaiApi()
+
+    const models = await loadProviderModels(
+      api,
+      normalizePersistedSettings({
+        directorProvider: 'google',
+        directorApiKey: 'test-key'
+      })
+    )
+
+    expect(models).toEqual(expect.arrayContaining(['gemini-3.1-pro-preview']))
   })
 
   test('tests openai-compatible connectivity with nativeFetch', async () => {

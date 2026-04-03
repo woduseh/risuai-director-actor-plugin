@@ -13,7 +13,8 @@ export type HookRequestType = 'model' | 'display' | 'emotion' | 'memory' | strin
 export type ScriptMode = 'display' | 'output' | 'input' | 'process'
 export type ReplacerType = 'beforeRequest' | 'afterRequest'
 export type DirectorAssertiveness = 'light' | 'standard' | 'firm'
-export type DirectorProvider = 'openai' | 'anthropic' | 'google' | 'custom'
+export type DirectorProvider = 'openai' | 'anthropic' | 'google' | 'copilot' | 'vertex' | 'custom'
+export type EmbeddingProvider = 'voyageai' | 'openai' | 'google' | 'vertex' | 'custom'
 export type InjectionMode =
   | 'auto'
   | 'author-note'
@@ -58,6 +59,11 @@ export interface DirectorSettings {
   cooldownFailureThreshold: number
   cooldownMs: number
   outputDebounceMs: number
+  embeddingProvider: EmbeddingProvider
+  embeddingBaseUrl: string
+  embeddingApiKey: string
+  embeddingModel: string
+  embeddingDimensions: number
 }
 
 export interface ContinuityFact {
@@ -299,7 +305,12 @@ export const DEFAULT_DIRECTOR_SETTINGS: DirectorSettings = {
   includeTypes: ['model'],
   cooldownFailureThreshold: 3,
   cooldownMs: 60_000,
-  outputDebounceMs: 400
+  outputDebounceMs: 400,
+  embeddingProvider: 'openai',
+  embeddingBaseUrl: 'https://api.openai.com/v1',
+  embeddingApiKey: '',
+  embeddingModel: 'text-embedding-3-small',
+  embeddingDimensions: 1536
 }
 
 export function createEmptyState(seed?: Partial<Pick<DirectorPluginState, 'projectKey' | 'characterKey' | 'sessionKey'>>): DirectorPluginState {

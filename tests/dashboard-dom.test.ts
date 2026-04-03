@@ -56,4 +56,24 @@ describe('buildDashboardMarkup', () => {
     expect(markup).not.toContain('>Gentle<')
     expect(markup).not.toContain('>Strict<')
   })
+
+  test('renders expanded director and embedding provider controls on the model settings page', () => {
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({ embeddingsEnabled: true }),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'model-settings',
+      modelOptions: ['gpt-5.4-mini'],
+      connectionStatus: { kind: 'idle', message: '' }
+    })
+
+    expect(markup).toContain('value="copilot"')
+    expect(markup).toContain('value="vertex"')
+    expect(markup).toContain('data-da-field="embeddingProvider"')
+    expect(markup).toContain('data-da-field="embeddingBaseUrl"')
+    expect(markup).toContain('data-da-field="embeddingApiKey"')
+    expect(markup).toContain('data-da-field="embeddingModel"')
+    expect(markup).toContain('data-da-field="embeddingDimensions"')
+    expect(markup).toContain('value="voyageai"')
+  })
 })

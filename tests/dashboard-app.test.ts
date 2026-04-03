@@ -148,6 +148,48 @@ describe('openDashboard', () => {
     expect(capInput.value).toBe('500')
   })
 
+  test('loads persisted embedding settings into the model settings controls', async () => {
+    await api.pluginStorage.setItem(DASHBOARD_SETTINGS_KEY, {
+      ...DEFAULT_DIRECTOR_SETTINGS,
+      embeddingsEnabled: true,
+      embeddingProvider: 'voyageai',
+      embeddingBaseUrl: 'https://api.voyageai.com/v1',
+      embeddingApiKey: 'voyage-test-key',
+      embeddingModel: 'voyage-3-lite',
+      embeddingDimensions: 1024,
+    })
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const modelBtn = root.querySelector('[data-da-target="model-settings"]') as HTMLElement
+    modelBtn.click()
+
+    const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const providerSelect = updatedRoot.querySelector(
+      '[data-da-field="embeddingProvider"]',
+    ) as HTMLSelectElement | null
+    const baseUrlInput = updatedRoot.querySelector(
+      '[data-da-field="embeddingBaseUrl"]',
+    ) as HTMLInputElement | null
+    const apiKeyInput = updatedRoot.querySelector(
+      '[data-da-field="embeddingApiKey"]',
+    ) as HTMLInputElement | null
+    const modelInput = updatedRoot.querySelector(
+      '[data-da-field="embeddingModel"]',
+    ) as HTMLInputElement | HTMLSelectElement | null
+    const dimensionsInput = updatedRoot.querySelector(
+      '[data-da-field="embeddingDimensions"]',
+    ) as HTMLInputElement | null
+
+    expect(providerSelect).not.toBeNull()
+    expect(providerSelect?.value).toBe('voyageai')
+    expect(baseUrlInput?.value).toBe('https://api.voyageai.com/v1')
+    expect(apiKeyInput?.value).toBe('voyage-test-key')
+    expect(modelInput?.value).toBe('voyage-3-lite')
+    expect(dimensionsInput?.value).toBe('1024')
+  })
+
   test('save persists draft to pluginStorage', async () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement

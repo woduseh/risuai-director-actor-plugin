@@ -402,7 +402,12 @@ ${MEMORY_UPDATE_SCHEMA}`
     includeTypes: ["model"],
     cooldownFailureThreshold: 3,
     cooldownMs: 6e4,
-    outputDebounceMs: 400
+    outputDebounceMs: 400,
+    embeddingProvider: "openai",
+    embeddingBaseUrl: "https://api.openai.com/v1",
+    embeddingApiKey: "",
+    embeddingModel: "text-embedding-3-small",
+    embeddingDimensions: 1536
   };
   function createEmptyState(seed) {
     const now = Date.now();
@@ -2338,7 +2343,22 @@ ${MEMORY_UPDATE_SCHEMA}`
     "option.openai": "OpenAI",
     "option.anthropic": "Anthropic",
     "option.google": "Google",
+    "option.copilot": "GitHub Copilot",
+    "option.vertex": "Google Vertex AI",
     "option.custom": "Custom",
+    // Card: Embedding Settings
+    "card.embeddingSettings.title": "Embedding Settings",
+    "card.embeddingSettings.copy": "Configure the embedding provider used for semantic memory retrieval.",
+    "label.embeddingProvider": "Embedding Provider",
+    "label.embeddingBaseUrl": "Embedding Base URL",
+    "label.embeddingApiKey": "Embedding API Key",
+    "label.embeddingModel": "Embedding Model",
+    "label.embeddingDimensions": "Embedding Dimensions",
+    "option.embedding.voyageai": "Voyage AI",
+    "option.embedding.openai": "OpenAI",
+    "option.embedding.google": "Google",
+    "option.embedding.vertex": "Google Vertex AI",
+    "option.embedding.custom": "Custom",
     // Card: Memory & Cache
     "card.memoryCache.title": "Memory & Cache",
     "card.memoryCache.copy": "Inspect the long-memory substrate and keep an eye on the cache/memory write behavior.",
@@ -2361,7 +2381,10 @@ ${MEMORY_UPDATE_SCHEMA}`
     "toast.failedParseProfile": "Failed to parse profile JSON",
     // Import alert
     "alert.importInstructions": 'To import a profile, save the JSON to plugin storage key "{{key}}" and click Import again.',
-    // Built-in profile names
+    // Placeholders
+    "placeholder.customModelId": "type a model ID directly",
+    // Profile names
+    "profile.defaultName": "Profile {{n}}",
     "profile.balanced": "Balanced",
     "profile.gentle": "Gentle",
     "profile.strict": "Strict",
@@ -2462,7 +2485,22 @@ ${MEMORY_UPDATE_SCHEMA}`
     "option.openai": "OpenAI",
     "option.anthropic": "Anthropic",
     "option.google": "Google",
+    "option.copilot": "GitHub Copilot",
+    "option.vertex": "Google Vertex AI",
     "option.custom": "\uCEE4\uC2A4\uD140",
+    // Card: Embedding Settings
+    "card.embeddingSettings.title": "\uC784\uBCA0\uB529 \uC124\uC815",
+    "card.embeddingSettings.copy": "\uC2DC\uB9E8\uD2F1 \uBA54\uBAA8\uB9AC \uAC80\uC0C9\uC5D0 \uC0AC\uC6A9\uD560 \uC784\uBCA0\uB529 \uD504\uB85C\uBC14\uC774\uB354\uB97C \uC124\uC815\uD558\uC138\uC694.",
+    "label.embeddingProvider": "\uC784\uBCA0\uB529 \uD504\uB85C\uBC14\uC774\uB354",
+    "label.embeddingBaseUrl": "\uC784\uBCA0\uB529 Base URL",
+    "label.embeddingApiKey": "\uC784\uBCA0\uB529 API \uD0A4",
+    "label.embeddingModel": "\uC784\uBCA0\uB529 \uBAA8\uB378",
+    "label.embeddingDimensions": "\uC784\uBCA0\uB529 \uCC28\uC6D0",
+    "option.embedding.voyageai": "Voyage AI",
+    "option.embedding.openai": "OpenAI",
+    "option.embedding.google": "Google",
+    "option.embedding.vertex": "Google Vertex AI",
+    "option.embedding.custom": "\uCEE4\uC2A4\uD140",
     // Card: Memory & Cache
     "card.memoryCache.title": "\uBA54\uBAA8\uB9AC & \uCE90\uC2DC",
     "card.memoryCache.copy": "\uC7A5\uAE30 \uBA54\uBAA8\uB9AC \uAE30\uBC18\uACFC \uCE90\uC2DC/\uBA54\uBAA8\uB9AC \uC4F0\uAE30 \uB3D9\uC791\uC744 \uC810\uAC80\uD558\uC138\uC694.",
@@ -2485,7 +2523,10 @@ ${MEMORY_UPDATE_SCHEMA}`
     "toast.failedParseProfile": "\uD504\uB85C\uD544 JSON \uD30C\uC2F1\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4",
     // Import alert
     "alert.importInstructions": '\uD504\uB85C\uD544\uC744 \uAC00\uC838\uC624\uB824\uBA74 JSON\uC744 \uD50C\uB7EC\uADF8\uC778 \uC800\uC7A5\uC18C \uD0A4 "{{key}}"\uC5D0 \uC800\uC7A5\uD55C \uD6C4 \uAC00\uC838\uC624\uAE30\uB97C \uB2E4\uC2DC \uD074\uB9AD\uD558\uC138\uC694.',
-    // Built-in profile names
+    // Placeholders
+    "placeholder.customModelId": "\uBAA8\uB378 ID\uB97C \uC9C1\uC811 \uC785\uB825\uD558\uC138\uC694",
+    // Profile names
+    "profile.defaultName": "\uD504\uB85C\uD544 {{n}}",
     "profile.balanced": "\uADE0\uD615",
     "profile.gentle": "\uBD80\uB4DC\uB7EC\uC6C0",
     "profile.strict": "\uC5C4\uACA9",
@@ -2551,11 +2592,11 @@ ${MEMORY_UPDATE_SCHEMA}`
 
   // src/ui/dashboardDom.ts
   var DASHBOARD_TABS = [
-    { id: "general", labelKey: "general", group: "general" },
-    { id: "prompt-tuning", labelKey: "prompt-tuning", group: "tuning" },
-    { id: "model-settings", labelKey: "model-settings", group: "tuning" },
-    { id: "memory-cache", labelKey: "memory-cache", group: "memory" },
-    { id: "settings-profiles", labelKey: "settings-profiles", group: "profiles" }
+    { id: "general", group: "general" },
+    { id: "prompt-tuning", group: "tuning" },
+    { id: "model-settings", group: "tuning" },
+    { id: "memory-cache", group: "memory" },
+    { id: "settings-profiles", group: "profiles" }
   ];
   function buildSidebar(activeTab) {
     const groups = [
@@ -2706,6 +2747,43 @@ ${MEMORY_UPDATE_SCHEMA}`
   function buildModelSettingsPage(input) {
     const { settings, modelOptions } = input;
     const modelOptionEls = modelOptions.map((m) => `<option value="${m}"${m === settings.directorModel ? " selected" : ""}>${m}</option>`).join("");
+    const embeddingSection = `
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">${t("card.embeddingSettings.title")}</h3>
+              <p class="da-card-copy">${t("card.embeddingSettings.copy")}</p>
+            </div>
+          </div>
+          <div class="da-form-grid">
+            <label class="da-label">
+              <span class="da-label-text">${t("label.embeddingProvider")}</span>
+              <select class="da-select" data-da-field="embeddingProvider">
+                <option value="openai"${settings.embeddingProvider === "openai" ? " selected" : ""}>${t("option.embedding.openai")}</option>
+                <option value="voyageai"${settings.embeddingProvider === "voyageai" ? " selected" : ""}>${t("option.embedding.voyageai")}</option>
+                <option value="google"${settings.embeddingProvider === "google" ? " selected" : ""}>${t("option.embedding.google")}</option>
+                <option value="vertex"${settings.embeddingProvider === "vertex" ? " selected" : ""}>${t("option.embedding.vertex")}</option>
+                <option value="custom"${settings.embeddingProvider === "custom" ? " selected" : ""}>${t("option.embedding.custom")}</option>
+              </select>
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">${t("label.embeddingBaseUrl")}</span>
+              <input type="text" class="da-input" data-da-field="embeddingBaseUrl" value="${settings.embeddingBaseUrl}" />
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">${t("label.embeddingApiKey")}</span>
+              <input type="password" class="da-input" data-da-field="embeddingApiKey" value="${settings.embeddingApiKey}" />
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">${t("label.embeddingModel")}</span>
+              <input type="text" class="da-input" data-da-field="embeddingModel" value="${settings.embeddingModel}" />
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">${t("label.embeddingDimensions")}</span>
+              <input type="number" class="da-input" data-da-field="embeddingDimensions" value="${settings.embeddingDimensions}" />
+            </label>
+          </div>
+        </section>`;
     return `
       <div class="da-grid">
         <section class="da-card">
@@ -2722,6 +2800,8 @@ ${MEMORY_UPDATE_SCHEMA}`
                 <option value="openai"${settings.directorProvider === "openai" ? " selected" : ""}>${t("option.openai")}</option>
                 <option value="anthropic"${settings.directorProvider === "anthropic" ? " selected" : ""}>${t("option.anthropic")}</option>
                 <option value="google"${settings.directorProvider === "google" ? " selected" : ""}>${t("option.google")}</option>
+                <option value="copilot"${settings.directorProvider === "copilot" ? " selected" : ""}>${t("option.copilot")}</option>
+                <option value="vertex"${settings.directorProvider === "vertex" ? " selected" : ""}>${t("option.vertex")}</option>
                 <option value="custom"${settings.directorProvider === "custom" ? " selected" : ""}>${t("option.custom")}</option>
               </select>
             </label>
@@ -2741,14 +2821,14 @@ ${MEMORY_UPDATE_SCHEMA}`
             </label>
             <label class="da-label">
               <span class="da-label-text">${t("label.customModelId")}</span>
-              <input type="text" class="da-input" data-da-field="directorModel" value="${settings.directorModel}" placeholder="type a model ID directly" />
+              <input type="text" class="da-input" data-da-field="directorModel" value="${settings.directorModel}" placeholder="${t("placeholder.customModelId")}" />
             </label>
             <div class="da-inline">
               <button class="da-btn da-btn--primary" data-da-action="test-connection">${t("btn.testConnection")}</button>
               <button class="da-btn" data-da-action="refresh-models">${t("btn.refreshModels")}</button>
             </div>
           </div>
-        </section>
+        </section>${embeddingSection}
       </div>`;
   }
   function buildMemoryCachePage(_input) {
@@ -2921,47 +3001,83 @@ ${MEMORY_UPDATE_SCHEMA}`
       id: "openai",
       label: "OpenAI",
       baseUrl: "https://api.openai.com/v1",
-      manualModelOnly: false
+      manualModelOnly: false,
+      authMode: "api-key",
+      curatedModels: ["gpt-4.1-mini", "gpt-4.1", "gpt-5.4-mini", "gpt-5.4"]
     },
     {
       id: "anthropic",
       label: "Anthropic",
       baseUrl: "https://api.anthropic.com/v1",
-      manualModelOnly: true
+      manualModelOnly: true,
+      authMode: "api-key",
+      curatedModels: [
+        "claude-3-5-haiku-latest",
+        "claude-3-5-sonnet-latest",
+        "claude-3-7-sonnet-latest",
+        "claude-sonnet-4-20250514",
+        "claude-opus-4-6"
+      ]
     },
     {
       id: "google",
       label: "Google",
       baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-      manualModelOnly: true
+      manualModelOnly: true,
+      authMode: "api-key",
+      curatedModels: [
+        "gemini-2.0-flash",
+        "gemini-2.5-flash-preview-04-17",
+        "gemini-2.5-pro-preview-05-06",
+        "gemini-3.1-pro-preview"
+      ]
+    },
+    {
+      id: "copilot",
+      label: "GitHub Copilot",
+      baseUrl: "https://api.githubcopilot.com/v1",
+      manualModelOnly: true,
+      authMode: "oauth-device-flow",
+      curatedModels: ["gpt-4.1", "claude-sonnet-4-20250514"]
+    },
+    {
+      id: "vertex",
+      label: "Google Vertex AI",
+      baseUrl: "",
+      manualModelOnly: true,
+      authMode: "manual-advanced",
+      curatedModels: [
+        "gemini-2.5-pro-preview-05-06",
+        "gemini-3.1-pro-preview"
+      ]
     },
     {
       id: "custom",
       label: "Custom (OpenAI-compatible)",
       baseUrl: "",
-      manualModelOnly: false
+      manualModelOnly: false,
+      authMode: "api-key",
+      curatedModels: []
     }
   ];
   function resolveProviderDefaults(providerId) {
     const entry = DIRECTOR_PROVIDER_CATALOG.find((e) => e.id === providerId);
     if (entry) return { ...entry };
-    return { id: providerId, label: providerId, baseUrl: "", manualModelOnly: true };
+    return {
+      id: providerId,
+      label: providerId,
+      baseUrl: "",
+      manualModelOnly: true,
+      authMode: "api-key",
+      curatedModels: []
+    };
   }
-  var ANTHROPIC_FALLBACK_MODELS = [
-    "claude-3-5-haiku-latest",
-    "claude-3-5-sonnet-latest",
-    "claude-3-7-sonnet-latest",
-    "claude-sonnet-4-20250514"
-  ];
-  var GOOGLE_FALLBACK_MODELS = [
-    "gemini-2.0-flash",
-    "gemini-2.5-flash-preview-04-17",
-    "gemini-2.5-pro-preview-05-06"
-  ];
   async function loadProviderModels(api, settings) {
     const provider = settings.directorProvider;
-    if (provider === "anthropic") return [...ANTHROPIC_FALLBACK_MODELS];
-    if (provider === "google") return [...GOOGLE_FALLBACK_MODELS];
+    const catalogEntry = DIRECTOR_PROVIDER_CATALOG.find((e) => e.id === provider);
+    if (catalogEntry?.manualModelOnly) {
+      return [...catalogEntry.curatedModels];
+    }
     const baseUrl = settings.directorBaseUrl;
     if (!baseUrl) {
       throw new Error("Base URL is required for model listing");
@@ -2992,9 +3108,9 @@ ${MEMORY_UPDATE_SCHEMA}`
       if (!settings.directorApiKey) {
         return { ok: false, error: "API key is not configured" };
       }
-      if (provider === "anthropic" || provider === "google") {
-        const models2 = provider === "anthropic" ? [...ANTHROPIC_FALLBACK_MODELS] : [...GOOGLE_FALLBACK_MODELS];
-        return { ok: true, models: models2 };
+      const catalogEntry = DIRECTOR_PROVIDER_CATALOG.find((e) => e.id === provider);
+      if (catalogEntry?.manualModelOnly) {
+        return { ok: true, models: [...catalogEntry.curatedModels] };
       }
       const baseUrl = settings.directorBaseUrl;
       if (!baseUrl) {
@@ -3431,7 +3547,7 @@ ${MEMORY_UPDATE_SCHEMA}`
       const id = `${PROFILE_ID_PREFIX}${String(now)}-${Math.random().toString(36).slice(2, 6)}`;
       const newProfile = {
         id,
-        name: `Profile ${String(this.profiles.profiles.length + 1)}`,
+        name: t("profile.defaultName", { n: String(this.profiles.profiles.length + 1) }),
         createdAt: now,
         updatedAt: now,
         basedOn: this.profiles.activeProfileId,

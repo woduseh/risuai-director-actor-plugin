@@ -17,6 +17,16 @@ describe('dashboardState', () => {
     expect(settings.directorApiKey).toBe('')
   })
 
+  test('normalizes embedding settings to safe defaults', () => {
+    const settings = normalizePersistedSettings({}) as unknown as Record<string, unknown>
+
+    expect(settings.embeddingProvider).toBe('openai')
+    expect(settings.embeddingBaseUrl).toBe('https://api.openai.com/v1')
+    expect(settings.embeddingApiKey).toBe('')
+    expect(settings.embeddingModel).toBe('text-embedding-3-small')
+    expect(settings.embeddingDimensions).toBe(1536)
+  })
+
   test('creates a draft wrapper with dirty state disabled by default', () => {
     const draft = createDashboardDraft(normalizePersistedSettings({}))
 

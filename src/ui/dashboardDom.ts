@@ -208,6 +208,45 @@ function buildModelSettingsPage(input: DashboardMarkupInput): string {
   const modelOptionEls = modelOptions
     .map((m) => `<option value="${m}"${m === settings.directorModel ? ' selected' : ''}>${m}</option>`)
     .join('')
+
+  const embeddingSection = `
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">${t('card.embeddingSettings.title')}</h3>
+              <p class="da-card-copy">${t('card.embeddingSettings.copy')}</p>
+            </div>
+          </div>
+          <div class="da-form-grid">
+            <label class="da-label">
+              <span class="da-label-text">${t('label.embeddingProvider')}</span>
+              <select class="da-select" data-da-field="embeddingProvider">
+                <option value="openai"${settings.embeddingProvider === 'openai' ? ' selected' : ''}>${t('option.embedding.openai')}</option>
+                <option value="voyageai"${settings.embeddingProvider === 'voyageai' ? ' selected' : ''}>${t('option.embedding.voyageai')}</option>
+                <option value="google"${settings.embeddingProvider === 'google' ? ' selected' : ''}>${t('option.embedding.google')}</option>
+                <option value="vertex"${settings.embeddingProvider === 'vertex' ? ' selected' : ''}>${t('option.embedding.vertex')}</option>
+                <option value="custom"${settings.embeddingProvider === 'custom' ? ' selected' : ''}>${t('option.embedding.custom')}</option>
+              </select>
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">${t('label.embeddingBaseUrl')}</span>
+              <input type="text" class="da-input" data-da-field="embeddingBaseUrl" value="${settings.embeddingBaseUrl}" />
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">${t('label.embeddingApiKey')}</span>
+              <input type="password" class="da-input" data-da-field="embeddingApiKey" value="${settings.embeddingApiKey}" />
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">${t('label.embeddingModel')}</span>
+              <input type="text" class="da-input" data-da-field="embeddingModel" value="${settings.embeddingModel}" />
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">${t('label.embeddingDimensions')}</span>
+              <input type="number" class="da-input" data-da-field="embeddingDimensions" value="${settings.embeddingDimensions}" />
+            </label>
+          </div>
+        </section>`
+
   return `
       <div class="da-grid">
         <section class="da-card">
@@ -224,6 +263,8 @@ function buildModelSettingsPage(input: DashboardMarkupInput): string {
                 <option value="openai"${settings.directorProvider === 'openai' ? ' selected' : ''}>${t('option.openai')}</option>
                 <option value="anthropic"${settings.directorProvider === 'anthropic' ? ' selected' : ''}>${t('option.anthropic')}</option>
                 <option value="google"${settings.directorProvider === 'google' ? ' selected' : ''}>${t('option.google')}</option>
+                <option value="copilot"${settings.directorProvider === 'copilot' ? ' selected' : ''}>${t('option.copilot')}</option>
+                <option value="vertex"${settings.directorProvider === 'vertex' ? ' selected' : ''}>${t('option.vertex')}</option>
                 <option value="custom"${settings.directorProvider === 'custom' ? ' selected' : ''}>${t('option.custom')}</option>
               </select>
             </label>
@@ -250,7 +291,7 @@ function buildModelSettingsPage(input: DashboardMarkupInput): string {
               <button class="da-btn" data-da-action="refresh-models">${t('btn.refreshModels')}</button>
             </div>
           </div>
-        </section>
+        </section>${embeddingSection}
       </div>`
 }
 

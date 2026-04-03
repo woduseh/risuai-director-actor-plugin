@@ -117,7 +117,23 @@ const EN_CATALOG = {
   'option.openai': 'OpenAI',
   'option.anthropic': 'Anthropic',
   'option.google': 'Google',
+  'option.copilot': 'GitHub Copilot',
+  'option.vertex': 'Google Vertex AI',
   'option.custom': 'Custom',
+
+  // Card: Embedding Settings
+  'card.embeddingSettings.title': 'Embedding Settings',
+  'card.embeddingSettings.copy': 'Configure the embedding provider used for semantic memory retrieval.',
+  'label.embeddingProvider': 'Embedding Provider',
+  'label.embeddingBaseUrl': 'Embedding Base URL',
+  'label.embeddingApiKey': 'Embedding API Key',
+  'label.embeddingModel': 'Embedding Model',
+  'label.embeddingDimensions': 'Embedding Dimensions',
+  'option.embedding.voyageai': 'Voyage AI',
+  'option.embedding.openai': 'OpenAI',
+  'option.embedding.google': 'Google',
+  'option.embedding.vertex': 'Google Vertex AI',
+  'option.embedding.custom': 'Custom',
 
   // Card: Memory & Cache
   'card.memoryCache.title': 'Memory & Cache',
@@ -268,7 +284,23 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'option.openai': 'OpenAI',
   'option.anthropic': 'Anthropic',
   'option.google': 'Google',
+  'option.copilot': 'GitHub Copilot',
+  'option.vertex': 'Google Vertex AI',
   'option.custom': '커스텀',
+
+  // Card: Embedding Settings
+  'card.embeddingSettings.title': '임베딩 설정',
+  'card.embeddingSettings.copy': '시맨틱 메모리 검색에 사용할 임베딩 프로바이더를 설정하세요.',
+  'label.embeddingProvider': '임베딩 프로바이더',
+  'label.embeddingBaseUrl': '임베딩 Base URL',
+  'label.embeddingApiKey': '임베딩 API 키',
+  'label.embeddingModel': '임베딩 모델',
+  'label.embeddingDimensions': '임베딩 차원',
+  'option.embedding.voyageai': 'Voyage AI',
+  'option.embedding.openai': 'OpenAI',
+  'option.embedding.google': 'Google',
+  'option.embedding.vertex': 'Google Vertex AI',
+  'option.embedding.custom': '커스텀',
 
   // Card: Memory & Cache
   'card.memoryCache.title': '메모리 & 캐시',
