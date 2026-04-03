@@ -15,7 +15,7 @@ import {
   type DirectorPostResponseInput,
   type DirectorPreRequestInput
 } from './runtime/plugin.js'
-import { showSettingsOverlay } from './ui/settings.js'
+import { openDashboard, createDashboardStore } from './ui/dashboardApp.js'
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -170,8 +170,8 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
     circuitBreaker,
     turnCache,
     openSettings: async () => {
-      const current = await store.load()
-      await showSettingsOverlay(api, current.settings)
+      const dashboardStore = createDashboardStore(api, (mutator) => store.writeFirst(mutator))
+      await openDashboard(api, dashboardStore)
     }
   })
 }

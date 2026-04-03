@@ -1,6 +1,8 @@
 import type { RisuaiApi } from '../contracts/risuai.js'
 import type { DirectorSettings } from '../contracts/types.js'
 import { DEFAULT_DIRECTOR_SETTINGS } from '../contracts/types.js'
+import { openDashboard, closeDashboard } from './dashboardApp.js'
+import type { DashboardStore } from './dashboardApp.js'
 
 export interface PluginUiOptions {
   onOpen: () => Promise<void> | void
@@ -9,42 +11,57 @@ export interface PluginUiOptions {
 const SETTING_NAME = 'Director Settings'
 const BUTTON_NAME = 'Director'
 const BUTTON_ICON = '🎬'
+const SETTING_ID = 'director-dashboard-settings'
+const BUTTON_ID = 'director-dashboard-button'
 
-/**
- * Show a settings overview via api.alert (safe fallback that works in all environments).
- */
-export async function showSettingsOverlay(
-  api: RisuaiApi,
-  settings: DirectorSettings = DEFAULT_DIRECTOR_SETTINGS
-): Promise<void> {
-  const lines = [
+function buildFallbackSummary(settings: DirectorSettings): string {
+  return [
     `── Director Plugin Settings ──`,
     `Enabled: ${String(settings.enabled)}`,
     `Assertiveness: ${settings.assertiveness}`,
+    `Provider: ${settings.directorProvider}`,
     `Model: ${settings.directorModel}`,
     `Injection: ${settings.injectionMode}`,
     `Post-review: ${String(settings.postReviewEnabled)}`,
-    `Brief cap: ${String(settings.briefTokenCap)} tokens`,
-  ]
-  await api.alert(lines.join('\n'))
+    `Brief cap: ${String(settings.briefTokenCap)} tokens`
+  ].join('\n')
+}
+
+/**
+ * Open the fullscreen dashboard when called from a plugin container context.
+ * Falls back to a plain alert summary in non-browser test environments.
+ */
+export async function showSettingsOverlay(
+  api: RisuaiApi,
+  settings: DirectorSettings = DEFAULT_DIRECTOR_SETTINGS,
+  dashboardStore?: DashboardStore,
+): Promise<void> {
+  if (typeof document === 'undefined' || typeof window === 'undefined') {
+    await api.alert(buildFallbackSummary(settings))
+    return
+  }
+
+  const store: DashboardStore = dashboardStore ?? { storage: api.pluginStorage }
+  await openDashboard(api, store)
 }
 
 /**
  * Register the plugin's UI entry points:
- * - A settings panel entry (gear menu)
- * - A chat button entry (chat toolbar)
+ * - a settings item
+ * - a chat button
  *
- * Both invoke `options.onOpen` when clicked.
+ * Both point at the same dashboard launcher.
  */
 export async function registerPluginUi(
   api: RisuaiApi,
-  options: PluginUiOptions,
+  options: PluginUiOptions
 ): Promise<void> {
   await api.registerSetting(
     SETTING_NAME,
     async () => { await options.onOpen() },
     BUTTON_ICON,
     'html',
+    SETTING_ID
   )
 
   await api.registerButton(
@@ -53,7 +70,12 @@ export async function registerPluginUi(
       icon: BUTTON_ICON,
       iconType: 'html',
       location: 'chat',
+      id: BUTTON_ID
     },
-    async () => { await options.onOpen() },
+    async () => { await options.onOpen() }
   )
+
+  await api.onUnload(async () => {
+    await closeDashboard()
+  })
 }
