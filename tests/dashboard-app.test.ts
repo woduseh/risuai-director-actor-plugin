@@ -10,6 +10,7 @@ import { resolveScopeStorageKey } from '../src/memory/scopeResolver.js'
 import {
   DASHBOARD_SETTINGS_KEY,
   DASHBOARD_PROFILE_MANIFEST_KEY,
+  DASHBOARD_MEMORY_OPS_PREFS_KEY,
 } from '../src/ui/dashboardState.js'
 import { createEmptyState, DEFAULT_DIRECTOR_SETTINGS } from '../src/contracts/types.js'
 import { BUILTIN_PROMPT_PRESET_ID } from '../src/director/prompt.js'
@@ -692,5 +693,81 @@ describe('openDashboard', () => {
     const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
     expect(memoryPage.textContent).toContain('The key is hidden under the altar.')
     expect(memoryPage.textContent).not.toContain('Outdated memory')
+  })
+
+  // ── Memory Operations: Status card, force actions, fallback toggle ──
+
+  test('renders memory ops status card on the memory page', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const statusCard = updatedRoot.querySelector('[data-da-role="memory-ops-status"]')
+    expect(statusCard).not.toBeNull()
+    expect(statusCard?.textContent).toContain('Summaries')
+  })
+
+  test('force-extract calls store.forceExtract callback', async () => {
+    let extractCalled = false
+    const storeWithOps: DashboardStore = {
+      storage: api.pluginStorage,
+      forceExtract: async () => { extractCalled = true },
+    }
+
+    await openDashboard(api, storeWithOps)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    const extractBtn = root.querySelector('[data-da-action="force-extract"]') as HTMLElement
+    expect(extractBtn).not.toBeNull()
+    extractBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    expect(extractCalled).toBe(true)
+  })
+
+  test('force-dream calls store.forceDream callback', async () => {
+    let dreamCalled = false
+    const storeWithOps: DashboardStore = {
+      storage: api.pluginStorage,
+      forceDream: async () => { dreamCalled = true },
+    }
+
+    await openDashboard(api, storeWithOps)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    const dreamBtn = root.querySelector('[data-da-action="force-dream"]') as HTMLElement
+    expect(dreamBtn).not.toBeNull()
+    dreamBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    expect(dreamCalled).toBe(true)
+  })
+
+  test('toggle-fallback-retrieval persists mode and re-renders', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    const toggleBtn = root.querySelector('[data-da-action="toggle-fallback-retrieval"]') as HTMLElement
+    expect(toggleBtn).not.toBeNull()
+    toggleBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const stored = await api.pluginStorage.getItem<{ fallbackRetrievalEnabled: boolean }>(
+      DASHBOARD_MEMORY_OPS_PREFS_KEY,
+    )
+    expect(stored).not.toBeNull()
+    expect(stored!.fallbackRetrievalEnabled).toBe(true)
   })
 })

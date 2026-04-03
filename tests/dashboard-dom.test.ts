@@ -133,4 +133,88 @@ describe('buildDashboardMarkup', () => {
     expect(markup).not.toContain('data-evil="1"')
     expect(markup).toContain('&quot;')
   })
+
+  // ── Memory Operations Status Card ──────────────────────────────────
+
+  test('renders memory operations status card with action buttons and document counts', () => {
+    const state = createEmptyState()
+    state.memory.summaries.push(
+      { id: 's1', text: 'a', recencyWeight: 1, updatedAt: 1 },
+      { id: 's2', text: 'b', recencyWeight: 1, updatedAt: 2 },
+      { id: 's3', text: 'c', recencyWeight: 1, updatedAt: 3 },
+    )
+    state.memory.worldFacts.push({ id: 'w1', text: 'w', updatedAt: 1 })
+
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: state,
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'memory-cache',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+      memoryOpsStatus: {
+        lastExtractTs: 1700000000000,
+        lastDreamTs: 1700000500000,
+        notebookFreshness: 'current',
+        documentCounts: { summaries: 3, continuityFacts: 0, worldFacts: 1, entities: 0, relations: 0 },
+        fallbackRetrievalEnabled: false,
+        isMemoryLocked: false,
+        staleWarnings: [],
+        recalledDocs: [],
+      },
+    })
+
+    expect(markup).toContain('data-da-role="memory-ops-status"')
+    expect(markup).toContain('data-da-action="force-extract"')
+    expect(markup).toContain('data-da-action="force-dream"')
+    expect(markup).toContain('data-da-action="inspect-recalled"')
+    expect(markup).toContain('data-da-action="toggle-fallback-retrieval"')
+  })
+
+  test('renders stale-memory warnings when present in memory ops status', () => {
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'memory-cache',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+      memoryOpsStatus: {
+        lastExtractTs: 0,
+        lastDreamTs: 0,
+        notebookFreshness: 'stale',
+        documentCounts: { summaries: 0, continuityFacts: 0, worldFacts: 0, entities: 0, relations: 0 },
+        fallbackRetrievalEnabled: false,
+        isMemoryLocked: false,
+        staleWarnings: ['Memory "Character A" may be outdated'],
+        recalledDocs: [],
+      },
+    })
+
+    expect(markup).toContain('data-da-role="stale-warnings"')
+    expect(markup).toContain('Character A')
+  })
+
+  test('renders locked-memory indicator when memory is locked', () => {
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'memory-cache',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+      memoryOpsStatus: {
+        lastExtractTs: 0,
+        lastDreamTs: 0,
+        notebookFreshness: 'unknown',
+        documentCounts: { summaries: 0, continuityFacts: 0, worldFacts: 0, entities: 0, relations: 0 },
+        fallbackRetrievalEnabled: false,
+        isMemoryLocked: true,
+        staleWarnings: [],
+        recalledDocs: [],
+      },
+    })
+
+    expect(markup).toContain('data-da-role="memory-locked"')
+  })
 })

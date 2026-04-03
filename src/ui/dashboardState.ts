@@ -4,6 +4,7 @@ import type {
   DirectorSettings,
   DirectorPluginState,
   StoredDirectorPromptPreset,
+  CanonicalMemory,
 } from '../contracts/types.js'
 import { DEFAULT_DIRECTOR_SETTINGS } from '../contracts/types.js'
 import {
@@ -463,4 +464,102 @@ export function mergeDashboardSettingsIntoPluginState(
     ...state,
     settings: { ...state.settings, ...dashboardSettings },
   }
+}
+
+// ---------------------------------------------------------------------------
+// Memory operations status
+// ---------------------------------------------------------------------------
+
+export const DASHBOARD_MEMORY_OPS_PREFS_KEY = 'dashboard-memory-ops-prefs-v1'
+
+/** Elapsed time (ms) beyond which notebook is considered stale. */
+const FRESHNESS_STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000
+
+export interface DocumentCounts {
+  summaries: number
+  continuityFacts: number
+  worldFacts: number
+  entities: number
+  relations: number
+}
+
+export interface RecalledDocEntry {
+  id: string
+  title: string
+  freshness: 'current' | 'stale' | 'archived'
+}
+
+export interface MemoryOpsStatus {
+  lastExtractTs: number
+  lastDreamTs: number
+  notebookFreshness: 'current' | 'stale' | 'unknown'
+  documentCounts: DocumentCounts
+  fallbackRetrievalEnabled: boolean
+  isMemoryLocked: boolean
+  staleWarnings: string[]
+  recalledDocs: RecalledDocEntry[]
+}
+
+export interface MemoryOpsPrefs {
+  fallbackRetrievalEnabled: boolean
+}
+
+export function createDefaultMemoryOpsStatus(): MemoryOpsStatus {
+  return {
+    lastExtractTs: 0,
+    lastDreamTs: 0,
+    notebookFreshness: 'unknown',
+    documentCounts: {
+      summaries: 0,
+      continuityFacts: 0,
+      worldFacts: 0,
+      entities: 0,
+      relations: 0,
+    },
+    fallbackRetrievalEnabled: false,
+    isMemoryLocked: false,
+    staleWarnings: [],
+    recalledDocs: [],
+  }
+}
+
+export function computeDocumentCounts(memory: CanonicalMemory): DocumentCounts {
+  return {
+    summaries: memory.summaries.length,
+    continuityFacts: memory.continuityFacts.length,
+    worldFacts: memory.worldFacts.length,
+    entities: memory.entities.length,
+    relations: memory.relations.length,
+  }
+}
+
+export function computeNotebookFreshness(
+  lastExtractTs: number,
+  lastDreamTs: number,
+): 'current' | 'stale' | 'unknown' {
+  const latest = Math.max(lastExtractTs, lastDreamTs)
+  if (latest === 0) return 'unknown'
+  const elapsed = Date.now() - latest
+  return elapsed > FRESHNESS_STALE_THRESHOLD_MS ? 'stale' : 'current'
+}
+
+export async function loadMemoryOpsPrefs(
+  storage: AsyncKeyValueStore,
+): Promise<MemoryOpsPrefs> {
+  const raw = await storage.getItem<MemoryOpsPrefs>(DASHBOARD_MEMORY_OPS_PREFS_KEY)
+  if (
+    raw != null &&
+    typeof raw === 'object' &&
+    typeof raw.fallbackRetrievalEnabled === 'boolean'
+  ) {
+    return raw
+  }
+  return { fallbackRetrievalEnabled: false }
+}
+
+export async function saveMemoryOpsPrefs(
+  storage: AsyncKeyValueStore,
+  prefs: MemoryOpsPrefs,
+): Promise<void> {
+  await storage.setItem(DASHBOARD_MEMORY_OPS_PREFS_KEY, prefs)
 }

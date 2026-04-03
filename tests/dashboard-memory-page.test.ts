@@ -207,8 +207,14 @@ describe('memory-cache page DOM rendering', () => {
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
 
-    expect(memoryPage.querySelector('strong')).toBeNull()
-    expect(memoryPage.querySelector('img')).toBeNull()
+    // Ensure user-supplied memory text is escaped — dangerous tags must NOT
+    // appear as real DOM elements inside memory items (the ops status card
+    // legitimately uses <strong> so we scope the check to .da-memory-list).
+    const memoryLists = memoryPage.querySelectorAll('.da-memory-list')
+    for (const list of Array.from(memoryLists)) {
+      expect(list.querySelector('strong')).toBeNull()
+      expect(list.querySelector('img')).toBeNull()
+    }
 
     const renderedTexts = Array.from(memoryPage.querySelectorAll('.da-memory-item span')).map(
       (node) => node.textContent,

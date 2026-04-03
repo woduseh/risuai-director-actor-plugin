@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Added
+
+- Memory Operations card on the dashboard memory page showing last extraction time, last consolidation time, notebook freshness badge, and document counts by type
+- Operator actions: Run Extract Now, Run Dream Now, Inspect Recalled Docs, Toggle Fallback Retrieval
+- Stale-memory warnings and locked-memory indicators on the memory ops card
+- Optional `DashboardStore` callbacks (`forceExtract`, `forceDream`, `getRecalledDocs`, `isMemoryLocked`) for composition-root integration
+- Persisted fallback retrieval mode preference (`dashboard-memory-ops-prefs-v1`)
+- Bilingual (en/ko) labels for all new memory operations UI elements
+
+### Fixed
+
+- XSS escape assertion in `dashboard-memory-page.test.ts` now scoped to memory item lists to avoid false positives from legitimate `<strong>` elements in the ops status card
+
 ## [0.3.0] - 2026-04-03
 
 ### Added

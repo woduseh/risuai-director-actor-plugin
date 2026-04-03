@@ -20,12 +20,20 @@ import {
   resolveSelectedPromptPreset,
   mergeDashboardSettingsIntoPluginState,
   createProfileExportPayload,
+  createDefaultMemoryOpsStatus,
+  computeDocumentCounts,
+  computeNotebookFreshness,
+  loadDreamState,
+  loadMemoryOpsPrefs,
+  saveMemoryOpsPrefs,
+  DASHBOARD_MEMORY_OPS_PREFS_KEY,
 } from './dashboardState.js'
 import type {
   DashboardDraft,
   DashboardProfile,
   ProfileManifest,
   ProfileExportPayload,
+  MemoryOpsStatus,
 } from './dashboardState.js'
 import {
   resolveProviderDefaults,
@@ -75,6 +83,14 @@ export interface DashboardStore {
   writeCanonical?: (
     mutator: (state: DirectorPluginState) => DirectorPluginState,
   ) => Promise<DirectorPluginState>
+  /** Optional callback to trigger an extraction pass from the runtime. */
+  forceExtract?: () => Promise<void>
+  /** Optional callback to trigger a dream/consolidation pass from the runtime. */
+  forceDream?: () => Promise<void>
+  /** Optional callback to retrieve the most recent recalled documents. */
+  getRecalledDocs?: () => Promise<Array<{ id: string; title: string; freshness: 'current' | 'stale' | 'archived' }>>
+  /** Optional callback to check if a consolidation lock is held. */
+  isMemoryLocked?: () => Promise<boolean>
 }
 
 /**
@@ -163,6 +179,62 @@ async function readCanonicalState(store: DashboardStore): Promise<DirectorPlugin
 }
 
 // ---------------------------------------------------------------------------
+// Memory ops helpers
+// ---------------------------------------------------------------------------
+
+function computeLatestMemoryTs(state: DirectorPluginState): number {
+  let latest = 0
+  for (const s of state.memory.summaries) latest = Math.max(latest, s.updatedAt ?? 0)
+  for (const w of state.memory.worldFacts) latest = Math.max(latest, w.updatedAt ?? 0)
+  for (const e of state.memory.entities) latest = Math.max(latest, e.updatedAt ?? 0)
+  for (const r of state.memory.relations) latest = Math.max(latest, r.updatedAt ?? 0)
+  return latest
+}
+
+function buildStaleWarnings(
+  lastExtractTs: number,
+  lastDreamTs: number,
+  isLocked: boolean,
+): string[] {
+  const warnings: string[] = []
+  if (isLocked) {
+    warnings.push('Consolidation lock is active — memory writes are blocked')
+  }
+  const now = Date.now()
+  const STALE_MS = 24 * 60 * 60 * 1000
+  if (lastExtractTs > 0 && now - lastExtractTs > STALE_MS) {
+    warnings.push('Memory extraction is more than 24 h old')
+  }
+  if (lastDreamTs > 0 && now - lastDreamTs > STALE_MS) {
+    warnings.push('Last consolidation pass is more than 24 h old')
+  }
+  return warnings
+}
+
+async function buildMemoryOpsStatus(
+  store: DashboardStore,
+  canonicalState: DirectorPluginState,
+): Promise<MemoryOpsStatus> {
+  const dreamState = await loadDreamState(store.storage)
+  const prefs = await loadMemoryOpsPrefs(store.storage)
+  const isLocked = store.isMemoryLocked
+    ? await store.isMemoryLocked()
+    : false
+  const latestMemoryTs = computeLatestMemoryTs(canonicalState)
+
+  return {
+    lastExtractTs: latestMemoryTs,
+    lastDreamTs: dreamState.lastDreamTs,
+    notebookFreshness: computeNotebookFreshness(latestMemoryTs, dreamState.lastDreamTs),
+    documentCounts: computeDocumentCounts(canonicalState.memory),
+    fallbackRetrievalEnabled: prefs.fallbackRetrievalEnabled,
+    isMemoryLocked: isLocked,
+    staleWarnings: buildStaleWarnings(latestMemoryTs, dreamState.lastDreamTs, isLocked),
+    recalledDocs: [],
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard instance
 // ---------------------------------------------------------------------------
 
@@ -184,6 +256,7 @@ class DashboardInstance {
     kind: 'summary' | 'continuity-fact' | 'world-fact' | 'entity' | 'relation'
     id: string
   } | null = null
+  private memoryOpsStatus: MemoryOpsStatus
 
   constructor(
     api: RisuaiApi,
@@ -193,6 +266,7 @@ class DashboardInstance {
     profiles: ProfileManifest,
     modelOptions: string[],
     canonicalState: DirectorPluginState,
+    memoryOpsStatus: MemoryOpsStatus,
   ) {
     this.api = api
     this.store = store
@@ -203,6 +277,7 @@ class DashboardInstance {
     this.modelOptions = modelOptions
     this.connectionStatus = { kind: 'idle', message: t('connection.notTested') }
     this.canonicalState = canonicalState
+    this.memoryOpsStatus = memoryOpsStatus
   }
 
   // ── public ────────────────────────────────────────────────────────────
@@ -255,6 +330,7 @@ class DashboardInstance {
       connectionStatus: this.connectionStatus,
       selectedMemoryKeys: Array.from(this.selectedMemoryKeys),
       editingMemory: this.editingMemory,
+      memoryOpsStatus: this.memoryOpsStatus,
     }
   }
 
@@ -569,6 +645,18 @@ class DashboardInstance {
         break
       case 'add-relation':
         await this.handleAddRelation()
+        break
+      case 'force-extract':
+        await this.handleForceExtract()
+        break
+      case 'force-dream':
+        await this.handleForceDream()
+        break
+      case 'inspect-recalled':
+        await this.handleInspectRecalled()
+        break
+      case 'toggle-fallback-retrieval':
+        await this.handleToggleFallbackRetrieval()
         break
     }
   }
@@ -1256,6 +1344,82 @@ class DashboardInstance {
     this.fullReRender()
   }
 
+  // ── Memory operations actions ──────────────────────────────────────
+
+  private async handleForceExtract(): Promise<void> {
+    if (!this.store.forceExtract) {
+      this.showToast(t('toast.noCallback'))
+      return
+    }
+    await this.store.forceExtract()
+    this.showToast(t('toast.extractStarted'))
+    await this.refreshMemoryOpsStatus()
+    this.fullReRender()
+  }
+
+  private async handleForceDream(): Promise<void> {
+    if (!this.store.forceDream) {
+      this.showToast(t('toast.noCallback'))
+      return
+    }
+    await this.store.forceDream()
+    this.showToast(t('toast.dreamStarted'))
+    await this.refreshMemoryOpsStatus()
+    this.fullReRender()
+  }
+
+  private async handleInspectRecalled(): Promise<void> {
+    if (!this.store.getRecalledDocs) {
+      this.showToast(t('toast.noCallback'))
+      return
+    }
+    const docs = await this.store.getRecalledDocs()
+    this.memoryOpsStatus = {
+      ...this.memoryOpsStatus,
+      recalledDocs: docs.map((d) => ({
+        id: d.id,
+        title: d.title,
+        freshness: d.freshness,
+      })),
+    }
+    this.fullReRender()
+  }
+
+  private async handleToggleFallbackRetrieval(): Promise<void> {
+    const next = !this.memoryOpsStatus.fallbackRetrievalEnabled
+    this.memoryOpsStatus = {
+      ...this.memoryOpsStatus,
+      fallbackRetrievalEnabled: next,
+    }
+    await saveMemoryOpsPrefs(this.store.storage, {
+      fallbackRetrievalEnabled: next,
+    })
+    this.showToast(t('toast.fallbackToggled'))
+    this.fullReRender()
+  }
+
+  private async refreshMemoryOpsStatus(): Promise<void> {
+    const dreamState = await loadDreamState(this.store.storage)
+    const prefs = await loadMemoryOpsPrefs(this.store.storage)
+    const canonicalState = await readCanonicalState(this.store)
+    this.canonicalState = canonicalState
+    const isLocked = this.store.isMemoryLocked
+      ? await this.store.isMemoryLocked()
+      : false
+    const latestMemoryTs = computeLatestMemoryTs(canonicalState)
+
+    this.memoryOpsStatus = {
+      lastExtractTs: latestMemoryTs,
+      lastDreamTs: dreamState.lastDreamTs,
+      notebookFreshness: computeNotebookFreshness(latestMemoryTs, dreamState.lastDreamTs),
+      documentCounts: computeDocumentCounts(canonicalState.memory),
+      fallbackRetrievalEnabled: prefs.fallbackRetrievalEnabled,
+      isMemoryLocked: isLocked,
+      staleWarnings: buildStaleWarnings(latestMemoryTs, dreamState.lastDreamTs, isLocked),
+      recalledDocs: this.memoryOpsStatus.recalledDocs,
+    }
+  }
+
   // ── Language switch ──────────────────────────────────────────────────
 
   private async handleSwitchLang(btn: HTMLElement): Promise<void> {
@@ -1361,6 +1525,9 @@ export async function openDashboard(
   // Load canonical memory state for the memory page
   const canonicalState = await readCanonicalState(store)
 
+  // Build memory operations status for the memory page
+  const memoryOpsStatus = await buildMemoryOpsStatus(store, canonicalState)
+
   const instance = new DashboardInstance(
     api,
     store,
@@ -1369,6 +1536,7 @@ export async function openDashboard(
     profiles,
     modelOptions,
     canonicalState,
+    memoryOpsStatus,
   )
   activeInstance = instance
   await instance.mount()

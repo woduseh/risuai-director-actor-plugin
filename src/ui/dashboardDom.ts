@@ -1,5 +1,5 @@
 import type { DirectorSettings, DirectorPluginState } from '../contracts/types.js'
-import type { ProfileManifest } from './dashboardState.js'
+import type { ProfileManifest, MemoryOpsStatus } from './dashboardState.js'
 import { DASHBOARD_ROOT_CLASS } from './dashboardCss.js'
 import { EMBEDDING_PROVIDER_CATALOG } from './dashboardModel.js'
 import { resolveSelectedPromptPreset } from './dashboardState.js'
@@ -51,6 +51,7 @@ export interface DashboardMarkupInput {
     kind: 'summary' | 'continuity-fact' | 'world-fact' | 'entity' | 'relation'
     id: string
   } | null
+  memoryOpsStatus?: MemoryOpsStatus
 }
 
 // ---------------------------------------------------------------------------
@@ -373,6 +374,78 @@ function buildModelSettingsPage(input: DashboardMarkupInput): string {
       </div>`
 }
 
+// ---------------------------------------------------------------------------
+// Memory operations status card
+// ---------------------------------------------------------------------------
+
+function formatTimestamp(ts: number): string {
+  if (ts === 0) return t('memoryOps.neverRun')
+  return new Date(ts).toLocaleString()
+}
+
+function freshnessLabel(freshness: 'current' | 'stale' | 'unknown'): string {
+  switch (freshness) {
+    case 'current': return t('memoryOps.freshnessCurrent')
+    case 'stale': return t('memoryOps.freshnessStale')
+    default: return t('memoryOps.freshnessUnknown')
+  }
+}
+
+function buildMemoryOpsCard(status: MemoryOpsStatus): string {
+  const { documentCounts: dc } = status
+  const freshnessBadge = `<span class="da-badge" data-kind="${status.notebookFreshness === 'stale' ? 'error' : status.notebookFreshness === 'current' ? 'success' : 'neutral'}">${freshnessLabel(status.notebookFreshness)}</span>`
+
+  const lockedHtml = status.isMemoryLocked
+    ? `<div class="da-warning" data-da-role="memory-locked"><span class="da-badge" data-kind="error">${escapeXml(t('memoryOps.locked'))}</span></div>`
+    : ''
+
+  const staleHtml = status.staleWarnings.length > 0
+    ? `<div class="da-warning-list" data-da-role="stale-warnings">${status.staleWarnings.map((w) => `<div class="da-warning-item">${escapeXml(w)}</div>`).join('')}</div>`
+    : ''
+
+  const fallbackLabel = status.fallbackRetrievalEnabled
+    ? t('memoryOps.fallbackEnabled')
+    : t('memoryOps.fallbackDisabled')
+
+  const recalledHtml = status.recalledDocs.length > 0
+    ? `<ul class="da-recalled-list" data-da-role="recalled-docs">${status.recalledDocs.map((d) => {
+      const badge = d.freshness !== 'current'
+        ? ` <span class="da-badge da-badge--sm" data-kind="${d.freshness === 'stale' ? 'error' : 'neutral'}">${escapeXml(d.freshness)}</span>`
+        : ''
+      return `<li class="da-recalled-item">${escapeXml(d.title)}${badge}</li>`
+    }).join('')}</ul>`
+    : ''
+
+  return `
+        <section class="da-card" data-da-role="memory-ops-status">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">${t('card.memoryOps.title')}</h3>
+              <p class="da-card-copy">${t('card.memoryOps.copy')}</p>
+            </div>
+            ${freshnessBadge}
+          </div>
+          ${lockedHtml}${staleHtml}
+          <ul class="da-metric-list">
+            <li class="da-metric-item"><span>${t('memoryOps.lastExtract')}</span><strong>${formatTimestamp(status.lastExtractTs)}</strong></li>
+            <li class="da-metric-item"><span>${t('memoryOps.lastDream')}</span><strong>${formatTimestamp(status.lastDreamTs)}</strong></li>
+            <li class="da-metric-item"><span>${t('memoryOps.docCounts')}</span><strong>${t('card.memorySummaries.title')}: ${dc.summaries} · ${t('card.continuityFacts.title')}: ${dc.continuityFacts} · ${t('card.worldFacts.title')}: ${dc.worldFacts} · ${t('card.entities.title')}: ${dc.entities} · ${t('card.relations.title')}: ${dc.relations}</strong></li>
+            <li class="da-metric-item"><span>${fallbackLabel}</span></li>
+          </ul>
+          <div class="da-inline">
+            <button class="da-btn da-btn--primary da-btn--sm" data-da-action="force-extract">${t('btn.forceExtract')}</button>
+            <button class="da-btn da-btn--sm" data-da-action="force-dream">${t('btn.forceDream')}</button>
+            <button class="da-btn da-btn--sm" data-da-action="inspect-recalled">${t('btn.inspectRecalled')}</button>
+            <button class="da-btn da-btn--sm" data-da-action="toggle-fallback-retrieval">${t('btn.toggleFallback')}</button>
+          </div>
+          ${recalledHtml}
+        </section>`
+}
+
+// ---------------------------------------------------------------------------
+// Memory cache page
+// ---------------------------------------------------------------------------
+
 function buildMemoryCachePage(input: DashboardMarkupInput): string {
   const { pluginState } = input
   const summaries = pluginState.memory.summaries
@@ -502,8 +575,13 @@ function buildMemoryCachePage(input: DashboardMarkupInput): string {
     ? `<p class="da-empty" data-da-role="memory-empty">${t('memory.emptyHint')}</p>`
     : ''
 
+  const memoryOpsCardHtml = input.memoryOpsStatus
+    ? buildMemoryOpsCard(input.memoryOpsStatus)
+    : ''
+
   return `
       ${backfillHtml}${regenerateHtml}${bulkDeleteHtml}${filterHtml}${emptyHintHtml}
+      ${memoryOpsCardHtml}
       <div class="da-grid">
         <section class="da-card">
           <div class="da-card-header">
