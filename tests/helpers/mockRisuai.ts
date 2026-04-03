@@ -49,12 +49,25 @@ export interface MockRisuaiApi extends RisuaiApi {
   __logs: string[]
   __alerts: string[]
   __llmQueue: RunLLMModelResult[]
-  __registerCalls: Array<{ kind: 'setting' | 'button'; name: string }>
+  __nativeFetchQueue: Array<Response>
+  __containerVisible: boolean
+  __arguments: Record<string, string | number>
+  __registerCalls: Array<{
+    kind: 'setting' | 'button'
+    name: string
+    id: string
+    callback: () => Promise<void> | void
+  }>
   enqueueLlmResult(result: RunLLMModelResult): void
+  enqueueNativeFetchJson(
+    payload: unknown,
+    init?: { status?: number; ok?: boolean; headers?: HeadersInit }
+  ): void
   runBeforeRequest(messages: OpenAIChat[], type?: HookRequestType): Promise<OpenAIChat[]>
   runAfterRequest(content: string, type?: HookRequestType): Promise<string>
   runOutput(content: string): Promise<string>
   runBodyIntercepters(body: AsyncJsonValue, type?: HookRequestType): Promise<AsyncJsonValue>
+  runRegistered(kind: 'setting' | 'button', name?: string): Promise<void>
   runUnload(): Promise<void>
 }
 
@@ -70,9 +83,16 @@ export function createMockRisuaiApi(): MockRisuaiApi {
     process: []
   }
   const llmQueue: RunLLMModelResult[] = []
+  const nativeFetchQueue: Response[] = []
   const logs: string[] = []
   const alerts: string[] = []
-  const registerCalls: Array<{ kind: 'setting' | 'button'; name: string }> = []
+  const registerCalls: Array<{
+    kind: 'setting' | 'button'
+    name: string
+    id: string
+    callback: () => Promise<void> | void
+  }> = []
+  const args: Record<string, string | number> = {}
 
   const makeUiResponse = (id: string): RegisterUiResponse => ({ id })
 
@@ -88,9 +108,34 @@ export function createMockRisuaiApi(): MockRisuaiApi {
     __logs: logs,
     __alerts: alerts,
     __llmQueue: llmQueue,
+    __nativeFetchQueue: nativeFetchQueue,
+    __containerVisible: false,
+    __arguments: args,
     __registerCalls: registerCalls,
     enqueueLlmResult(result: RunLLMModelResult): void {
       llmQueue.push(result)
+    },
+    enqueueNativeFetchJson(
+      payload: unknown,
+      init?: { status?: number; ok?: boolean; headers?: HeadersInit }
+    ): void {
+      const status = init?.status ?? (init?.ok === false ? 500 : 200)
+      const headers = new Headers(init?.headers)
+      if (!headers.has('content-type')) {
+        headers.set('content-type', 'application/json')
+      }
+      nativeFetchQueue.push(
+        new Response(JSON.stringify(payload), {
+          status,
+          headers
+        })
+      )
+    },
+    async showContainer(): Promise<void> {
+      api.__containerVisible = true
+    },
+    async hideContainer(): Promise<void> {
+      api.__containerVisible = false
     },
     async addRisuReplacer(type: 'beforeRequest' | 'afterRequest', fn: BeforeRequestHandler | AfterRequestHandler): Promise<void> {
       if (type === 'beforeRequest') {
@@ -108,13 +153,37 @@ export function createMockRisuaiApi(): MockRisuaiApi {
     async runLLMModel(_input: RunLLMModelInput): Promise<RunLLMModelResult> {
       return llmQueue.shift() ?? { type: 'fail', result: 'Mock LLM queue exhausted' }
     },
+    async nativeFetch(): Promise<Response> {
+      return nativeFetchQueue.shift() ?? new Response('Mock fetch queue exhausted', {
+        status: 500
+      })
+    },
+    async getArgument(key: string): Promise<string | number | undefined> {
+      return args[key]
+    },
+    async setArgument(key: string, value: string | number): Promise<void> {
+      args[key] = value
+    },
     async registerSetting(name: string, _callback: () => Promise<void> | void, _icon?: string, _iconType?: 'html' | 'img' | 'none', id?: string): Promise<RegisterUiResponse> {
-      registerCalls.push({ kind: 'setting', name })
-      return makeUiResponse(id ?? `setting:${name}`)
+      const resolvedId = id ?? `setting:${name}`
+      registerCalls.push({ kind: 'setting', name, id: resolvedId, callback: _callback })
+      return makeUiResponse(resolvedId)
     },
     async registerButton(options: RegisterButtonOptions, _callback: () => Promise<void> | void): Promise<RegisterUiResponse> {
-      registerCalls.push({ kind: 'button', name: options.name })
-      return makeUiResponse(options.id ?? `button:${options.name}`)
+      const resolvedId = options.id ?? `button:${options.name}`
+      registerCalls.push({
+        kind: 'button',
+        name: options.name,
+        id: resolvedId,
+        callback: _callback
+      })
+      return makeUiResponse(resolvedId)
+    },
+    async unregisterUIPart(id: string): Promise<void> {
+      const index = registerCalls.findIndex((entry) => entry.id === id)
+      if (index >= 0) {
+        registerCalls.splice(index, 1)
+      }
     },
     async onUnload(fn: () => Promise<void> | void): Promise<void> {
       unloadHandlers.push(fn)
@@ -163,6 +232,15 @@ export function createMockRisuaiApi(): MockRisuaiApi {
         current = await handler(current, type)
       }
       return current
+    },
+    async runRegistered(kind: 'setting' | 'button', name?: string): Promise<void> {
+      const entry = registerCalls.find((call) =>
+        call.kind === kind && (name === undefined || call.name === name)
+      )
+      if (!entry) {
+        throw new Error(`No registered ${kind}${name ? ` named "${name}"` : ''}`)
+      }
+      await entry.callback()
     },
     async runUnload(): Promise<void> {
       for (const handler of unloadHandlers) {

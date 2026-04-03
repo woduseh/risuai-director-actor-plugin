@@ -13,6 +13,7 @@ export type HookRequestType = 'model' | 'display' | 'emotion' | 'memory' | strin
 export type ScriptMode = 'display' | 'output' | 'input' | 'process'
 export type ReplacerType = 'beforeRequest' | 'afterRequest'
 export type DirectorAssertiveness = 'light' | 'standard' | 'firm'
+export type DirectorProvider = 'openai' | 'anthropic' | 'google' | 'custom'
 export type InjectionMode =
   | 'auto'
   | 'author-note'
@@ -44,6 +45,9 @@ export type ValidationStatus = 'pass' | 'soft-fail' | 'hard-fail'
 export interface DirectorSettings {
   enabled: boolean
   assertiveness: DirectorAssertiveness
+  directorProvider: DirectorProvider
+  directorBaseUrl: string
+  directorApiKey: string
   directorModel: string
   directorMode: 'otherAx' | 'model'
   briefTokenCap: number
@@ -275,6 +279,9 @@ export interface TurnContext {
 export const DEFAULT_DIRECTOR_SETTINGS: DirectorSettings = {
   enabled: true,
   assertiveness: 'standard',
+  directorProvider: 'openai',
+  directorBaseUrl: 'https://api.openai.com/v1',
+  directorApiKey: '',
   directorModel: 'gpt-4.1-mini',
   directorMode: 'otherAx',
   briefTokenCap: 320,

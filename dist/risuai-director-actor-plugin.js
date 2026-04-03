@@ -1,7 +1,7 @@
 //@name risuai-director-actor-plugin
 //@display-name RisuAI Director Actor
 //@api 3.0
-//@version 0.1.0
+//@version 0.2.0
 //@description Director-Actor collaborative long-memory plugin for RisuAI Plugin V3
 
 "use strict";
@@ -390,6 +390,9 @@ ${MEMORY_UPDATE_SCHEMA}`
   var DEFAULT_DIRECTOR_SETTINGS = {
     enabled: true,
     assertiveness: "standard",
+    directorProvider: "openai",
+    directorBaseUrl: "https://api.openai.com/v1",
+    directorApiKey: "",
     directorModel: "gpt-4.1-mini",
     directorMode: "otherAx",
     briefTokenCap: 320,
@@ -1544,21 +1547,1719 @@ ${MEMORY_UPDATE_SCHEMA}`
     return "bottom";
   }
 
+  // src/ui/dashboardCss.ts
+  var DASHBOARD_ROOT_CLASS = "da-root";
+  var DASHBOARD_STYLE_ID = "da-dashboard-styles";
+  function buildDashboardCss() {
+    return (
+      /* css */
+      `
+.${DASHBOARD_ROOT_CLASS},
+.da-dashboard {
+  --da-bg: var(--risu-theme-bgcolor, #10131a);
+  --da-bg-elevated: var(--risu-theme-darkbg, #171d28);
+  --da-bg-muted: color-mix(in srgb, var(--da-bg-elevated) 82%, black);
+  --da-border: var(--risu-theme-darkborderc, rgba(255, 255, 255, 0.08));
+  --da-border-strong: var(--risu-theme-borderc, rgba(255, 255, 255, 0.14));
+  --da-text: var(--risu-theme-textcolor, #eff3ff);
+  --da-text-muted: var(--risu-theme-textcolor2, #9ca4b5);
+  --da-accent: var(--risu-theme-selected, #64a2ff);
+  --da-accent-soft: color-mix(in srgb, var(--da-accent) 18%, transparent);
+  --da-danger: var(--risu-theme-draculared, #ff6b7f);
+  --da-button: var(--risu-theme-darkbutton, #232b38);
+  --da-shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+  --da-radius-lg: 20px;
+  --da-radius-md: 14px;
+  --da-radius-sm: 10px;
+  --da-sidebar-width: 280px;
+
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(240px, var(--da-sidebar-width)) minmax(0, 1fr);
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--da-accent) 18%, transparent), transparent 36%),
+    linear-gradient(180deg, color-mix(in srgb, var(--da-bg) 90%, black), var(--da-bg));
+  color: var(--da-text);
+  font-family: Inter, "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.${DASHBOARD_ROOT_CLASS},
+.${DASHBOARD_ROOT_CLASS} *,
+.${DASHBOARD_ROOT_CLASS} *::before,
+.${DASHBOARD_ROOT_CLASS} *::after,
+.da-dashboard,
+.da-dashboard *,
+.da-dashboard *::before,
+.da-dashboard *::after {
+  box-sizing: border-box;
+}
+
+.da-sidebar {
+  position: sticky;
+  top: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px 18px 18px;
+  border-right: 1px solid var(--da-border);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--da-bg-elevated) 92%, black), color-mix(in srgb, var(--da-bg-elevated) 78%, black));
+  backdrop-filter: blur(14px);
+}
+
+.da-sidebar-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid var(--da-border);
+  border-radius: var(--da-radius-lg);
+  background: color-mix(in srgb, var(--da-bg-elevated) 90%, black);
+  box-shadow: var(--da-shadow);
+}
+
+.da-kicker {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--da-text-muted);
+}
+
+.da-title {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.1;
+  font-weight: 800;
+}
+
+.da-subtitle {
+  margin: 0;
+  color: var(--da-text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.da-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.da-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.da-nav-group-label {
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--da-text-muted);
+}
+
+.da-sidebar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--da-radius-md);
+  background: transparent;
+  color: var(--da-text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.da-sidebar-btn:hover,
+.da-sidebar-btn:focus-visible {
+  background: color-mix(in srgb, var(--da-accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--da-accent) 22%, var(--da-border));
+  color: var(--da-text);
+  outline: none;
+  transform: translateX(2px);
+}
+
+.da-sidebar-btn--active {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--da-accent) 22%, transparent), color-mix(in srgb, var(--da-accent) 12%, transparent));
+  border-color: color-mix(in srgb, var(--da-accent) 32%, var(--da-border-strong));
+  color: var(--da-text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--da-accent) 18%, transparent);
+}
+
+.da-sidebar-footer {
+  display: grid;
+  gap: 10px;
+}
+
+.da-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 28px 34px 40px;
+}
+
+.da-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--da-border);
+  border-radius: var(--da-radius-lg);
+  background: color-mix(in srgb, var(--da-bg-elevated) 90%, black);
+  box-shadow: var(--da-shadow);
+}
+
+.da-toolbar-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.da-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.da-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.da-page-section {
+  display: grid;
+  gap: 14px;
+}
+
+.da-page-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.da-hidden {
+  display: none !important;
+}
+
+.da-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.da-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid var(--da-border);
+  border-radius: var(--da-radius-lg);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--da-bg-elevated) 92%, white 3%), color-mix(in srgb, var(--da-bg) 94%, black));
+  box-shadow: var(--da-shadow);
+}
+
+.da-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.da-card-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.da-card-copy,
+.da-hint,
+.da-empty {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--da-text-muted);
+}
+
+.da-form-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.da-label {
+  display: grid;
+  gap: 8px;
+}
+
+.da-label-text {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--da-text);
+}
+
+.da-input,
+.da-select,
+.da-textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 12px 14px;
+  border: 1px solid var(--da-border);
+  border-radius: var(--da-radius-sm);
+  background: color-mix(in srgb, var(--da-bg) 88%, black);
+  color: var(--da-text);
+  font-size: 14px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+.da-textarea {
+  min-height: 112px;
+  resize: vertical;
+}
+
+.da-input:focus,
+.da-select:focus,
+.da-textarea:focus {
+  border-color: color-mix(in srgb, var(--da-accent) 58%, var(--da-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--da-accent) 18%, transparent);
+  outline: none;
+}
+
+.da-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.da-inline > * {
+  flex: 1 1 180px;
+}
+
+.da-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--da-text);
+  cursor: pointer;
+}
+
+.da-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--da-accent);
+}
+
+.da-toggle input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.da-toggle-track {
+  position: relative;
+  width: 46px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--da-border-strong);
+  background: color-mix(in srgb, var(--da-button) 82%, black);
+  transition: background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.da-toggle-dot {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: transform 0.18s ease;
+}
+
+.da-toggle input[type="checkbox"]:checked + .da-toggle-track {
+  background: color-mix(in srgb, var(--da-accent) 84%, black);
+  border-color: color-mix(in srgb, var(--da-accent) 72%, white 6%);
+}
+
+.da-toggle input[type="checkbox"]:checked + .da-toggle-track .da-toggle-dot {
+  transform: translateX(18px);
+}
+
+.da-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid color-mix(in srgb, var(--da-border-strong) 90%, transparent);
+  border-radius: var(--da-radius-sm);
+  background: color-mix(in srgb, var(--da-button) 88%, black);
+  color: var(--da-text);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.18s ease, background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.da-btn:hover,
+.da-btn:focus-visible {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--da-accent) 18%, var(--da-border-strong));
+  outline: none;
+}
+
+.da-btn--primary {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--da-accent) 76%, white 10%), color-mix(in srgb, var(--da-accent) 62%, black));
+  border-color: color-mix(in srgb, var(--da-accent) 58%, black);
+}
+
+.da-btn--ghost {
+  background: transparent;
+}
+
+.da-btn--danger {
+  background: color-mix(in srgb, var(--da-danger) 22%, transparent);
+  border-color: color-mix(in srgb, var(--da-danger) 32%, var(--da-border));
+}
+
+.da-close-btn {
+  align-self: flex-start;
+}
+
+.da-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--da-accent) 18%, transparent);
+  color: var(--da-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.da-badge[data-kind="success"] {
+  background: color-mix(in srgb, #25c281 22%, transparent);
+}
+
+.da-badge[data-kind="error"] {
+  background: color-mix(in srgb, var(--da-danger) 24%, transparent);
+}
+
+.da-toast {
+  padding: 10px 12px;
+  border-radius: var(--da-radius-sm);
+  border: 1px solid var(--da-border);
+  background: color-mix(in srgb, var(--da-bg-elevated) 84%, black);
+  color: var(--da-text);
+}
+
+.da-profile-list,
+.da-chip-list,
+.da-metric-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.da-profile-item,
+.da-chip,
+.da-metric-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--da-border);
+  border-radius: var(--da-radius-sm);
+  background: color-mix(in srgb, var(--da-bg) 92%, black);
+}
+
+.da-profile-item {
+  cursor: pointer;
+  transition: border-color 0.18s ease, transform 0.18s ease, background-color 0.18s ease;
+}
+
+.da-profile-item:hover {
+  transform: translateX(2px);
+  border-color: color-mix(in srgb, var(--da-accent) 28%, var(--da-border));
+}
+
+.da-profile--active {
+  border-color: color-mix(in srgb, var(--da-accent) 48%, var(--da-border));
+  background: color-mix(in srgb, var(--da-accent) 14%, transparent);
+}
+
+.da-connection-status[data-da-status="idle"] { color: var(--da-text-muted); }
+.da-connection-status[data-da-status="loading"],
+.da-connection-status[data-da-status="testing"] { color: var(--da-accent); }
+.da-connection-status[data-da-status="success"],
+.da-connection-status[data-da-status="ok"] { color: #4ee0a2; }
+.da-connection-status[data-da-status="error"] { color: var(--da-danger); }
+
+.da-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.da-dirty-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--da-text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.da-dirty-indicator::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--da-accent) 88%, white 8%);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--da-accent) 12%, transparent);
+}
+
+.da-split {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+@media (max-width: 960px) {
+  .${DASHBOARD_ROOT_CLASS},
+  .da-dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .da-sidebar {
+    min-height: auto;
+    position: static;
+    border-right: none;
+    border-bottom: 1px solid var(--da-border);
+  }
+
+  .da-content {
+    padding: 18px 18px 28px;
+  }
+}
+
+.da-dashboard {
+  position: relative;
+}
+
+.da-sidebar-header {
+  position: relative;
+}
+
+.da-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.da-page-title {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.da-page-section {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--da-border);
+  border-radius: var(--da-radius-md);
+  background: color-mix(in srgb, var(--da-bg-elevated) 88%, black);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+}
+
+.da-page-section > h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.da-page-section > .da-btn,
+.da-page-section > .da-connection-status {
+  justify-self: start;
+}
+
+.da-label > span {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--da-text);
+}
+
+.da-checkbox {
+  inline-size: 16px;
+  block-size: 16px;
+  margin: 0;
+  accent-color: var(--da-accent);
+  cursor: pointer;
+}
+
+.da-connection-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--da-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--da-bg) 82%, black);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.da-connection-status[data-da-status="ok"],
+.da-connection-status[data-da-status="success"] {
+  color: #4ee0a2;
+  border-color: color-mix(in srgb, #4ee0a2 32%, var(--da-border));
+  background: color-mix(in srgb, #4ee0a2 10%, transparent);
+}
+
+.da-connection-status[data-da-status="error"] {
+  border-color: color-mix(in srgb, var(--da-danger) 32%, var(--da-border));
+  background: color-mix(in srgb, var(--da-danger) 10%, transparent);
+}
+
+.da-connection-status[data-da-status="testing"],
+.da-connection-status[data-da-status="loading"] {
+  color: #f4c95d;
+  border-color: color-mix(in srgb, #f4c95d 32%, var(--da-border));
+  background: color-mix(in srgb, #f4c95d 10%, transparent);
+}
+
+.da-close-btn {
+  background: transparent;
+  color: var(--da-text-muted);
+  border-color: color-mix(in srgb, var(--da-danger) 28%, var(--da-border));
+}
+
+.da-close-btn:hover,
+.da-close-btn:focus-visible {
+  background: color-mix(in srgb, var(--da-accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--da-accent) 28%, var(--da-border));
+  color: var(--da-text);
+}
+
+.da-sidebar-header .da-close-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  min-width: 32px;
+  padding: 0;
+  aspect-ratio: 1;
+  border-radius: 999px;
+}
+
+.da-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 18px 0 4px;
+  margin-top: auto;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--da-bg) 96%, black) 42%);
+  backdrop-filter: blur(10px);
+}
+
+.da-dirty-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--da-accent) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--da-accent) 24%, transparent);
+  color: var(--da-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.da-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 10001;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: min(320px, calc(100vw - 32px));
+  padding: 12px 18px;
+  border: 1px solid color-mix(in srgb, var(--da-accent) 38%, var(--da-border));
+  border-radius: 999px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--da-accent) 76%, white 6%), color-mix(in srgb, var(--da-accent) 62%, black));
+  box-shadow: var(--da-shadow);
+  color: #09111f;
+  font-size: 14px;
+  font-weight: 700;
+  transform: translateX(-50%);
+  animation: da-toast-fade-in 0.18s ease-out;
+}
+
+@keyframes da-toast-fade-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+`
+    );
+  }
+
+  // src/ui/dashboardDom.ts
+  var DASHBOARD_TABS = [
+    { id: "general", label: "General", group: "general" },
+    { id: "prompt-tuning", label: "Prompt Tuning", group: "tuning" },
+    { id: "model-settings", label: "Model Settings", group: "tuning" },
+    { id: "memory-cache", label: "Memory & Cache", group: "memory" },
+    { id: "settings-profiles", label: "Settings Profiles", group: "profiles" }
+  ];
+  function buildSidebar(activeTab) {
+    const groups = [
+      { id: "general", label: "General" },
+      { id: "tuning", label: "Prompt Tuning" },
+      { id: "memory", label: "Memory" },
+      { id: "profiles", label: "Profiles" }
+    ];
+    const sections = groups.map((group) => {
+      const buttons = DASHBOARD_TABS.filter((tab) => tab.group === group.id).map((tab) => {
+        const activeClass = tab.id === activeTab ? " da-sidebar-btn--active" : "";
+        return `<button class="da-sidebar-btn${activeClass}" data-da-target="${tab.id}"><span>${tab.label}</span><span aria-hidden="true">\u203A</span></button>`;
+      }).join("\n");
+      return `<section class="da-nav-group"><div class="da-nav-group-label">${group.label}</div>${buttons}</section>`;
+    }).join("\n");
+    return `
+    <aside class="da-sidebar">
+      <div class="da-sidebar-header">
+        <div class="da-kicker">Director Actor</div>
+        <h1 class="da-title">Director Dashboard</h1>
+        <p class="da-subtitle">Fullscreen control center for settings, models, prompts, memory, and profiles.</p>
+      </div>
+      <nav class="da-sidebar-nav">${sections}</nav>
+      <div class="da-sidebar-footer da-footer">
+        <button class="da-btn da-btn--ghost" data-da-action="export-settings">Export Settings</button>
+        <button class="da-btn da-btn--danger da-close-btn" data-da-action="close-dashboard">Close</button>
+      </div>
+    </aside>`;
+  }
+  function buildGeneralPage(input) {
+    const { settings, connectionStatus } = input;
+    return `
+      <div class="da-grid">
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">Plugin Status</h3>
+              <p class="da-card-copy">Enable the director, tune tone strictness, and keep a quick view of connection health.</p>
+            </div>
+            <span class="da-badge" data-kind="${connectionStatus.kind === "error" ? "error" : connectionStatus.kind === "success" ? "success" : "neutral"}">${connectionStatus.kind}</span>
+          </div>
+          <label class="da-toggle">
+            <input type="checkbox" data-da-field="enabled"${settings.enabled ? " checked" : ""} />
+            <span class="da-toggle-track"><span class="da-toggle-dot"></span></span>
+            <span>Enabled</span>
+          </label>
+          <label class="da-label">
+            <span class="da-label-text">Assertiveness</span>
+            <select class="da-select" data-da-field="assertiveness">
+            <option value="light"${settings.assertiveness === "light" ? " selected" : ""}>Light</option>
+            <option value="standard"${settings.assertiveness === "standard" ? " selected" : ""}>Standard</option>
+            <option value="firm"${settings.assertiveness === "firm" ? " selected" : ""}>Firm</option>
+            </select>
+          </label>
+          <div class="da-inline">
+            <label class="da-label">
+              <span class="da-label-text">Mode</span>
+              <select class="da-select" data-da-field="directorMode">
+                <option value="otherAx"${settings.directorMode === "otherAx" ? " selected" : ""}>Risu Aux Model</option>
+                <option value="model"${settings.directorMode === "model" ? " selected" : ""}>Independent Provider</option>
+              </select>
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">Injection Mode</span>
+              <select class="da-select" data-da-field="injectionMode">
+                <option value="auto"${settings.injectionMode === "auto" ? " selected" : ""}>Auto</option>
+                <option value="author-note"${settings.injectionMode === "author-note" ? " selected" : ""}>Author Note</option>
+                <option value="adjacent-user"${settings.injectionMode === "adjacent-user" ? " selected" : ""}>Adjacent User</option>
+                <option value="post-constraint"${settings.injectionMode === "post-constraint" ? " selected" : ""}>Post Constraint</option>
+                <option value="bottom"${settings.injectionMode === "bottom" ? " selected" : ""}>Bottom</option>
+              </select>
+            </label>
+          </div>
+          <span class="da-connection-status" data-da-status="${connectionStatus.kind}">${connectionStatus.message}</span>
+        </section>
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">Metrics Snapshot</h3>
+              <p class="da-card-copy">Quick read-only visibility into runtime behavior before you dive deeper.</p>
+            </div>
+          </div>
+          <ul class="da-metric-list">
+            <li class="da-metric-item"><span>Total Director Calls</span><strong>${input.pluginState.metrics.totalDirectorCalls}</strong></li>
+            <li class="da-metric-item"><span>Total Failures</span><strong>${input.pluginState.metrics.totalDirectorFailures}</strong></li>
+            <li class="da-metric-item"><span>Memory Writes</span><strong>${input.pluginState.metrics.totalMemoryWrites}</strong></li>
+            <li class="da-metric-item"><span>Scene Phase</span><strong>${input.pluginState.director.scenePhase}</strong></li>
+          </ul>
+        </section>
+      </div>`;
+  }
+  function buildPromptTuningPage(input) {
+    const { settings } = input;
+    return `
+      <div class="da-grid">
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">Prompt Tuning</h3>
+              <p class="da-card-copy">Tune how strongly the Director pushes, how large the brief is, and whether post-review stays active.</p>
+            </div>
+          </div>
+          <div class="da-form-grid">
+            <label class="da-label">
+              <span class="da-label-text">Brief Token Cap</span>
+              <input type="number" class="da-input" data-da-field="briefTokenCap" value="${settings.briefTokenCap}" />
+            </label>
+            <label class="da-toggle">
+              <input type="checkbox" data-da-field="postReviewEnabled"${settings.postReviewEnabled ? " checked" : ""} />
+              <span class="da-toggle-track"><span class="da-toggle-dot"></span></span>
+              <span>Enable Post-review</span>
+            </label>
+            <label class="da-toggle">
+              <input type="checkbox" data-da-field="embeddingsEnabled"${settings.embeddingsEnabled ? " checked" : ""} />
+              <span class="da-toggle-track"><span class="da-toggle-dot"></span></span>
+              <span>Enable Embeddings</span>
+            </label>
+          </div>
+        </section>
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">Timing & Limits</h3>
+              <p class="da-card-copy">Cooldown and debounce controls keep the Director stable under streaming and bad responses.</p>
+            </div>
+          </div>
+          <div class="da-form-grid">
+            <label class="da-label">
+              <span class="da-label-text">Cooldown Failures</span>
+              <input type="number" class="da-input" data-da-field="cooldownFailureThreshold" value="${settings.cooldownFailureThreshold}" />
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">Cooldown (ms)</span>
+              <input type="number" class="da-input" data-da-field="cooldownMs" value="${settings.cooldownMs}" />
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">Output Debounce (ms)</span>
+              <input type="number" class="da-input" data-da-field="outputDebounceMs" value="${settings.outputDebounceMs}" />
+            </label>
+          </div>
+        </section>
+      </div>`;
+  }
+  function buildModelSettingsPage(input) {
+    const { settings, modelOptions } = input;
+    const modelOptionEls = modelOptions.map((m) => `<option value="${m}"${m === settings.directorModel ? " selected" : ""}>${m}</option>`).join("");
+    return `
+      <div class="da-grid">
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">Director Model Settings</h3>
+              <p class="da-card-copy">Keep the Director on its own provider, base URL, key, and model without touching the main RP model.</p>
+            </div>
+          </div>
+          <div class="da-form-grid">
+            <label class="da-label">
+              <span class="da-label-text">Provider</span>
+              <select class="da-select" data-da-field="directorProvider">
+                <option value="openai"${settings.directorProvider === "openai" ? " selected" : ""}>OpenAI</option>
+                <option value="anthropic"${settings.directorProvider === "anthropic" ? " selected" : ""}>Anthropic</option>
+                <option value="google"${settings.directorProvider === "google" ? " selected" : ""}>Google</option>
+                <option value="custom"${settings.directorProvider === "custom" ? " selected" : ""}>Custom</option>
+              </select>
+            </label>
+            <div class="da-split">
+              <label class="da-label">
+                <span class="da-label-text">Base URL</span>
+                <input type="text" class="da-input" data-da-field="directorBaseUrl" value="${settings.directorBaseUrl}" />
+              </label>
+              <label class="da-label">
+                <span class="da-label-text">API Key</span>
+                <input type="password" class="da-input" data-da-field="directorApiKey" value="${settings.directorApiKey}" />
+              </label>
+            </div>
+            <label class="da-label">
+              <span class="da-label-text">Model</span>
+              <select class="da-select" data-da-field="directorModel">${modelOptionEls}</select>
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">Custom Model ID</span>
+              <input type="text" class="da-input" data-da-field="directorModel" value="${settings.directorModel}" placeholder="type a model ID directly" />
+            </label>
+            <div class="da-inline">
+              <button class="da-btn da-btn--primary" data-da-action="test-connection">Test Connection</button>
+              <button class="da-btn" data-da-action="refresh-models">Refresh Models</button>
+            </div>
+          </div>
+        </section>
+      </div>`;
+  }
+  function buildMemoryCachePage(_input) {
+    return `
+      <div class="da-grid">
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">Memory & Cache</h3>
+              <p class="da-card-copy">Inspect the long-memory substrate and keep an eye on the cache/memory write behavior.</p>
+            </div>
+          </div>
+          <p class="da-hint">Memory summaries, entity graphs, and cache controls will appear here.</p>
+        </section>
+      </div>`;
+  }
+  function buildSettingsProfilesPage(input) {
+    const { profiles } = input;
+    const profileItems = profiles.profiles.map((p) => {
+      const active = p.id === profiles.activeProfileId ? " da-profile--active" : "";
+      return `<li class="da-profile-item${active}" data-da-profile-id="${p.id}">${p.name}</li>`;
+    }).join("");
+    return `
+      <div class="da-grid">
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">Settings Profiles</h3>
+              <p class="da-card-copy">Save reusable presets, swap them in one click, and move them between saves with JSON import/export.</p>
+            </div>
+          </div>
+          <ul class="da-profile-list">${profileItems}</ul>
+          <div class="da-inline">
+            <button class="da-btn da-btn--primary" data-da-action="create-profile">New Profile</button>
+            <button class="da-btn" data-da-action="export-profile">Export</button>
+            <button class="da-btn" data-da-action="import-profile">Import</button>
+          </div>
+        </section>
+      </div>`;
+  }
+  var PAGE_BUILDERS = {
+    general: buildGeneralPage,
+    "prompt-tuning": buildPromptTuningPage,
+    "model-settings": buildModelSettingsPage,
+    "memory-cache": buildMemoryCachePage,
+    "settings-profiles": buildSettingsProfilesPage
+  };
+  function buildContent(input) {
+    const pages = DASHBOARD_TABS.map((tab) => {
+      const hidden = tab.id !== input.activeTab ? " da-hidden" : "";
+      const builder = PAGE_BUILDERS[tab.id];
+      const inner = builder ? builder(input) : "";
+      return `
+    <div class="da-page${hidden}" id="da-page-${tab.id}">
+      <h2 class="da-page-title">${tab.label}</h2>${inner}
+    </div>`;
+    }).join("");
+    return `
+    <main class="da-content">
+      <section class="da-toolbar">
+        <div class="da-toolbar-meta">
+          <div class="da-kicker">Cupcake-style dashboard</div>
+          <strong>Modern control surface for Director behavior, models, and memory.</strong>
+        </div>
+        <div class="da-toolbar-actions">
+          <span class="da-dirty-indicator">Unsaved changes stay local until you save.</span>
+          <button class="da-btn da-btn--primary" data-da-action="save-settings">Save Changes</button>
+          <button class="da-btn" data-da-action="reset-settings">Reset</button>
+        </div>
+      </section>${pages}
+    </main>`;
+  }
+  function buildDashboardMarkup(input) {
+    return `<div class="${DASHBOARD_ROOT_CLASS} da-dashboard">${buildSidebar(input.activeTab)}${buildContent(input)}
+</div>`;
+  }
+
+  // src/ui/dashboardLifecycle.ts
+  var DashboardLifecycle = class {
+    ac = new AbortController();
+    timers = [];
+    callbacks = [];
+    tornDown = false;
+    listen(target, type, handler, options) {
+      target.addEventListener(type, handler, { ...options, signal: this.ac.signal });
+    }
+    setTimeout(cb, ms) {
+      const id = globalThis.setTimeout(cb, ms);
+      this.timers.push(id);
+    }
+    onTeardown(cb) {
+      this.callbacks.push(cb);
+    }
+    teardown() {
+      if (this.tornDown) return;
+      this.tornDown = true;
+      this.ac.abort();
+      for (const id of this.timers) globalThis.clearTimeout(id);
+      this.timers.length = 0;
+      for (const cb of this.callbacks) cb();
+      this.callbacks.length = 0;
+    }
+  };
+
+  // src/ui/dashboardState.ts
+  var DASHBOARD_SETTINGS_KEY = "dashboard-settings-v1";
+  var DASHBOARD_PROFILE_MANIFEST_KEY = "dashboard-profile-manifest-v1";
+  var DASHBOARD_SCHEMA_VERSION = 1;
+  function normalizePersistedSettings(raw) {
+    return { ...DEFAULT_DIRECTOR_SETTINGS, ...raw };
+  }
+  function createDashboardDraft(settings) {
+    return {
+      isDirty: false,
+      settings: { ...settings }
+    };
+  }
+  var BUILTIN_PROFILES = [
+    {
+      id: "builtin-balanced",
+      name: "Balanced",
+      createdAt: 0,
+      updatedAt: 0,
+      basedOn: null,
+      overrides: { assertiveness: "standard" }
+    },
+    {
+      id: "builtin-gentle",
+      name: "Gentle",
+      createdAt: 0,
+      updatedAt: 0,
+      basedOn: null,
+      overrides: { assertiveness: "light" }
+    },
+    {
+      id: "builtin-strict",
+      name: "Strict",
+      createdAt: 0,
+      updatedAt: 0,
+      basedOn: null,
+      overrides: { assertiveness: "firm", postReviewEnabled: true }
+    }
+  ];
+  function createDefaultProfileManifest() {
+    const activeProfileId = BUILTIN_PROFILES[0]?.id ?? "builtin-balanced";
+    return {
+      version: DASHBOARD_SCHEMA_VERSION,
+      activeProfileId,
+      profiles: BUILTIN_PROFILES.map((p) => ({ ...p }))
+    };
+  }
+  function createProfileExportPayload(profile) {
+    return {
+      schema: "director-actor-dashboard-profile",
+      version: 1,
+      profile: { ...profile }
+    };
+  }
+  function mergeDashboardSettingsIntoPluginState(state, dashboardSettings) {
+    return {
+      ...state,
+      settings: { ...state.settings, ...dashboardSettings }
+    };
+  }
+
+  // src/ui/dashboardModel.ts
+  var DIRECTOR_PROVIDER_CATALOG = [
+    {
+      id: "openai",
+      label: "OpenAI",
+      baseUrl: "https://api.openai.com/v1",
+      manualModelOnly: false
+    },
+    {
+      id: "anthropic",
+      label: "Anthropic",
+      baseUrl: "https://api.anthropic.com/v1",
+      manualModelOnly: true
+    },
+    {
+      id: "google",
+      label: "Google",
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      manualModelOnly: true
+    },
+    {
+      id: "custom",
+      label: "Custom (OpenAI-compatible)",
+      baseUrl: "",
+      manualModelOnly: false
+    }
+  ];
+  function resolveProviderDefaults(providerId) {
+    const entry = DIRECTOR_PROVIDER_CATALOG.find((e) => e.id === providerId);
+    if (entry) return { ...entry };
+    return { id: providerId, label: providerId, baseUrl: "", manualModelOnly: true };
+  }
+  var ANTHROPIC_FALLBACK_MODELS = [
+    "claude-3-5-haiku-latest",
+    "claude-3-5-sonnet-latest",
+    "claude-3-7-sonnet-latest",
+    "claude-sonnet-4-20250514"
+  ];
+  var GOOGLE_FALLBACK_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-2.5-flash-preview-04-17",
+    "gemini-2.5-pro-preview-05-06"
+  ];
+  async function loadProviderModels(api, settings) {
+    const provider = settings.directorProvider;
+    if (provider === "anthropic") return [...ANTHROPIC_FALLBACK_MODELS];
+    if (provider === "google") return [...GOOGLE_FALLBACK_MODELS];
+    const baseUrl = settings.directorBaseUrl;
+    if (!baseUrl) {
+      throw new Error("Base URL is required for model listing");
+    }
+    if (!settings.directorApiKey) {
+      throw new Error("API key is required for model listing");
+    }
+    const response = await api.nativeFetch(`${baseUrl}/models`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${settings.directorApiKey}`,
+        "Content-Type": "application/json"
+      }
+    });
+    if (!response.ok) {
+      throw new Error(
+        `Model listing failed (HTTP ${String(response.status)})`
+      );
+    }
+    const json = await response.json();
+    const entries = json.data ?? [];
+    const ids = entries.map((entry) => entry.id);
+    return [...new Set(ids)].sort();
+  }
+  async function testDirectorConnection(api, settings) {
+    try {
+      const provider = settings.directorProvider;
+      if (!settings.directorApiKey) {
+        return { ok: false, error: "API key is not configured" };
+      }
+      if (provider === "anthropic" || provider === "google") {
+        const models2 = provider === "anthropic" ? [...ANTHROPIC_FALLBACK_MODELS] : [...GOOGLE_FALLBACK_MODELS];
+        return { ok: true, models: models2 };
+      }
+      const baseUrl = settings.directorBaseUrl;
+      if (!baseUrl) {
+        return { ok: false, error: "Base URL is not configured" };
+      }
+      const response = await api.nativeFetch(`${baseUrl}/models`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${settings.directorApiKey}`,
+          "Content-Type": "application/json"
+        }
+      });
+      if (!response.ok) {
+        return {
+          ok: false,
+          error: `Server returned HTTP ${String(response.status)}`
+        };
+      }
+      const json = await response.json();
+      const entries = json.data ?? [];
+      const models = [...new Set(entries.map((e) => e.id))].sort();
+      return { ok: true, models };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown connection error";
+      return { ok: false, error: message };
+    }
+  }
+
+  // src/ui/dashboardApp.ts
+  var TOAST_DURATION_MS = 2500;
+  var PROFILE_ID_PREFIX = "user-profile-";
+  var IMPORT_STAGING_KEY = "dashboard-profile-import-staging";
+  var activeInstance = null;
+  function createDashboardStore(api, canonicalWriteFirst) {
+    const store = {
+      storage: api.pluginStorage
+    };
+    if (canonicalWriteFirst) {
+      store.mirrorToCanonical = async (settings) => {
+        await canonicalWriteFirst(
+          (s) => mergeDashboardSettingsIntoPluginState(s, settings)
+        );
+      };
+    }
+    return store;
+  }
+  function createShellPluginState(settings) {
+    const now = Date.now();
+    return {
+      schemaVersion: 1,
+      projectKey: "",
+      characterKey: "",
+      sessionKey: "",
+      updatedAt: now,
+      settings,
+      director: {
+        currentSceneId: "",
+        scenePhase: "setup",
+        pacingMode: "steady",
+        registerLock: null,
+        povLock: null,
+        continuityFacts: [],
+        activeArcs: [],
+        ensembleWeights: {},
+        failureHistory: [],
+        cooldown: { failures: 0, untilTs: null }
+      },
+      actor: {
+        identityAnchor: [],
+        decisionChain: [],
+        behavioralLocks: [],
+        relationshipMap: {},
+        currentIntentHints: []
+      },
+      memory: {
+        summaries: [],
+        entities: [],
+        relations: [],
+        worldFacts: [],
+        sceneLedger: [],
+        turnArchive: []
+      },
+      metrics: {
+        totalDirectorCalls: 0,
+        totalDirectorFailures: 0,
+        totalMemoryWrites: 0,
+        lastUpdatedAt: now
+      }
+    };
+  }
+  var DashboardInstance = class {
+    api;
+    store;
+    lifecycle = new DashboardLifecycle();
+    doc;
+    draft;
+    profiles;
+    activeTab;
+    modelOptions;
+    connectionStatus;
+    root = null;
+    constructor(api, store, doc, draft, profiles, modelOptions) {
+      this.api = api;
+      this.store = store;
+      this.doc = doc;
+      this.draft = draft;
+      this.profiles = profiles;
+      this.activeTab = DASHBOARD_TABS[0]?.id ?? "general";
+      this.modelOptions = modelOptions;
+      this.connectionStatus = { kind: "idle", message: "Not tested" };
+    }
+    // ── public ────────────────────────────────────────────────────────────
+    async mount() {
+      this.injectCss();
+      this.renderRoot();
+      this.bindEvents();
+      await this.api.showContainer("fullscreen");
+    }
+    async close() {
+      this.lifecycle.teardown();
+      this.removeDom();
+      await this.api.hideContainer();
+      if (activeInstance === this) activeInstance = null;
+    }
+    // ── CSS ───────────────────────────────────────────────────────────────
+    injectCss() {
+      const existing = this.doc.getElementById(DASHBOARD_STYLE_ID);
+      if (existing) existing.remove();
+      const style = this.doc.createElement("style");
+      style.id = DASHBOARD_STYLE_ID;
+      style.textContent = buildDashboardCss();
+      this.doc.head.appendChild(style);
+      this.lifecycle.onTeardown(() => {
+        const el = this.doc.getElementById(DASHBOARD_STYLE_ID);
+        if (el) el.remove();
+      });
+    }
+    // ── DOM ───────────────────────────────────────────────────────────────
+    buildMarkupInput() {
+      return {
+        settings: this.draft.settings,
+        pluginState: createShellPluginState(this.draft.settings),
+        profiles: this.profiles,
+        activeTab: this.activeTab,
+        modelOptions: this.modelOptions,
+        connectionStatus: this.connectionStatus
+      };
+    }
+    renderRoot() {
+      for (const el of Array.from(this.doc.querySelectorAll(`.${DASHBOARD_ROOT_CLASS}`))) {
+        el.remove();
+      }
+      const container = this.doc.createElement("div");
+      container.innerHTML = buildDashboardMarkup(this.buildMarkupInput());
+      const wrapper = container.firstElementChild;
+      if (!wrapper) return;
+      const sidebar = wrapper.querySelector(".da-sidebar");
+      if (sidebar) {
+        const closeBtn = this.doc.createElement("button");
+        closeBtn.className = "da-btn da-close-btn";
+        closeBtn.setAttribute("data-da-action", "close");
+        closeBtn.textContent = "\u2715 Close";
+        sidebar.appendChild(closeBtn);
+      }
+      const content = wrapper.querySelector(".da-content");
+      if (content) {
+        const footer = this.doc.createElement("div");
+        footer.className = "da-footer";
+        footer.innerHTML = this.buildFooterHtml();
+        content.appendChild(footer);
+      }
+      this.doc.body.appendChild(wrapper);
+      this.root = wrapper;
+      this.lifecycle.onTeardown(() => {
+        this.removeDom();
+      });
+    }
+    buildFooterHtml() {
+      const dirtyClass = this.draft.isDirty ? "" : " da-hidden";
+      return [
+        `<span class="da-dirty-indicator${dirtyClass}" data-da-role="dirty">Unsaved changes</span>`,
+        `<div style="display:flex;gap:8px;margin-left:auto">`,
+        `  <button class="da-btn" data-da-action="discard">Discard</button>`,
+        `  <button class="da-btn da-btn--primary" data-da-action="save">Save</button>`,
+        `</div>`
+      ].join("\n");
+    }
+    removeDom() {
+      if (this.root?.parentNode) {
+        this.root.parentNode.removeChild(this.root);
+        this.root = null;
+      }
+    }
+    // ── Re-render helpers ─────────────────────────────────────────────────
+    fullReRender() {
+      if (!this.root) return;
+      const parent = this.root.parentNode;
+      if (!parent) return;
+      this.root.remove();
+      const container = this.doc.createElement("div");
+      container.innerHTML = buildDashboardMarkup(this.buildMarkupInput());
+      const wrapper = container.firstElementChild;
+      if (!wrapper) return;
+      const sidebar = wrapper.querySelector(".da-sidebar");
+      if (sidebar) {
+        const closeBtn = this.doc.createElement("button");
+        closeBtn.className = "da-btn da-close-btn";
+        closeBtn.setAttribute("data-da-action", "close");
+        closeBtn.textContent = "\u2715 Close";
+        sidebar.appendChild(closeBtn);
+      }
+      const content = wrapper.querySelector(".da-content");
+      if (content) {
+        const footer = this.doc.createElement("div");
+        footer.className = "da-footer";
+        footer.innerHTML = this.buildFooterHtml();
+        content.appendChild(footer);
+      }
+      parent.appendChild(wrapper);
+      this.root = wrapper;
+      this.bindEvents();
+    }
+    updateConnectionStatusDom() {
+      if (!this.root) return;
+      const el = this.root.querySelector(".da-connection-status");
+      if (!el) return;
+      el.setAttribute("data-da-status", this.connectionStatus.kind);
+      el.textContent = this.connectionStatus.message;
+    }
+    updateModelSelectDom() {
+      if (!this.root) return;
+      const sel = this.root.querySelector(
+        'select[data-da-field="directorModel"]'
+      );
+      if (!sel) return;
+      sel.innerHTML = this.modelOptions.map(
+        (m) => `<option value="${m}"${m === this.draft.settings.directorModel ? " selected" : ""}>${m}</option>`
+      ).join("");
+    }
+    updateDirtyIndicator() {
+      if (!this.root) return;
+      const indicator = this.root.querySelector('[data-da-role="dirty"]');
+      if (indicator) {
+        indicator.classList.toggle("da-hidden", !this.draft.isDirty);
+      }
+    }
+    // ── Event binding ─────────────────────────────────────────────────────
+    bindEvents() {
+      if (!this.root) return;
+      this.lifecycle.listen(this.root, "click", (e) => {
+        const target = e.target;
+        this.handleTabClick(target);
+        void this.handleActionClick(target);
+        this.handleProfileSelect(target);
+      });
+      this.lifecycle.listen(this.root, "change", (e) => {
+        this.handleFieldChange(e.target);
+      });
+      this.lifecycle.listen(this.root, "input", (e) => {
+        const el = e.target;
+        if (el instanceof HTMLInputElement && (el.type === "text" || el.type === "password" || el.type === "number")) {
+          this.handleFieldChange(el);
+        }
+      });
+    }
+    handleTabClick(target) {
+      const btn = target.closest("[data-da-target]");
+      if (!btn) return;
+      const tabId = btn.getAttribute("data-da-target");
+      if (!tabId) return;
+      this.activeTab = tabId;
+      if (this.root) {
+        for (const b of Array.from(this.root.querySelectorAll(".da-sidebar-btn"))) {
+          b.classList.toggle(
+            "da-sidebar-btn--active",
+            b.getAttribute("data-da-target") === tabId
+          );
+        }
+      }
+      if (this.root) {
+        for (const page of Array.from(this.root.querySelectorAll(".da-page"))) {
+          const pageId = page.id.replace("da-page-", "");
+          page.classList.toggle("da-hidden", pageId !== tabId);
+        }
+      }
+    }
+    async handleActionClick(target) {
+      const btn = target.closest("[data-da-action]");
+      if (!btn) return;
+      const action = btn.getAttribute("data-da-action");
+      switch (action) {
+        case "close":
+          await this.close();
+          break;
+        case "save":
+          await this.handleSave();
+          break;
+        case "discard":
+          await this.handleDiscard();
+          break;
+        case "test-connection":
+          await this.handleTestConnection();
+          break;
+        case "create-profile":
+          await this.handleCreateProfile();
+          break;
+        case "export-profile":
+          await this.handleExportProfile();
+          break;
+        case "import-profile":
+          await this.handleImportProfile();
+          break;
+      }
+    }
+    handleProfileSelect(target) {
+      const item = target.closest(".da-profile-item");
+      if (!item) return;
+      if (target.closest("[data-da-action]")) return;
+      const profileId = item.getAttribute("data-da-profile-id");
+      if (!profileId) return;
+      this.selectProfile(profileId);
+    }
+    handleFieldChange(el) {
+      const field = el.getAttribute("data-da-field");
+      if (!field) return;
+      if (!(field in this.draft.settings)) return;
+      const key = field;
+      let value;
+      if (el instanceof HTMLInputElement) {
+        if (el.type === "checkbox") {
+          value = el.checked;
+        } else if (el.type === "number") {
+          value = Number(el.value);
+        } else {
+          value = el.value;
+        }
+      } else if (el instanceof HTMLSelectElement) {
+        value = el.value;
+      } else {
+        return;
+      }
+      const defaults = DEFAULT_DIRECTOR_SETTINGS;
+      if (typeof defaults[key] === typeof value) {
+        ;
+        this.draft.settings[key] = value;
+        this.draft.isDirty = true;
+        this.updateDirtyIndicator();
+      }
+      if (key === "directorProvider") {
+        const providerDefaults = resolveProviderDefaults(
+          value
+        );
+        this.draft.settings.directorBaseUrl = providerDefaults.baseUrl;
+        this.draft.isDirty = true;
+        const baseUrlInput = this.root?.querySelector(
+          '[data-da-field="directorBaseUrl"]'
+        );
+        if (baseUrlInput) {
+          baseUrlInput.value = providerDefaults.baseUrl;
+        }
+      }
+    }
+    // ── Save / Discard ────────────────────────────────────────────────────
+    async handleSave() {
+      await this.store.storage.setItem(
+        DASHBOARD_SETTINGS_KEY,
+        structuredClone(this.draft.settings)
+      );
+      await this.store.storage.setItem(
+        DASHBOARD_PROFILE_MANIFEST_KEY,
+        structuredClone(this.profiles)
+      );
+      if (this.store.mirrorToCanonical) {
+        await this.store.mirrorToCanonical(this.draft.settings);
+      }
+      this.draft.isDirty = false;
+      this.updateDirtyIndicator();
+      this.showToast("Settings saved");
+    }
+    async handleDiscard() {
+      const raw = await this.store.storage.getItem(
+        DASHBOARD_SETTINGS_KEY
+      );
+      this.draft = createDashboardDraft(
+        normalizePersistedSettings(raw ?? {})
+      );
+      this.fullReRender();
+      this.showToast("Changes discarded");
+    }
+    // ── Connection test ───────────────────────────────────────────────────
+    async handleTestConnection() {
+      this.connectionStatus = { kind: "testing", message: "Testing\u2026" };
+      this.updateConnectionStatusDom();
+      const result = await testDirectorConnection(
+        this.api,
+        this.draft.settings
+      );
+      if (result.ok) {
+        this.connectionStatus = {
+          kind: "ok",
+          message: `Connected (${String(result.models.length)} models)`
+        };
+        this.modelOptions = result.models;
+        this.updateModelSelectDom();
+      } else {
+        this.connectionStatus = {
+          kind: "error",
+          message: result.error
+        };
+      }
+      this.updateConnectionStatusDom();
+    }
+    // ── Profile flows ─────────────────────────────────────────────────────
+    async handleCreateProfile() {
+      const now = Date.now();
+      const id = `${PROFILE_ID_PREFIX}${String(now)}-${Math.random().toString(36).slice(2, 6)}`;
+      const newProfile = {
+        id,
+        name: `Profile ${String(this.profiles.profiles.length + 1)}`,
+        createdAt: now,
+        updatedAt: now,
+        basedOn: this.profiles.activeProfileId,
+        overrides: {}
+      };
+      this.profiles.profiles.push(newProfile);
+      this.profiles.activeProfileId = id;
+      this.draft.isDirty = true;
+      await this.store.storage.setItem(
+        DASHBOARD_PROFILE_MANIFEST_KEY,
+        structuredClone(this.profiles)
+      );
+      this.fullReRender();
+      this.showToast("Profile created");
+    }
+    selectProfile(profileId) {
+      const profile = this.profiles.profiles.find((p) => p.id === profileId);
+      if (!profile) return;
+      this.profiles.activeProfileId = profileId;
+      const base = normalizePersistedSettings({});
+      const merged = { ...base, ...profile.overrides };
+      this.draft.settings = merged;
+      this.draft.isDirty = true;
+      this.fullReRender();
+    }
+    async handleExportProfile() {
+      const activeProfile = this.profiles.profiles.find(
+        (p) => p.id === this.profiles.activeProfileId
+      );
+      if (!activeProfile) {
+        this.showToast("No profile selected");
+        return;
+      }
+      const payload = createProfileExportPayload(activeProfile);
+      const json = JSON.stringify(payload, null, 2);
+      await this.api.alert(json);
+      this.showToast("Profile exported");
+    }
+    async handleImportProfile() {
+      const raw = await this.store.storage.getItem(IMPORT_STAGING_KEY);
+      if (!raw) {
+        await this.api.alert(
+          `To import a profile, save the JSON to plugin storage key "${IMPORT_STAGING_KEY}" and click Import again.`
+        );
+        return;
+      }
+      try {
+        const text = typeof raw === "string" ? raw : JSON.stringify(raw);
+        const parsed = JSON.parse(text);
+        if (!isValidExportPayload(parsed)) {
+          await this.api.alertError("Invalid profile format");
+          return;
+        }
+        const payload = parsed;
+        const imported = { ...payload.profile };
+        if (this.profiles.profiles.some((p) => p.id === imported.id)) {
+          imported.id = `${PROFILE_ID_PREFIX}imported-${String(Date.now())}`;
+        }
+        this.profiles.profiles.push(imported);
+        this.profiles.activeProfileId = imported.id;
+        this.draft.isDirty = true;
+        await this.store.storage.setItem(
+          DASHBOARD_PROFILE_MANIFEST_KEY,
+          structuredClone(this.profiles)
+        );
+        await this.store.storage.removeItem(IMPORT_STAGING_KEY);
+        this.fullReRender();
+        this.showToast("Profile imported");
+      } catch {
+        await this.api.alertError("Failed to parse profile JSON");
+      }
+    }
+    // ── Toast ─────────────────────────────────────────────────────────────
+    showToast(message) {
+      const prev = this.doc.querySelector(".da-toast");
+      if (prev) prev.remove();
+      const toast = this.doc.createElement("div");
+      toast.className = "da-toast";
+      toast.textContent = message;
+      this.doc.body.appendChild(toast);
+      this.lifecycle.setTimeout(() => {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, TOAST_DURATION_MS);
+    }
+  };
+  function isValidExportPayload(value) {
+    if (value == null || typeof value !== "object") return false;
+    const v = value;
+    return v.schema === "director-actor-dashboard-profile" && typeof v.version === "number" && v.profile != null && typeof v.profile === "object" && typeof v.profile.id === "string" && typeof v.profile.name === "string";
+  }
+  async function openDashboard(api, store, doc) {
+    if (activeInstance) {
+      await activeInstance.close();
+    }
+    const targetDoc = doc ?? globalThis.document;
+    for (const el of Array.from(targetDoc.querySelectorAll(`.${DASHBOARD_ROOT_CLASS}`))) {
+      el.remove();
+    }
+    const rawSettings = await store.storage.getItem(
+      DASHBOARD_SETTINGS_KEY
+    );
+    const settings = normalizePersistedSettings(rawSettings ?? {});
+    const draft = createDashboardDraft(settings);
+    const rawManifest = await store.storage.getItem(
+      DASHBOARD_PROFILE_MANIFEST_KEY
+    );
+    const profiles = rawManifest ?? createDefaultProfileManifest();
+    let modelOptions = [settings.directorModel];
+    try {
+      if (settings.directorApiKey) {
+        modelOptions = await loadProviderModels(api, settings);
+        if (!modelOptions.includes(settings.directorModel)) {
+          modelOptions.unshift(settings.directorModel);
+        }
+      }
+    } catch {
+    }
+    const instance = new DashboardInstance(
+      api,
+      store,
+      targetDoc,
+      draft,
+      profiles,
+      modelOptions
+    );
+    activeInstance = instance;
+    await instance.mount();
+  }
+  async function closeDashboard() {
+    if (activeInstance) {
+      await activeInstance.close();
+    }
+  }
+
   // src/ui/settings.ts
   var SETTING_NAME = "Director Settings";
   var BUTTON_NAME = "Director";
   var BUTTON_ICON = "\u{1F3AC}";
-  async function showSettingsOverlay(api, settings = DEFAULT_DIRECTOR_SETTINGS) {
-    const lines = [
+  var SETTING_ID = "director-dashboard-settings";
+  var BUTTON_ID = "director-dashboard-button";
+  function buildFallbackSummary(settings) {
+    return [
       `\u2500\u2500 Director Plugin Settings \u2500\u2500`,
       `Enabled: ${String(settings.enabled)}`,
       `Assertiveness: ${settings.assertiveness}`,
+      `Provider: ${settings.directorProvider}`,
       `Model: ${settings.directorModel}`,
       `Injection: ${settings.injectionMode}`,
       `Post-review: ${String(settings.postReviewEnabled)}`,
       `Brief cap: ${String(settings.briefTokenCap)} tokens`
-    ];
-    await api.alert(lines.join("\n"));
+    ].join("\n");
+  }
+  async function showSettingsOverlay(api, settings = DEFAULT_DIRECTOR_SETTINGS, dashboardStore) {
+    if (typeof document === "undefined" || typeof window === "undefined") {
+      await api.alert(buildFallbackSummary(settings));
+      return;
+    }
+    const store = dashboardStore ?? { storage: api.pluginStorage };
+    await openDashboard(api, store);
   }
   async function registerPluginUi(api, options) {
     await api.registerSetting(
@@ -1567,19 +3268,24 @@ ${MEMORY_UPDATE_SCHEMA}`
         await options.onOpen();
       },
       BUTTON_ICON,
-      "html"
+      "html",
+      SETTING_ID
     );
     await api.registerButton(
       {
         name: BUTTON_NAME,
         icon: BUTTON_ICON,
         iconType: "html",
-        location: "chat"
+        location: "chat",
+        id: BUTTON_ID
       },
       async () => {
         await options.onOpen();
       }
     );
+    await api.onUnload(async () => {
+      await closeDashboard();
+    });
   }
 
   // src/runtime/plugin.ts
@@ -1826,8 +3532,8 @@ ${MEMORY_UPDATE_SCHEMA}`
       circuitBreaker,
       turnCache,
       openSettings: async () => {
-        const current = await store.load();
-        await showSettingsOverlay(api, current.settings);
+        const dashboardStore = createDashboardStore(api, (mutator) => store.writeFirst(mutator));
+        await openDashboard(api, dashboardStore);
       }
     });
   }

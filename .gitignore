@@ -1,3 +1,6 @@
 node_modules/
 *.tsbuildinfo
+.worktrees/
+worktrees/
+docs/superpowers/
 

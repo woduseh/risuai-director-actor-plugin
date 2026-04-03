@@ -9,6 +9,8 @@ Director-Actor collaborative long-memory plugin for **RisuAI Plugin V3**.
 - Reviews completed responses with a post-response Director pass
 - Persists canonical memory in `pluginStorage`
 - Survives streaming output with debounce-safe finalization
+- Opens a fullscreen dashboard UI with sidebar navigation, modern theme-aware styling, and profile management
+- Supports director model provider settings, model discovery, connection testing, and JSON import/export flows
 
 ## Project layout
 
@@ -17,7 +19,7 @@ Director-Actor collaborative long-memory plugin for **RisuAI Plugin V3**.
 - `src/director/` — prompt assembly, model calls, validation
 - `src/adapter/` — prompt topology classification and injection
 - `src/memory/` — canonical store, retrieval, turn cache, update application
-- `src/ui/` — settings/button registration
+- `src/ui/` — fullscreen dashboard registration, state, model adapters, and rendering
 - `dist/risuai-director-actor-plugin.js` — bundled Plugin V3 output
 
 ## Commands
@@ -41,5 +43,6 @@ dist/risuai-director-actor-plugin.js
 
 - The bundle includes Plugin V3 metadata comments at the top.
 - The entrypoint auto-registers when it detects a RisuAI Plugin V3 API object on `globalThis`.
-- Settings UI currently uses a safe alert-based overview, which keeps the plugin compatible with minimal UI environments.
+- The dashboard uses `showContainer('fullscreen')` with namespaced `.da-` styles so it stays isolated without Shadow DOM.
+- In non-DOM test environments, the settings entry falls back to a plain alert summary.
 

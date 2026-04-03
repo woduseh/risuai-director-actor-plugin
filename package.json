@@ -1,6 +1,6 @@
 {
   "name": "risuai-director-actor-plugin",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,8 +10,10 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/jsdom": "^28.0.1",
     "@types/node": "^22.13.10",
     "esbuild": "^0.25.3",
+    "jsdom": "^29.0.1",
     "typescript": "^5.8.3",
     "vitest": "^3.1.2"
   }
