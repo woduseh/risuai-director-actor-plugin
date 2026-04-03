@@ -764,6 +764,7 @@ class DashboardInstance {
     const tabId = btn.getAttribute('data-da-target')
     if (!tabId) return
 
+    this.clearArmedState()
     this.activeTab = tabId
 
     // Update sidebar active state

@@ -2026,6 +2026,52 @@ describe('destructive-action arming', () => {
     expect(freshBtn.classList.contains('da-btn--armed')).toBe(false)
   })
 
+  // -- arming cleared on tab switch -----------------------------------------
+
+  test('armed state is cleared when switching tabs', async () => {
+    let currentState = stateWithMemory()
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    // Arm a delete button on the Memory tab
+    const delBtn = root.querySelector(
+      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+    ) as HTMLElement
+    delBtn.click() // arm
+    expect(delBtn.classList.contains('da-btn--armed')).toBe(true)
+
+    // Switch to a different tab
+    const generalBtn = root.querySelector('[data-da-target="general"]') as HTMLElement
+    generalBtn.click()
+
+    // Armed CSS class should be removed from the DOM button
+    expect(delBtn.classList.contains('da-btn--armed')).toBe(false)
+
+    // Switch back to memory tab — button must not be armed
+    navigateToMemoryTab(root)
+    const freshBtn = root.querySelector(
+      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+    ) as HTMLElement
+    expect(freshBtn.classList.contains('da-btn--armed')).toBe(false)
+
+    // Clicking the delete button again should arm (first-click), not execute
+    freshBtn.click()
+    expect(freshBtn.classList.contains('da-btn--armed')).toBe(true)
+    // Verify no deletion occurred — the summary should still exist
+    const latestState = await store.readCanonical()
+    expect(latestState.memory.summaries.some((s: { id: string }) => s.id === 'sum-1')).toBe(true)
+  })
+
   // -- Korean locale confirm text ------------------------------------------
 
   test('armed state shows Korean confirm text when locale is ko', async () => {
