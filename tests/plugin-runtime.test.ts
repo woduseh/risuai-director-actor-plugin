@@ -283,4 +283,42 @@ describe('bootstrapPlugin', () => {
     expect(postResponse).toHaveBeenCalledTimes(0)
     vi.useRealTimers()
   })
+
+  // ── Regression: onShutdown lifecycle wiring ────────────────────────
+
+  test('onUnload calls onShutdown callback', async () => {
+    const api = createMockRisuaiApi()
+    const onShutdown = vi.fn(async () => {})
+
+    await bootstrapPlugin(api, {
+      director: {
+        async preRequest() { return null },
+        async postResponse() { return null },
+      },
+      onShutdown,
+    })
+
+    await api.runUnload()
+
+    expect(onShutdown).toHaveBeenCalledTimes(1)
+  })
+
+  test('onUnload tolerates onShutdown throwing', async () => {
+    const api = createMockRisuaiApi()
+    const onShutdown = vi.fn(async () => {
+      throw new Error('shutdown boom')
+    })
+
+    await bootstrapPlugin(api, {
+      director: {
+        async preRequest() { return null },
+        async postResponse() { return null },
+      },
+      onShutdown,
+    })
+
+    // Should not throw even if onShutdown throws
+    await expect(api.runUnload()).resolves.toBeUndefined()
+    expect(api.__logs.some((l) => l.includes('shutdown'))).toBe(true)
+  })
 })

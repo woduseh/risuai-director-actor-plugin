@@ -81,31 +81,35 @@ export function createExtractionWorker(
       return
     }
 
-    // Turn-interval gate
+    // Turn-interval gate — only suppress when the gap is positive but
+    // below the threshold.  A non-positive gap means the session-local
+    // turnIndex has reset (plugin reload) and the persisted cursor is
+    // stale; in that case we must *not* suppress extraction.
     const lastCursor = await deps.getLastProcessedCursor()
     const gap = ctx.turnIndex - lastCursor
-    if (lastCursor > 0 && gap < options.extractionMinTurnInterval) {
+    if (lastCursor > 0 && gap > 0 && gap < options.extractionMinTurnInterval) {
       return
     }
 
     try {
       const result = await deps.runExtraction(ctx)
 
-      // Record hash
+      // Persist documents *before* recording success markers so that a
+      // persistence failure leaves the turn retryable on next attempt.
+      if (result.applied && result.memoryUpdate) {
+        await deps.persistDocuments(result.memoryUpdate, ctx)
+      }
+
+      // Record hash only after persistence succeeds
       seenHashes.add(hash)
       if (seenHashes.size > MAX_SEEN_HASHES) {
         const first = seenHashes.values().next().value
         if (first !== undefined) seenHashes.delete(first)
       }
 
-      // Update cursor
+      // Update cursor after persistence succeeds
       await deps.setLastProcessedCursor(ctx.turnIndex)
       await deps.setLastExtractionTs(Date.now())
-
-      // Persist documents
-      if (result.applied && result.memoryUpdate) {
-        await deps.persistDocuments(result.memoryUpdate, ctx)
-      }
     } catch (err) {
       deps.log(`[extraction-worker] Extraction failed: ${err instanceof Error ? err.message : String(err)}`)
     }

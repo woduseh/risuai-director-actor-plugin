@@ -254,4 +254,112 @@ describe('ExtractionWorker', () => {
       expect.stringContaining('LLM timeout'),
     )
   })
+
+  // ── Regression: cross-session cursor mismatch ──────────────────────
+
+  test('does not suppress extraction when persisted cursor exceeds session-local turnIndex', async () => {
+    // After a plugin reload the session-local turnIndex restarts at 1
+    // while the persisted cursor may be much higher from a prior session.
+    // A negative gap must not be treated as "too soon".
+    const deps = makeDeps({
+      getLastProcessedCursor: vi.fn(async () => 50),
+    })
+    const worker = createExtractionWorker(deps, { extractionMinTurnInterval: 3 })
+
+    await worker.submit(makeContext({ turnIndex: 1, turnId: 'reload-1' }))
+    await worker.flush()
+
+    expect(deps.runExtraction).toHaveBeenCalledTimes(1)
+  })
+
+  test('does not suppress extraction when turnIndex equals persisted cursor', async () => {
+    const deps = makeDeps({
+      getLastProcessedCursor: vi.fn(async () => 5),
+    })
+    const worker = createExtractionWorker(deps, { extractionMinTurnInterval: 3 })
+
+    await worker.submit(makeContext({ turnIndex: 5, turnId: 'eq-cursor' }))
+    await worker.flush()
+
+    expect(deps.runExtraction).toHaveBeenCalledTimes(1)
+  })
+
+  // ── Regression: cursor/hash recorded before persistence ────────────
+
+  test('does not record cursor or hash when persistDocuments throws', async () => {
+    const seenHashes = new Set<string>()
+    let cursor = 0
+    const deps = makeDeps({
+      runExtraction: vi.fn(async () => ({
+        applied: true,
+        memoryUpdate: {
+          status: 'pass' as const,
+          turnScore: 0.8,
+          violations: [],
+          durableFacts: ['fact'],
+          sceneDelta: {},
+          entityUpdates: [],
+          relationUpdates: [],
+          memoryOps: [],
+        },
+      })),
+      persistDocuments: vi.fn(async () => {
+        throw new Error('disk full')
+      }),
+      getLastProcessedCursor: vi.fn(async () => cursor),
+      setLastProcessedCursor: vi.fn(async (c: number) => { cursor = c }),
+    })
+    const worker = createExtractionWorker(deps, {
+      extractionMinTurnInterval: 1,
+      seenHashes,
+    })
+
+    await worker.submit(makeContext({ turnIndex: 1, turnId: 'persist-fail' }))
+    await worker.flush()
+
+    // Cursor should NOT have been updated
+    expect(cursor).toBe(0)
+    // Hash should NOT have been recorded
+    expect(seenHashes.size).toBe(0)
+    // Error should have been logged
+    expect(deps.log).toHaveBeenCalledWith(expect.stringContaining('disk full'))
+  })
+
+  test('turn is retryable after persistence failure', async () => {
+    let persistShouldFail = true
+    let cursor = 0
+    const deps = makeDeps({
+      runExtraction: vi.fn(async () => ({
+        applied: true,
+        memoryUpdate: {
+          status: 'pass' as const,
+          turnScore: 0.8,
+          violations: [],
+          durableFacts: ['fact'],
+          sceneDelta: {},
+          entityUpdates: [],
+          relationUpdates: [],
+          memoryOps: [],
+        },
+      })),
+      persistDocuments: vi.fn(async () => {
+        if (persistShouldFail) throw new Error('disk full')
+      }),
+      getLastProcessedCursor: vi.fn(async () => cursor),
+      setLastProcessedCursor: vi.fn(async (c: number) => { cursor = c }),
+    })
+    const worker = createExtractionWorker(deps, { extractionMinTurnInterval: 1 })
+
+    // First attempt: persistence fails → no cursor update
+    await worker.submit(makeContext({ turnIndex: 1, turnId: 'retry-a' }))
+    await worker.flush()
+    expect(cursor).toBe(0)
+
+    // Retry: persistence succeeds now
+    persistShouldFail = false
+    await worker.submit(makeContext({ turnIndex: 1, turnId: 'retry-b' }))
+    await worker.flush()
+    expect(cursor).toBe(1)
+    expect(deps.persistDocuments).toHaveBeenCalledTimes(2)
+  })
 })

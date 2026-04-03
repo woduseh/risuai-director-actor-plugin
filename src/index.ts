@@ -309,6 +309,7 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
     circuitBreaker,
     turnCache,
     onTurnFinalized: (ctx) => housekeeping.afterTurn(ctx),
+    onShutdown: () => housekeeping.shutdown(),
     openSettings: async () => {
       const dashboardStore = createDashboardStore(
         api,

@@ -54,6 +54,8 @@ export interface BootstrapOptions {
   openSettings?: () => Promise<void> | void
   /** Called after a turn is finalized, for background extraction. */
   onTurnFinalized?: (ctx: ExtractionContext) => Promise<void> | void
+  /** Called during plugin unload to flush pending background work. */
+  onShutdown?: () => Promise<void> | void
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +86,7 @@ export async function bootstrapPlugin(
   const openSettings =
     options.openSettings ?? (async () => showSettingsOverlay(api))
   const onTurnFinalized = options.onTurnFinalized ?? null
+  const onShutdown = options.onShutdown ?? null
 
   let currentTurnId: string | null = null
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -245,8 +248,15 @@ export async function bootstrapPlugin(
 
   // ── cleanup ──────────────────────────────────────────────────────────
 
-  await api.onUnload(() => {
+  await api.onUnload(async () => {
     clearDebounce()
     clearActiveTurn()
+    if (onShutdown) {
+      try {
+        await onShutdown()
+      } catch (err) {
+        await safeLog(api, `Plugin shutdown hook failed: ${err}`)
+      }
+    }
   })
 }
