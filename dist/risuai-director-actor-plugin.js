@@ -564,6 +564,21 @@ ${MEMORY_UPDATE_SCHEMA}`
     registry.entries.push(entry);
     return entry.scopeId;
   }
+  function resolveScope(registry, fingerprint) {
+    return registry.entries.find(
+      (e) => e.fingerprints.includes(fingerprint)
+    )?.scopeId;
+  }
+  function aliasFingerprint(registry, scopeId, fingerprint) {
+    const entry = registry.entries.find((e) => e.scopeId === scopeId);
+    if (!entry) {
+      throw new Error(`Scope ID "${scopeId}" not found in registry`);
+    }
+    if (!entry.fingerprints.includes(fingerprint)) {
+      entry.fingerprints.push(fingerprint);
+      entry.updatedAt = Date.now();
+    }
+  }
 
   // src/memory/scopeKeys.ts
   var MAX_CHAT_FINGERPRINT_MESSAGES = 3;
@@ -638,8 +653,15 @@ ${MEMORY_UPDATE_SCHEMA}`
       const c = chat;
       const name = typeof c.name === "string" ? c.name : "";
       const lastDate = typeof c.lastDate === "number" ? c.lastDate : 0;
-      const messages = Array.isArray(c.messages) ? c.messages : [];
-      const chatId = typeof c.id === "string" ? c.id : typeof c.id === "number" ? String(c.id) : void 0;
+      const messages = Array.isArray(c.messages) ? c.messages.filter(
+        (entry) => entry != null && typeof entry.role === "string" && typeof entry.content === "string"
+      ) : Array.isArray(c.message) ? c.message.filter(
+        (entry) => entry != null && typeof entry.role === "string" && typeof entry.data === "string"
+      ).map((entry) => ({ role: entry.role, content: entry.data })) : [];
+      const messageChatId = Array.isArray(c.message) ? c.message.find(
+        (entry) => typeof entry?.chatId === "string" && entry.chatId.length > 0
+      )?.chatId : void 0;
+      const chatId = typeof c.id === "string" ? c.id : typeof c.id === "number" ? String(c.id) : typeof messageChatId === "string" ? messageChatId : void 0;
       const result = { name, lastDate, messages };
       if (chatId !== void 0) {
         result.chatId = chatId;
@@ -659,6 +681,44 @@ ${MEMORY_UPDATE_SCHEMA}`
   async function saveRegistry(storage, registry) {
     await storage.setItem(SCOPE_REGISTRY_KEY, structuredClone(registry));
   }
+  function uniqueFingerprints(fingerprints) {
+    return Array.from(new Set(fingerprints));
+  }
+  function resolveFirstScope(registry, fingerprints) {
+    return fingerprints.map((fingerprint) => resolveScope(registry, fingerprint)).find((value) => typeof value === "string" && value.length > 0);
+  }
+  function removeFingerprintFromScope(registry, scopeId, fingerprint) {
+    const entry = registry.entries.find((candidate) => candidate.scopeId === scopeId);
+    if (!entry) {
+      return;
+    }
+    const nextFingerprints = entry.fingerprints.filter(
+      (candidate) => candidate !== fingerprint
+    );
+    if (nextFingerprints.length === entry.fingerprints.length) {
+      return;
+    }
+    entry.fingerprints = nextFingerprints;
+    entry.updatedAt = Date.now();
+  }
+  function buildNoIdFingerprints(chaId, chatName, messageTexts) {
+    const emptyFingerprint = chatFingerprint(chaId, chatName, 0, []);
+    const aliasFingerprints = [];
+    for (let count = messageTexts.length; count >= 1; count--) {
+      aliasFingerprints.push(
+        chatFingerprint(chaId, chatName, 0, messageTexts.slice(0, count))
+      );
+    }
+    if (aliasFingerprints.length === 0) {
+      aliasFingerprints.push(emptyFingerprint);
+    }
+    const resolveFingerprints = aliasFingerprints[0] === emptyFingerprint ? aliasFingerprints : [...aliasFingerprints, emptyFingerprint];
+    return {
+      resolveFingerprints: uniqueFingerprints(resolveFingerprints),
+      aliasFingerprints: uniqueFingerprints(aliasFingerprints),
+      emptyFingerprint
+    };
+  }
   async function resolveScopeStorageKey(api) {
     const character = await tryGetCharacter(api);
     if (!character) {
@@ -669,26 +729,44 @@ ${MEMORY_UPDATE_SCHEMA}`
       return { storageKey: DIRECTOR_STATE_STORAGE_KEY, isFallback: true };
     }
     const charIdentity = characterScopeIdentity(character.chaId, character.name);
-    let chatFp;
+    const registry = await loadRegistry(api.pluginStorage);
+    let scopeId;
+    let aliasFingerprints = [];
+    let emptyFingerprint;
     if (chat.chatId != null && chat.chatId.length > 0) {
-      chatFp = chatFingerprint(
-        character.chaId,
-        chat.chatId,
-        0,
-        []
-      );
+      const stableFingerprint = chatFingerprint(character.chaId, chat.chatId, 0, []);
+      scopeId = resolveFirstScope(registry, [stableFingerprint]);
+      aliasFingerprints = [stableFingerprint];
     } else {
-      chatFp = chatFingerprint(
+      const messageTexts = chat.messages.map((m) => m.content);
+      const noIdFingerprints = buildNoIdFingerprints(
         character.chaId,
         chat.name,
-        chat.lastDate,
-        chat.messages.map((m) => m.content)
+        messageTexts
+      );
+      scopeId = resolveFirstScope(registry, noIdFingerprints.resolveFingerprints);
+      aliasFingerprints = noIdFingerprints.aliasFingerprints;
+      emptyFingerprint = noIdFingerprints.emptyFingerprint;
+    }
+    if (!scopeId) {
+      const primaryFingerprint = aliasFingerprints[0];
+      scopeId = registerFingerprint(
+        registry,
+        primaryFingerprint,
+        `${character.name} / ${chat.name}`,
+        {
+          generateId: () => `sc-${primaryFingerprint}`
+        }
       );
     }
-    const registry = await loadRegistry(api.pluginStorage);
-    const scopeKey = composeScopeKey(charIdentity.fingerprint, chatFp);
-    registerFingerprint(registry, scopeKey, `${character.name}`);
+    for (const fingerprint of aliasFingerprints) {
+      aliasFingerprint(registry, scopeId, fingerprint);
+    }
+    if (chat.chatId == null && emptyFingerprint !== void 0 && !aliasFingerprints.includes(emptyFingerprint)) {
+      removeFingerprintFromScope(registry, scopeId, emptyFingerprint);
+    }
     await saveRegistry(api.pluginStorage, registry);
+    const scopeKey = composeScopeKey(charIdentity.fingerprint, scopeId);
     const storageKey = composeStorageKey(STORAGE_NAMESPACE, scopeKey);
     return { storageKey, isFallback: false };
   }

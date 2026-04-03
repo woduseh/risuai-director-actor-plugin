@@ -171,6 +171,154 @@ describe('resolveScopeStorageKey', () => {
     expect(key1).toBe(key2)
     expect(key1).not.toBe(DIRECTOR_STATE_STORAGE_KEY)
   })
+
+  test('keeps same key for the same chat when only lastDate changes and host exposes chat.message', async () => {
+    const api1 = createMockRisuaiApi()
+    const api2 = createMockRisuaiApi()
+    const chatA = {
+      name: 'Adventure',
+      lastDate: 1000,
+      message: [{ role: 'user', data: 'begin' }],
+    }
+    const chatB = {
+      name: 'Adventure',
+      lastDate: 2000,
+      message: [{ role: 'user', data: 'begin' }],
+    }
+
+    const extended1 = api1 as unknown as Record<string, unknown>
+    extended1['getCharacter'] = async () => ({ chaId: 'char-1', name: 'Alice' })
+    extended1['getCurrentCharacterIndex'] = async () => 0
+    extended1['getCurrentChatIndex'] = async () => 0
+    extended1['getChatFromIndex'] = async () => chatA
+
+    const extended2 = api2 as unknown as Record<string, unknown>
+    extended2['getCharacter'] = async () => ({ chaId: 'char-1', name: 'Alice' })
+    extended2['getCurrentCharacterIndex'] = async () => 0
+    extended2['getCurrentChatIndex'] = async () => 0
+    extended2['getChatFromIndex'] = async () => chatB
+
+    const key1 = await resolveKey(api1)
+    const key2 = await resolveKey(api2)
+
+    expect(key1).toBe(key2)
+  })
+
+  test('keeps the same scope key when message-level chatId is present before host chat.id appears', async () => {
+    const api = createMockRisuaiApi()
+    const extended = api as unknown as Record<string, unknown>
+    extended['getCharacter'] = async () => ({ chaId: 'char-1', name: 'Alice' })
+    extended['getCurrentCharacterIndex'] = async () => 0
+    extended['getCurrentChatIndex'] = async () => 0
+    extended['getChatFromIndex'] = async () => ({
+      name: 'Adventure',
+      lastDate: 1000,
+      message: [{ role: 'user', data: 'begin', chatId: 'chat-42' }],
+    })
+
+    const keyBeforeId = await resolveKey(api)
+
+    extended['getChatFromIndex'] = async () => ({
+      id: 'chat-42',
+      name: 'Renamed Adventure',
+      lastDate: 9999,
+      message: [{ role: 'user', data: 'begin' }],
+    })
+
+    const keyAfterId = await resolveKey(api)
+
+    expect(keyAfterId).toBe(keyBeforeId)
+  })
+
+  test('keeps the same key while a no-id chat accumulates opening messages', async () => {
+    const api = createMockRisuaiApi()
+    const extended = api as unknown as Record<string, unknown>
+    extended['getCharacter'] = async () => ({ chaId: 'char-1', name: 'Alice' })
+    extended['getCurrentCharacterIndex'] = async () => 0
+    extended['getCurrentChatIndex'] = async () => 0
+
+    let currentMessages: Array<{ role: string; data: string }> = []
+    extended['getChatFromIndex'] = async () => ({
+      name: 'Adventure',
+      lastDate: 1000 + currentMessages.length,
+      message: currentMessages,
+    })
+
+    const key0 = await resolveKey(api)
+
+    currentMessages = [{ role: 'user', data: 'Hello' }]
+    const key1 = await resolveKey(api)
+
+    currentMessages = [
+      { role: 'user', data: 'Hello' },
+      { role: 'assistant', data: 'Welcome aboard.' },
+    ]
+    const key2 = await resolveKey(api)
+
+    currentMessages = [
+      { role: 'user', data: 'Hello' },
+      { role: 'assistant', data: 'Welcome aboard.' },
+      { role: 'user', data: 'Tell me about this place.' },
+    ]
+    const key3 = await resolveKey(api)
+
+    expect(key1).toBe(key0)
+    expect(key2).toBe(key0)
+    expect(key3).toBe(key0)
+  })
+
+  test('does not merge different stable chat ids that share the same name and opening messages', async () => {
+    const api = createMockRisuaiApi()
+    const extended = api as unknown as Record<string, unknown>
+    extended['getCharacter'] = async () => ({ chaId: 'char-1', name: 'Alice' })
+    extended['getCurrentCharacterIndex'] = async () => 0
+    extended['getCurrentChatIndex'] = async () => 0
+
+    let currentChat = {
+      id: 'id-AAA',
+      name: 'New Chat',
+      lastDate: 1000,
+      message: [{ role: 'assistant', data: 'Hello!' }],
+    }
+    extended['getChatFromIndex'] = async () => currentChat
+
+    const keyA = await resolveKey(api)
+
+    currentChat = {
+      id: 'id-BBB',
+      name: 'New Chat',
+      lastDate: 2000,
+      message: [{ role: 'assistant', data: 'Hello!' }],
+    }
+    const keyB = await resolveKey(api)
+
+    expect(keyB).not.toBe(keyA)
+  })
+
+  test('does not merge different chats that share the same opening messages when no stable chat id exists', async () => {
+    const api = createMockRisuaiApi()
+    const extended = api as unknown as Record<string, unknown>
+    extended['getCharacter'] = async () => ({ chaId: 'char-1', name: 'Alice' })
+    extended['getCurrentCharacterIndex'] = async () => 0
+    extended['getCurrentChatIndex'] = async () => 0
+    extended['getChatFromIndex'] = async () => ({
+      name: 'Adventure',
+      lastDate: 1000,
+      message: [{ role: 'user', data: 'Hello' }],
+    })
+
+    const keyA = await resolveKey(api)
+
+    extended['getChatFromIndex'] = async () => ({
+      name: 'Mystery',
+      lastDate: 2000,
+      message: [{ role: 'user', data: 'Hello' }],
+    })
+
+    const keyB = await resolveKey(api)
+
+    expect(keyB).not.toBe(keyA)
+  })
 })
 
 // ── Scoped CanonicalStore tests ──────────────────────────────────────────

@@ -7,11 +7,11 @@ Director-Actor collaborative long-memory plugin for **RisuAI Plugin V3**.
 - Intercepts `beforeRequest` to call a lightweight Director pass
 - Injects `<director-brief>` using author-note-first, latest-user fallback routing
 - Reviews completed responses with a post-response Director pass
-- Persists canonical memory in `pluginStorage`
+- Persists scoped canonical memory per character/chat in `pluginStorage`
 - Survives streaming output with debounce-safe finalization
 - Opens a fullscreen dashboard UI with sidebar navigation, modern theme-aware styling, and profile management
 - Supports director model provider settings, model discovery, connection testing, and JSON import/export flows
-- Includes a bilingual memory dashboard slice for summaries and continuity facts with localized empty states and safe delete actions
+- Includes a bilingual memory dashboard slice for summaries and continuity facts with localized empty states plus safe add/delete actions
 
 ## Project layout
 
@@ -45,5 +45,6 @@ dist/risuai-director-actor-plugin.js
 - The bundle includes Plugin V3 metadata comments at the top.
 - The entrypoint auto-registers when it detects a RisuAI Plugin V3 API object on `globalThis`.
 - The dashboard uses `showContainer('fullscreen')` with namespaced `.da-` styles so it stays isolated without Shadow DOM.
+- Runtime state is keyed per character/chat and preserves the active scope as chats gain opening turns or later expose stable chat IDs.
 - In non-DOM test environments, the settings entry falls back to a plain alert summary.
 
