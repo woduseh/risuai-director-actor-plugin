@@ -1,7 +1,8 @@
-import { CanonicalStore, DIRECTOR_STATE_STORAGE_KEY } from '../src/memory/canonicalStore.js'
+import { CanonicalStore, DIRECTOR_STATE_STORAGE_KEY, MEMDIR_MIGRATION_MARKER_NS } from '../src/memory/canonicalStore.js'
 import { TurnCache } from '../src/memory/turnCache.js'
 import { createEmptyState } from '../src/contracts/types.js'
-import { createMockRisuaiApi } from './helpers/mockRisuai.js'
+import { MemdirStore } from '../src/memory/memdirStore.js'
+import { createMockRisuaiApi, InMemoryAsyncStore } from './helpers/mockRisuai.js'
 
 describe('CanonicalStore', () => {
   test('loads a default state when storage is empty', async () => {
@@ -150,6 +151,201 @@ describe('CanonicalStore', () => {
       expect(state.memory.continuityFacts[0]?.entityIds).toEqual(['tower', 'ward'])
       expect(state.director.continuityFacts[0]?.entityIds).toEqual(['tower'])
     })
+  })
+})
+
+// ── Memdir migration gate ──────────────────────────────────────────────
+
+describe('CanonicalStore memdir migration', () => {
+  function makePopulatedState() {
+    const state = createEmptyState()
+    state.memory.entities = [
+      { id: 'e-1', name: 'Alice', facts: ['Wizard', 'Kind'], updatedAt: 1000 },
+      { id: 'e-2', name: 'Bob', facts: ['Warrior'], updatedAt: 2000 },
+    ]
+    state.memory.relations = [
+      { id: 'r-1', sourceId: 'e-1', targetId: 'e-2', label: 'allies', facts: ['Trust'], updatedAt: 1500 },
+    ]
+    state.memory.worldFacts = [
+      { id: 'wf-1', text: 'The kingdom is at war', updatedAt: 3000 },
+    ]
+    state.memory.continuityFacts = [
+      { id: 'cf-1', text: 'The ring was lost last session', priority: 0.9 },
+    ]
+    state.memory.summaries = [
+      { id: 's-1', text: 'Alice and Bob traveled north', recencyWeight: 1, updatedAt: 4000 },
+    ]
+    return state
+  }
+
+  test('lazily migrates legacy canonical memory into memdir on first load', async () => {
+    const storage = new InMemoryAsyncStore()
+    const scopeKey = 'scope:test-char:test-chat'
+    const storageKey = `director-plugin-state::${scopeKey}`
+
+    // Persist a populated state under the scoped key
+    await storage.setItem(storageKey, makePopulatedState())
+
+    const memdirStore = new MemdirStore(storage, scopeKey)
+    const store = new CanonicalStore(storage, {
+      storageKey,
+      memdirStore,
+    })
+
+    await store.load()
+
+    // Migration marker must exist
+    const marker = await store.getMigrationMarker()
+    expect(marker).not.toBeNull()
+    expect(marker!.scopeKey).toBe(scopeKey)
+    // 2 entities + 1 relation + 1 worldFact + 1 continuityFact + 1 summary = 6
+    expect(marker!.docCount).toBe(6)
+
+    // Memdir must have the documents
+    const docs = await memdirStore.listDocuments()
+    expect(docs.length).toBe(6)
+  })
+
+  test('migration is idempotent — re-load does not create duplicates', async () => {
+    const storage = new InMemoryAsyncStore()
+    const scopeKey = 'scope:idem:test'
+    const storageKey = `director-plugin-state::${scopeKey}`
+
+    await storage.setItem(storageKey, makePopulatedState())
+
+    const memdirStore = new MemdirStore(storage, scopeKey)
+    const store = new CanonicalStore(storage, {
+      storageKey,
+      memdirStore,
+    })
+
+    // First load triggers migration
+    await store.load()
+    const firstDocs = await memdirStore.listDocuments()
+
+    // Second load should not re-migrate
+    const store2 = new CanonicalStore(storage, {
+      storageKey,
+      memdirStore,
+    })
+    await store2.load()
+    const secondDocs = await memdirStore.listDocuments()
+
+    expect(secondDocs.length).toBe(firstDocs.length)
+  })
+
+  test('dual-read: canonical state is still returned after migration', async () => {
+    const storage = new InMemoryAsyncStore()
+    const scopeKey = 'scope:dual:test'
+    const storageKey = `director-plugin-state::${scopeKey}`
+
+    const populated = makePopulatedState()
+    populated.projectKey = 'my-project'
+    await storage.setItem(storageKey, populated)
+
+    const memdirStore = new MemdirStore(storage, scopeKey)
+    const store = new CanonicalStore(storage, {
+      storageKey,
+      memdirStore,
+    })
+
+    const state = await store.load()
+
+    // Canonical state fields still readable
+    expect(state.projectKey).toBe('my-project')
+    expect(state.memory.entities).toHaveLength(2)
+
+    // Memdir also has documents
+    const docs = await memdirStore.listDocuments()
+    expect(docs.length).toBeGreaterThan(0)
+  })
+
+  test('single-write: writeFirst still persists canonical state', async () => {
+    const storage = new InMemoryAsyncStore()
+    const scopeKey = 'scope:write:test'
+    const storageKey = `director-plugin-state::${scopeKey}`
+
+    await storage.setItem(storageKey, makePopulatedState())
+
+    const memdirStore = new MemdirStore(storage, scopeKey)
+    const store = new CanonicalStore(storage, {
+      storageKey,
+      memdirStore,
+    })
+
+    await store.load()
+
+    // Write adds a new entity to canonical — backward compat
+    const updated = await store.writeFirst(async (s) => {
+      s.memory.entities.push({
+        id: 'e-new',
+        name: 'Carol',
+        facts: ['Healer'],
+        updatedAt: Date.now(),
+      })
+      return s
+    })
+
+    expect(updated.memory.entities).toHaveLength(3)
+
+    // Canonical storage persisted the write
+    const raw = await storage.getItem<{ memory: { entities: unknown[] } }>(storageKey)
+    expect(raw!.memory.entities).toHaveLength(3)
+  })
+
+  test('safe fallback when memdir migration is partially complete', async () => {
+    const storage = new InMemoryAsyncStore()
+    const scopeKey = 'scope:partial:test'
+    const storageKey = `director-plugin-state::${scopeKey}`
+
+    const populated = makePopulatedState()
+    await storage.setItem(storageKey, populated)
+
+    // Simulate partial migration: marker exists but memdir is empty
+    const markerKey = `${MEMDIR_MIGRATION_MARKER_NS}:${scopeKey}`
+    await storage.setItem(markerKey, {
+      scopeKey,
+      migratedAt: Date.now(),
+      schemaVersion: 2,
+      docCount: 6,
+    })
+
+    const memdirStore = new MemdirStore(storage, scopeKey)
+    const store = new CanonicalStore(storage, {
+      storageKey,
+      memdirStore,
+    })
+
+    // Load should still succeed and canonical data is available
+    const state = await store.load()
+    expect(state.memory.entities).toHaveLength(2)
+    expect(state.memory.worldFacts).toHaveLength(1)
+
+    // Memdir may be empty but that's OK — canonical is the fallback
+    expect(state.schemaVersion).toBe(1)
+  })
+
+  test('skips migration when no memdirStore is provided', async () => {
+    const storage = new InMemoryAsyncStore()
+    const storageKey = `director-plugin-state::scope:no-memdir:test`
+
+    await storage.setItem(storageKey, makePopulatedState())
+
+    const store = new CanonicalStore(storage, { storageKey })
+    const state = await store.load()
+
+    // No migration marker set
+    const marker = await store.getMigrationMarker()
+    expect(marker).toBeNull()
+
+    // State loads normally
+    expect(state.memory.entities).toHaveLength(2)
+  })
+
+  test('getMigrationMarker returns null when not migrated', async () => {
+    const storage = new InMemoryAsyncStore()
+    const store = new CanonicalStore(storage)
+    expect(await store.getMigrationMarker()).toBeNull()
   })
 })
 

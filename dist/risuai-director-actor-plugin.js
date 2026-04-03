@@ -1,7 +1,7 @@
 //@name risuai-director-actor-plugin
 //@display-name RisuAI Director Actor
 //@api 3.0
-//@version 0.3.0
+//@version 0.4.0
 //@description Director-Actor collaborative long-memory plugin for RisuAI Plugin V3
 
 "use strict";
@@ -65,6 +65,8 @@
       "## Continuity Locks",
       "{{continuityFacts}}",
       "",
+      "{{notebookBlock}}",
+      "{{recalledDocsBlock}}",
       "## Memory Summaries",
       "{{memorySummaries}}",
       "",
@@ -145,7 +147,9 @@
       scenePhase: ctx.directorState.scenePhase,
       pacingMode: ctx.directorState.pacingMode,
       activeArcs: formatArcs(ctx.directorState),
-      continuityFacts: formatContinuityFacts(ctx.directorState)
+      continuityFacts: formatContinuityFacts(ctx.directorState),
+      notebookBlock: ctx.notebookBlock ?? "",
+      recalledDocsBlock: ctx.recalledDocsBlock ?? ""
     };
     return [
       { role: "system", content: applyTemplate(preset.preRequestSystemTemplate, vars) },
@@ -442,7 +446,11 @@
     embeddingModel: "text-embedding-3-small",
     embeddingDimensions: 1536,
     promptPresetId: "builtin-default",
-    promptPresets: {}
+    promptPresets: {},
+    extractionMinTurnInterval: 3,
+    recallCooldownMs: 1e4,
+    dreamMinHoursElapsed: 4,
+    dreamMinSessionsElapsed: 2
   };
   function createEmptyState(seed) {
     const now = Date.now();
@@ -493,8 +501,134 @@
     };
   }
 
+  // src/memory/memoryDocuments.ts
+  var CHARS_PER_TOKEN = 4;
+  function buildMemoryMd(docs, options) {
+    const maxChars = options.tokenBudget * CHARS_PER_TOKEN;
+    const lines = ["# MEMORY.md", ""];
+    if (docs.length === 0) {
+      lines.push("No memory documents recorded yet.");
+      return lines.join("\n");
+    }
+    const grouped = /* @__PURE__ */ new Map();
+    for (const doc of docs) {
+      const bucket = grouped.get(doc.type) ?? [];
+      bucket.push(doc);
+      grouped.set(doc.type, bucket);
+    }
+    const typeOrder = [
+      "character",
+      "relationship",
+      "world",
+      "plot",
+      "continuity",
+      "operator"
+    ];
+    let charCount = lines.join("\n").length;
+    for (const type of typeOrder) {
+      const bucket = grouped.get(type);
+      if (!bucket || bucket.length === 0) continue;
+      const header = `## ${type}`;
+      if (charCount + header.length + 1 > maxChars) break;
+      lines.push(header);
+      charCount += header.length + 1;
+      for (const doc of bucket) {
+        const freshTag = doc.freshness !== "current" ? ` [${doc.freshness}]` : "";
+        const entry = `- **${doc.title}**${freshTag}: ${doc.description}`;
+        if (charCount + entry.length + 1 > maxChars) {
+          lines.push("- _(truncated)_");
+          return lines.join("\n");
+        }
+        lines.push(entry);
+        charCount += entry.length + 1;
+      }
+      lines.push("");
+      charCount += 1;
+    }
+    return lines.join("\n");
+  }
+  async function migrateCanonicalToMemdir(state, store) {
+    const now = Date.now();
+    const scopeKey = store.scopeKey;
+    const docs = [];
+    for (const entity of state.memory.entities) {
+      docs.push({
+        id: `migrated-entity-${entity.id}`,
+        type: "character",
+        title: entity.name,
+        description: entity.facts.join("; "),
+        scopeKey,
+        updatedAt: entity.updatedAt ?? now,
+        source: "migration",
+        freshness: "current",
+        tags: entity.tags ?? []
+      });
+    }
+    for (const rel of state.memory.relations) {
+      docs.push({
+        id: `migrated-relation-${rel.id}`,
+        type: "relationship",
+        title: `${rel.sourceId} \u2192 ${rel.targetId}`,
+        description: [rel.label, ...rel.facts ?? []].join("; "),
+        scopeKey,
+        updatedAt: rel.updatedAt ?? now,
+        source: "migration",
+        freshness: "current",
+        tags: []
+      });
+    }
+    for (const wf of state.memory.worldFacts) {
+      docs.push({
+        id: `migrated-worldfact-${wf.id}`,
+        type: "world",
+        title: wf.text.slice(0, 60),
+        description: wf.text,
+        scopeKey,
+        updatedAt: wf.updatedAt ?? now,
+        source: "migration",
+        freshness: "current",
+        tags: wf.tags ?? []
+      });
+    }
+    for (const cf of state.memory.continuityFacts) {
+      docs.push({
+        id: `migrated-continuity-${cf.id}`,
+        type: "continuity",
+        title: cf.text.slice(0, 60),
+        description: cf.text,
+        scopeKey,
+        updatedAt: now,
+        source: "migration",
+        freshness: "current",
+        tags: []
+      });
+    }
+    for (const sum of state.memory.summaries) {
+      docs.push({
+        id: `migrated-summary-${sum.id}`,
+        type: "plot",
+        title: sum.text.slice(0, 60),
+        description: sum.text,
+        scopeKey,
+        updatedAt: sum.updatedAt ?? now,
+        source: "migration",
+        freshness: "current",
+        tags: []
+      });
+    }
+    for (const doc of docs) {
+      await store.putDocument(doc);
+    }
+    return {
+      migratedCount: docs.length,
+      docIds: docs.map((d) => d.id)
+    };
+  }
+
   // src/memory/canonicalStore.ts
   var DIRECTOR_STATE_STORAGE_KEY = "director-plugin-state";
+  var MEMDIR_MIGRATION_MARKER_NS = "director-memdir:migrated";
+  var MEMDIR_SCHEMA_VERSION = 2;
   function patchLegacyMemory(state) {
     if (!Array.isArray(state.memory.continuityFacts)) {
       if (Array.isArray(state.director.continuityFacts) && state.director.continuityFacts.length > 0) {
@@ -518,15 +652,21 @@
     const v = value;
     return typeof v.schemaVersion === "number" && typeof v.projectKey === "string" && typeof v.characterKey === "string" && typeof v.sessionKey === "string" && typeof v.updatedAt === "number" && v.settings != null && typeof v.settings === "object" && v.director != null && typeof v.director === "object" && v.actor != null && typeof v.actor === "object" && v.memory != null && typeof v.memory === "object" && v.metrics != null && typeof v.metrics === "object";
   }
+  function migrationMarkerKey(scopeKey) {
+    return `${MEMDIR_MIGRATION_MARKER_NS}:${scopeKey}`;
+  }
   var CanonicalStore = class {
     storage;
     storageKey;
     migrateFromFlatKey;
+    memdirStore;
     current = null;
+    migrationMarker = null;
     constructor(storage, options) {
       this.storage = storage;
       this.storageKey = options?.storageKey ?? DIRECTOR_STATE_STORAGE_KEY;
       this.migrateFromFlatKey = options?.migrateFromFlatKey === true && this.storageKey !== DIRECTOR_STATE_STORAGE_KEY;
+      this.memdirStore = options?.memdirStore ?? null;
     }
     /** The storage key this store reads/writes. */
     get stateStorageKey() {
@@ -538,11 +678,28 @@
       }
       return structuredClone(this.current);
     }
+    /**
+     * Read the persisted migration marker for this scope, or `null`
+     * if memdir migration has not been completed (or no memdirStore).
+     */
+    async getMigrationMarker() {
+      if (this.migrationMarker != null) return this.migrationMarker;
+      if (this.memdirStore == null) return null;
+      const raw = await this.storage.getItem(
+        migrationMarkerKey(this.memdirStore.scopeKey)
+      );
+      if (raw != null && typeof raw === "object" && typeof raw.scopeKey === "string") {
+        this.migrationMarker = raw;
+        return raw;
+      }
+      return null;
+    }
     async load() {
       const raw = await this.storage.getItem(this.storageKey);
       if (isValidState(raw)) {
         this.current = structuredClone(raw);
         patchLegacyMemory(this.current);
+        await this.tryMemdirMigration();
         return structuredClone(this.current);
       }
       if (this.migrateFromFlatKey) {
@@ -556,6 +713,7 @@
             this.storageKey,
             structuredClone(this.current)
           );
+          await this.tryMemdirMigration();
           return structuredClone(this.current);
         }
       }
@@ -577,6 +735,32 @@
         await onAfterPersist();
       }
       return structuredClone(this.current);
+    }
+    // ── Private: memdir migration ───────────────────────────────────────
+    /**
+     * Lazily migrate canonical memory into memdir on first successful load.
+     * The migration is idempotent and non-destructive: the canonical blob
+     * is never modified, and a per-scope marker prevents re-migration.
+     */
+    async tryMemdirMigration() {
+      if (this.memdirStore == null || this.current == null) return;
+      const existing = await this.getMigrationMarker();
+      if (existing != null) return;
+      try {
+        const result = await migrateCanonicalToMemdir(this.current, this.memdirStore);
+        const marker = {
+          scopeKey: this.memdirStore.scopeKey,
+          migratedAt: Date.now(),
+          schemaVersion: MEMDIR_SCHEMA_VERSION,
+          docCount: result.migratedCount
+        };
+        await this.storage.setItem(
+          migrationMarkerKey(this.memdirStore.scopeKey),
+          marker
+        );
+        this.migrationMarker = marker;
+      } catch {
+      }
     }
   };
 
@@ -1567,6 +1751,21 @@
     }
     return result;
   }
+  var DEFAULT_FALLBACK_MAX = 5;
+  function rankDocsByKeywordOverlap(docs, queryText, maxResults = DEFAULT_FALLBACK_MAX) {
+    if (docs.length === 0) return [];
+    const queryTokens = new Set(tokenize(queryText));
+    if (queryTokens.size === 0) return docs.slice(0, maxResults);
+    const scored = docs.map((doc) => {
+      const docText = `${doc.title} ${doc.description} ${doc.tags.join(" ")}`;
+      const docTokens = tokenize(docText);
+      const overlap = docTokens.filter((t2) => queryTokens.has(t2)).length;
+      const score = docTokens.length > 0 ? overlap / docTokens.length : 0;
+      return { doc, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, maxResults).map((s) => s.doc);
+  }
 
   // src/memory/turnCache.ts
   var nextId = 0;
@@ -1609,6 +1808,1435 @@
       this.turns.delete(turnId);
     }
   };
+
+  // src/memory/extractMemories.ts
+  var MAX_SEEN_HASHES = 200;
+  function createExtractionWorker(deps, options) {
+    const seenHashes = options.seenHashes ?? /* @__PURE__ */ new Set();
+    let pending = null;
+    let inFlight = null;
+    let drainScheduled = false;
+    async function runOne(ctx) {
+      const hash = deps.hashRequest(ctx);
+      if (seenHashes.has(hash)) {
+        return;
+      }
+      const lastCursor = await deps.getLastProcessedCursor();
+      const gap = ctx.turnIndex - lastCursor;
+      if (lastCursor > 0 && gap > 0 && gap < options.extractionMinTurnInterval) {
+        return;
+      }
+      try {
+        const result = await deps.runExtraction(ctx);
+        if (result.applied && result.memoryUpdate) {
+          await deps.persistDocuments(result.memoryUpdate, ctx);
+        }
+        seenHashes.add(hash);
+        if (seenHashes.size > MAX_SEEN_HASHES) {
+          const first = seenHashes.values().next().value;
+          if (first !== void 0) seenHashes.delete(first);
+        }
+        await deps.setLastProcessedCursor(ctx.turnIndex);
+        await deps.setLastExtractionTs(Date.now());
+      } catch (err) {
+        deps.log(`[extraction-worker] Extraction failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    async function drainPending() {
+      while (pending !== null) {
+        const ctx = pending;
+        pending = null;
+        await runOne(ctx);
+      }
+    }
+    function scheduleDrain() {
+      if (drainScheduled || inFlight !== null) return;
+      drainScheduled = true;
+      void Promise.resolve().then(async () => {
+        drainScheduled = false;
+        if (inFlight !== null || pending === null) return;
+        inFlight = drainPending();
+        try {
+          await inFlight;
+        } finally {
+          inFlight = null;
+        }
+      });
+    }
+    async function submit(ctx) {
+      pending = ctx;
+      scheduleDrain();
+    }
+    async function flush() {
+      if (inFlight !== null) {
+        await inFlight;
+      }
+      if (pending !== null) {
+        inFlight = drainPending();
+        try {
+          await inFlight;
+        } finally {
+          inFlight = null;
+        }
+      }
+    }
+    return { submit, flush };
+  }
+
+  // src/memory/memdirStore.ts
+  var NS_INDEX = "director-memdir:index";
+  var NS_DOC = "director-memdir:doc";
+  var NS_MEMORY_MD = "director-memdir:memory-md";
+  function indexKey(scopeKey) {
+    return `${NS_INDEX}:${scopeKey}`;
+  }
+  function docKey(scopeKey, docId) {
+    return `${NS_DOC}:${scopeKey}:${docId}`;
+  }
+  function memoryMdKey(scopeKey) {
+    return `${NS_MEMORY_MD}:${scopeKey}`;
+  }
+  var MemdirStore = class {
+    storage;
+    _scopeKey;
+    indexCache = null;
+    constructor(storage, scopeKey) {
+      this.storage = storage;
+      this._scopeKey = scopeKey;
+    }
+    get scopeKey() {
+      return this._scopeKey;
+    }
+    async loadIndex() {
+      const raw = await this.storage.getItem(
+        indexKey(this.scopeKey)
+      );
+      if (raw != null && typeof raw === "object" && Array.isArray(raw.docIds)) {
+        this.indexCache = raw;
+        return structuredClone(raw);
+      }
+      const now = Date.now();
+      const fresh = {
+        scopeKey: this.scopeKey,
+        docIds: [],
+        createdAt: now,
+        updatedAt: now
+      };
+      this.indexCache = fresh;
+      await this.storage.setItem(indexKey(this.scopeKey), structuredClone(fresh));
+      return structuredClone(fresh);
+    }
+    async ensureIndex() {
+      if (this.indexCache != null) return this.indexCache;
+      return this.loadIndex();
+    }
+    async persistIndex(index) {
+      index.updatedAt = Date.now();
+      this.indexCache = index;
+      await this.storage.setItem(
+        indexKey(this.scopeKey),
+        structuredClone(index)
+      );
+    }
+    async putDocument(doc) {
+      await this.storage.setItem(
+        docKey(this.scopeKey, doc.id),
+        structuredClone(doc)
+      );
+      const index = await this.ensureIndex();
+      if (!index.docIds.includes(doc.id)) {
+        index.docIds.push(doc.id);
+        await this.persistIndex(index);
+      }
+    }
+    async getDocument(docId) {
+      const raw = await this.storage.getItem(
+        docKey(this.scopeKey, docId)
+      );
+      return raw ?? null;
+    }
+    async removeDocument(docId) {
+      await this.storage.removeItem(docKey(this.scopeKey, docId));
+      const index = await this.ensureIndex();
+      index.docIds = index.docIds.filter((id) => id !== docId);
+      await this.persistIndex(index);
+    }
+    async listDocuments(options) {
+      const index = await this.ensureIndex();
+      const docs = [];
+      for (const id of index.docIds) {
+        const doc = await this.getDocument(id);
+        if (doc == null) continue;
+        if (options?.type != null && doc.type !== options.type) continue;
+        docs.push(doc);
+      }
+      docs.sort((a, b) => b.updatedAt - a.updatedAt);
+      return docs;
+    }
+    async putMemoryMd(content) {
+      await this.storage.setItem(memoryMdKey(this.scopeKey), content);
+    }
+    async getMemoryMd() {
+      const raw = await this.storage.getItem(
+        memoryMdKey(this.scopeKey)
+      );
+      return raw ?? null;
+    }
+  };
+
+  // src/memory/findRelevantMemories.ts
+  var DEFAULT_MAX_RESULTS = 5;
+  var STALE_FRESHNESS = /* @__PURE__ */ new Set([
+    "stale",
+    "archived"
+  ]);
+  function formatManifest(docs) {
+    if (docs.length === 0) return "(no memory documents)";
+    return docs.map((doc) => {
+      const tags = doc.tags.length > 0 ? doc.tags.join(", ") : "none";
+      const fresh = doc.freshness !== "current" ? ` [${doc.freshness}]` : "";
+      return `ID: ${doc.id} | Type: ${doc.type} | Title: ${doc.title}${fresh} | Tags: ${tags}`;
+    }).join("\n");
+  }
+  var RecallCache = class {
+    cooldownMs;
+    entry = null;
+    constructor(cooldownMs) {
+      this.cooldownMs = cooldownMs;
+    }
+    get(nowMs) {
+      if (!this.entry) return null;
+      const now = nowMs ?? Date.now();
+      if (now - this.entry.timestamp > this.cooldownMs) return null;
+      return this.entry.result;
+    }
+    set(result, nowMs) {
+      this.entry = { result, timestamp: nowMs ?? Date.now() };
+    }
+  };
+  function buildFreshnessWarnings(docs) {
+    const warnings = [];
+    for (const doc of docs) {
+      if (STALE_FRESHNESS.has(doc.freshness)) {
+        warnings.push(
+          `Memory "${doc.title}" may be outdated (marked as ${doc.freshness})`
+        );
+      }
+    }
+    return warnings;
+  }
+  function parseRecallResponse(text) {
+    try {
+      const match = text.match(/\[[\s\S]*?\]/);
+      if (!match) return null;
+      const parsed = JSON.parse(match[0]);
+      if (!Array.isArray(parsed)) return null;
+      const ids = parsed.filter(
+        (item) => typeof item === "string"
+      );
+      if (ids.length === 0 && parsed.length > 0) return null;
+      return ids;
+    } catch {
+      return null;
+    }
+  }
+  function buildFallbackResult(docs, recentText, memoryMdContent, maxResults) {
+    const selected = rankDocsByKeywordOverlap(docs, recentText, maxResults);
+    const warnings = buildFreshnessWarnings(selected);
+    return {
+      selectedDocs: selected,
+      warnings,
+      source: "fallback",
+      memoryMdBlock: memoryMdContent
+    };
+  }
+  async function findRelevantMemories(deps, input, cache) {
+    const maxResults = input.maxResults ?? DEFAULT_MAX_RESULTS;
+    if (cache) {
+      const cached = cache.get(input.nowMs);
+      if (cached) {
+        return { ...cached, source: "cache" };
+      }
+    }
+    if (input.docs.length === 0) {
+      const result = {
+        selectedDocs: [],
+        warnings: [],
+        source: "recall",
+        memoryMdBlock: input.memoryMdContent
+      };
+      if (cache) cache.set(result, input.nowMs);
+      return result;
+    }
+    const manifest = formatManifest(input.docs);
+    try {
+      const response = await deps.runRecallModel(manifest, input.recentText);
+      if (!response.ok) {
+        deps.log(`Recall model failed: ${response.text}`);
+        const fallback = buildFallbackResult(
+          input.docs,
+          input.recentText,
+          input.memoryMdContent,
+          maxResults
+        );
+        if (cache) cache.set(fallback, input.nowMs);
+        return fallback;
+      }
+      const selectedIds = parseRecallResponse(response.text);
+      if (!selectedIds) {
+        deps.log(`Recall model returned malformed response: ${response.text}`);
+        const fallback = buildFallbackResult(
+          input.docs,
+          input.recentText,
+          input.memoryMdContent,
+          maxResults
+        );
+        if (cache) cache.set(fallback, input.nowMs);
+        return fallback;
+      }
+      const idSet = new Set(selectedIds.slice(0, maxResults));
+      const selectedDocs = input.docs.filter((d) => idSet.has(d.id));
+      const warnings = buildFreshnessWarnings(selectedDocs);
+      const result = {
+        selectedDocs,
+        warnings,
+        source: "recall",
+        memoryMdBlock: input.memoryMdContent
+      };
+      if (cache) cache.set(result, input.nowMs);
+      return result;
+    } catch (err) {
+      deps.log(`Recall model threw: ${err}`);
+      const fallback = buildFallbackResult(
+        input.docs,
+        input.recentText,
+        input.memoryMdContent,
+        maxResults
+      );
+      if (cache) cache.set(fallback, input.nowMs);
+      return fallback;
+    }
+  }
+  function formatRecalledDocsBlock(result) {
+    const lines = [result.memoryMdBlock];
+    if (result.selectedDocs.length > 0) {
+      lines.push("");
+      lines.push("## Recalled Memory Documents");
+      for (const doc of result.selectedDocs) {
+        lines.push(`- **${doc.title}** (${doc.type}): ${doc.description}`);
+      }
+    }
+    if (result.warnings.length > 0) {
+      lines.push("");
+      for (const warning of result.warnings) {
+        lines.push(`\u26A0\uFE0F ${warning}`);
+      }
+    }
+    return lines.join("\n");
+  }
+
+  // src/runtime/network.ts
+  var FNV_OFFSET = 2166136261;
+  var FNV_PRIME = 16777619;
+  function fnv1aHash(input) {
+    let hash = FNV_OFFSET;
+    for (let i = 0; i < input.length; i++) {
+      hash ^= input.charCodeAt(i);
+      hash = Math.imul(hash, FNV_PRIME);
+    }
+    return (hash >>> 0).toString(16).padStart(8, "0");
+  }
+  function hashExtractionContext(ctx) {
+    const contentPrefix = ctx.content.slice(0, 200);
+    const raw = `${ctx.turnId}|${ctx.type}|${ctx.messages.length}|${contentPrefix}`;
+    return fnv1aHash(raw);
+  }
+  var RECALL_SYSTEM_PROMPT = [
+    "You are a memory retrieval assistant for collaborative fiction.",
+    "Given a manifest of memory documents (headers only) and recent conversation context,",
+    "select the IDs of the most relevant documents.",
+    "",
+    "Rules:",
+    '- Return ONLY a JSON array of document ID strings, e.g.: ["doc-1", "doc-3"]',
+    "- Select only documents directly relevant to the current conversation",
+    "- Prefer documents about active characters, ongoing plot points, or referenced world elements",
+    "- If nothing is relevant, return an empty array: []"
+  ].join("\n");
+  async function makeRecallRequest(api, manifest, recentText, options) {
+    const messages = [
+      { role: "system", content: RECALL_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `## Memory Manifest
+${manifest}
+
+## Recent Conversation
+${recentText}`
+      }
+    ];
+    const result = await api.runLLMModel({
+      messages,
+      ...options?.model ? { staticModel: options.model } : {},
+      mode: options?.mode ?? "otherAx"
+    });
+    if (result.type === "fail") {
+      return { ok: false, text: result.result };
+    }
+    return { ok: true, text: result.result };
+  }
+
+  // src/memory/sessionMemory.ts
+  var NOTEBOOK_SECTIONS = [
+    "currentState",
+    "immediateGoals",
+    "recentDevelopments",
+    "unresolvedThreads",
+    "recentMistakes"
+  ];
+  var SECTION_LABELS = {
+    currentState: "Current State",
+    immediateGoals: "Immediate Goals",
+    recentDevelopments: "Important Recent Developments",
+    unresolvedThreads: "Unresolved Threads",
+    recentMistakes: "Recent Mistakes / Constraints"
+  };
+  var DEFAULT_NOTEBOOK_THRESHOLDS = {
+    turnThreshold: 3,
+    tokenThreshold: 500
+  };
+  var SessionNotebook = class {
+    scopeKey;
+    opts;
+    sections;
+    _turnsSinceUpdate = 0;
+    _tokensSinceUpdate = 0;
+    constructor(scopeKey, opts) {
+      this.scopeKey = scopeKey;
+      this.opts = { ...DEFAULT_NOTEBOOK_THRESHOLDS, ...opts };
+      this.sections = Object.fromEntries(
+        NOTEBOOK_SECTIONS.map((s) => [s, ""])
+      );
+    }
+    // ── Accessors ───────────────────────────────────────────────────────
+    get turnsSinceUpdate() {
+      return this._turnsSinceUpdate;
+    }
+    get tokensSinceUpdate() {
+      return this._tokensSinceUpdate;
+    }
+    /** Return a frozen copy of the current section contents. */
+    snapshot() {
+      return Object.freeze({ ...this.sections });
+    }
+    // ── Turn tracking ───────────────────────────────────────────────────
+    /** Record a finalized turn with an estimated token count. */
+    recordTurn(estimatedTokens) {
+      this._turnsSinceUpdate += 1;
+      this._tokensSinceUpdate += estimatedTokens;
+    }
+    // ── Threshold-gated update ──────────────────────────────────────────
+    /**
+     * Attempt to update notebook sections.  The update is accepted only when
+     * at least one threshold (turns or tokens) has been met since the last
+     * successful update.
+     *
+     * Only the keys present in `patch` are overwritten; unmentioned sections
+     * retain their previous values (merge semantics).
+     *
+     * @returns `true` if the update was accepted.
+     */
+    tryUpdate(patch) {
+      if (!this.meetsThreshold()) return false;
+      this.applyPatch(patch);
+      this.resetCounters();
+      return true;
+    }
+    /** Write sections unconditionally, bypassing all thresholds. */
+    forceUpdate(patch) {
+      this.applyPatch(patch);
+      this.resetCounters();
+    }
+    // ── Internal ────────────────────────────────────────────────────────
+    meetsThreshold() {
+      return this._turnsSinceUpdate >= this.opts.turnThreshold || this._tokensSinceUpdate >= this.opts.tokenThreshold;
+    }
+    applyPatch(patch) {
+      for (const key of NOTEBOOK_SECTIONS) {
+        if (patch[key] !== void 0) {
+          this.sections[key] = patch[key];
+        }
+      }
+    }
+    resetCounters() {
+      this._turnsSinceUpdate = 0;
+      this._tokensSinceUpdate = 0;
+    }
+  };
+  function formatNotebookBlock(snap) {
+    const lines = [];
+    for (const section of NOTEBOOK_SECTIONS) {
+      const value = snap[section];
+      if (value) {
+        lines.push(`### ${SECTION_LABELS[section]}`);
+        lines.push(value);
+        lines.push("");
+      }
+    }
+    if (lines.length === 0) return "";
+    return `## Session Notebook
+${lines.join("\n").trimEnd()}`;
+  }
+
+  // src/runtime/backgroundHousekeeping.ts
+  function createBackgroundHousekeeping(deps, dreamDeps) {
+    let pendingCtx = null;
+    let scheduled = false;
+    async function drainPending() {
+      scheduled = false;
+      if (pendingCtx === null) return;
+      const ctx = pendingCtx;
+      pendingCtx = null;
+      try {
+        await deps.submitExtraction(ctx);
+      } catch (err) {
+        deps.log(
+          `[housekeeping] Extraction submission failed: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    }
+    async function tryDream() {
+      if (!dreamDeps) return null;
+      const gate = await dreamDeps.buildCadenceGate();
+      if (!dreamDeps.dreamWorker.shouldRun(gate)) return null;
+      const result = await dreamDeps.consolidationLock.withLock(async () => {
+        return dreamDeps.dreamWorker.run();
+      });
+      if (result != null) {
+        await dreamDeps.onDreamComplete(result);
+        dreamDeps.log(
+          `[housekeeping] Dream pass complete: merged=${result.merged} pruned=${result.pruned} updated=${result.updated}`
+        );
+      }
+      return result;
+    }
+    async function afterTurn(ctx) {
+      pendingCtx = ctx;
+      if (!scheduled) {
+        scheduled = true;
+        await Promise.resolve();
+        await drainPending();
+      }
+      try {
+        await tryDream();
+      } catch (err) {
+        deps.log(
+          `[housekeeping] Dream attempt failed: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    }
+    async function shutdown() {
+      await drainPending();
+      await deps.flushExtraction();
+    }
+    return { afterTurn, shutdown, tryDream };
+  }
+
+  // src/memory/autoDream.ts
+  var MIN_DOCS_FOR_CONSOLIDATION = 2;
+  var CONSOLIDATION_ELIGIBLE_SOURCES = /* @__PURE__ */ new Set([
+    "extraction"
+  ]);
+  var USER_LOCKED_SOURCES = /* @__PURE__ */ new Set([
+    "operator",
+    "manual"
+  ]);
+  function createAutoDreamWorker(deps) {
+    function shouldRun(gate) {
+      if (!gate.enabled) return false;
+      if (gate.dreamMinHoursElapsed > 0) {
+        const elapsedMs = Date.now() - gate.lastDreamTs;
+        const requiredMs = gate.dreamMinHoursElapsed * 36e5;
+        if (elapsedMs < requiredMs) return false;
+      }
+      if (gate.turnsSinceLastDream < gate.dreamMinTurnsElapsed) return false;
+      if (gate.sessionsSinceLastDream < gate.dreamMinSessionsElapsed) return false;
+      if (gate.userInteractionGuardMs > 0) {
+        const sinceInteraction = Date.now() - gate.lastUserInteractionTs;
+        if (sinceInteraction < gate.userInteractionGuardMs) return false;
+      }
+      return true;
+    }
+    async function run() {
+      const result = { merged: 0, pruned: 0, updated: 0, skipped: false };
+      deps.log("[dream] orient: loading manifest");
+      const allDocs = await deps.memdirStore.listDocuments();
+      const eligibleDocs = allDocs.filter(
+        (d) => CONSOLIDATION_ELIGIBLE_SOURCES.has(d.source)
+      );
+      if (eligibleDocs.length < MIN_DOCS_FOR_CONSOLIDATION) {
+        deps.log("[dream] orient: not enough eligible docs, skipping");
+        result.skipped = true;
+        return result;
+      }
+      const docMap = /* @__PURE__ */ new Map();
+      for (const doc of allDocs) {
+        docMap.set(doc.id, doc);
+      }
+      deps.log("[dream] gather: building consolidation prompt");
+      const prompt = buildConsolidationPrompt(eligibleDocs);
+      deps.log("[dream] consolidate: calling model");
+      const rawResponse = await deps.runConsolidationModel(prompt);
+      let response;
+      try {
+        response = JSON.parse(rawResponse);
+      } catch {
+        deps.log("[dream] consolidate: failed to parse model response");
+        return result;
+      }
+      if (!response || typeof response !== "object") {
+        deps.log("[dream] consolidate: invalid response structure");
+        return result;
+      }
+      const merges = Array.isArray(response.merges) ? response.merges : [];
+      const prunes = Array.isArray(response.prunes) ? response.prunes : [];
+      const updates = Array.isArray(response.updates) ? response.updates : [];
+      const consumedIds = /* @__PURE__ */ new Set();
+      for (const merge of merges) {
+        if (!Array.isArray(merge.sourceIds) || merge.sourceIds.length === 0) continue;
+        if (!merge.mergedDoc || typeof merge.mergedDoc.title !== "string") continue;
+        const hasUserLocked = merge.sourceIds.some((id) => {
+          const doc = docMap.get(id);
+          return doc != null && USER_LOCKED_SOURCES.has(doc.source);
+        });
+        if (hasUserLocked) {
+          deps.log(`[dream] consolidate: refusing to merge user-locked docs`);
+          continue;
+        }
+        const now = Date.now();
+        const mergedDoc = {
+          id: `dream-merged-${now}-${Math.random().toString(36).slice(2, 8)}`,
+          type: isValidDocType(merge.mergedDoc.type) ? merge.mergedDoc.type : "continuity",
+          title: merge.mergedDoc.title,
+          description: merge.mergedDoc.description ?? "",
+          scopeKey: deps.memdirStore.scopeKey,
+          updatedAt: now,
+          source: "extraction",
+          // dream-managed docs inherit extraction source
+          freshness: "current",
+          tags: Array.isArray(merge.mergedDoc.tags) ? merge.mergedDoc.tags : []
+        };
+        await deps.memdirStore.putDocument(mergedDoc);
+        for (const sourceId of merge.sourceIds) {
+          await deps.memdirStore.removeDocument(sourceId);
+          consumedIds.add(sourceId);
+        }
+        result.merged += merge.sourceIds.length;
+      }
+      deps.log("[dream] prune: processing prune list");
+      for (const pruneId of prunes) {
+        if (typeof pruneId !== "string") continue;
+        const doc = docMap.get(pruneId);
+        if (doc != null && USER_LOCKED_SOURCES.has(doc.source)) {
+          deps.log(`[dream] prune: refusing to prune user-locked doc ${pruneId}`);
+          continue;
+        }
+        await deps.memdirStore.removeDocument(pruneId);
+        consumedIds.add(pruneId);
+        result.pruned += 1;
+      }
+      for (const update of updates) {
+        if (typeof update.id !== "string") continue;
+        if (consumedIds.has(update.id)) {
+          deps.log(`[dream] update: skipping consumed doc ${update.id}`);
+          continue;
+        }
+        const doc = docMap.get(update.id);
+        if (doc == null) continue;
+        const patched = { ...doc };
+        if (typeof update.description === "string") {
+          patched.description = update.description;
+        }
+        if (typeof update.freshness === "string" && isValidFreshness(update.freshness)) {
+          patched.freshness = update.freshness;
+        }
+        if (Array.isArray(update.tags)) {
+          patched.tags = update.tags.filter((t2) => typeof t2 === "string");
+        }
+        patched.updatedAt = Date.now();
+        await deps.memdirStore.putDocument(patched);
+        result.updated += 1;
+      }
+      return result;
+    }
+    return { shouldRun, run };
+  }
+  function buildConsolidationPrompt(docs) {
+    const lines = [
+      "You are a memory consolidation assistant for a roleplay AI.",
+      "Below is a list of memory documents. Identify duplicates to merge,",
+      "stale or redundant entries to prune, and descriptions to update.",
+      "",
+      "Respond with a JSON object: { merges: [...], prunes: [...], updates: [...] }",
+      "",
+      "merges: [{ sourceIds: string[], mergedDoc: { type, title, description, tags } }]",
+      "prunes: string[] (doc IDs to remove)",
+      "updates: [{ id, description?, freshness?, tags? }]",
+      "",
+      "Documents:"
+    ];
+    for (const doc of docs) {
+      lines.push(
+        `- id: ${doc.id} | type: ${doc.type} | title: ${doc.title} | freshness: ${doc.freshness}`,
+        `  description: ${doc.description}`,
+        `  tags: ${doc.tags.join(", ") || "(none)"}`
+      );
+    }
+    return lines.join("\n");
+  }
+  var VALID_DOC_TYPES = /* @__PURE__ */ new Set([
+    "character",
+    "relationship",
+    "world",
+    "plot",
+    "continuity",
+    "operator"
+  ]);
+  function isValidDocType(type) {
+    return VALID_DOC_TYPES.has(type);
+  }
+  var VALID_FRESHNESS = /* @__PURE__ */ new Set(["current", "stale", "archived"]);
+  function isValidFreshness(value) {
+    return VALID_FRESHNESS.has(value);
+  }
+
+  // src/memory/consolidationLock.ts
+  var STALE_THRESHOLD_MS = 5 * 60 * 1e3;
+  var LOCK_KEY_PREFIX = "director-memdir:consolidate-lock";
+  var ConsolidationLock = class {
+    storage;
+    key;
+    workerId;
+    constructor(storage, scopeKey, workerId) {
+      this.storage = storage;
+      this.key = `${LOCK_KEY_PREFIX}:${scopeKey}`;
+      this.workerId = workerId;
+    }
+    // ── Acquire ───────────────────────────────────────────────────────
+    /**
+     * Try to acquire the consolidation lock.
+     *
+     * Returns `true` if this worker now holds the lock, `false` otherwise.
+     * Performs read-after-write verification before returning `true`.
+     */
+    async tryAcquire() {
+      const existing = await this.storage.getItem(this.key);
+      if (existing != null) {
+        if (existing.workerId === this.workerId) {
+          return true;
+        }
+        const now2 = Date.now();
+        const isStale = now2 - existing.lastTouchedAt > STALE_THRESHOLD_MS;
+        if (!isStale) {
+          return false;
+        }
+      }
+      const now = Date.now();
+      const lease = {
+        workerId: this.workerId,
+        acquiredAt: now,
+        expiresAt: now + STALE_THRESHOLD_MS,
+        lastTouchedAt: now
+      };
+      await this.storage.setItem(this.key, lease);
+      const readBack = await this.storage.getItem(this.key);
+      if (readBack == null || readBack.workerId !== this.workerId) {
+        return false;
+      }
+      return true;
+    }
+    // ── Release ───────────────────────────────────────────────────────
+    /**
+     * Release the lock. Safe to call even if we don't hold it.
+     */
+    async release() {
+      const existing = await this.storage.getItem(this.key);
+      if (existing != null && existing.workerId === this.workerId) {
+        await this.storage.removeItem(this.key);
+      }
+    }
+    // ── Touch / heartbeat ─────────────────────────────────────────────
+    /**
+     * Update the lease timestamp to prevent stale-lock recovery.
+     * Only touches if we own the lock.
+     */
+    async touch() {
+      const existing = await this.storage.getItem(this.key);
+      if (existing == null || existing.workerId !== this.workerId) return;
+      const now = Date.now();
+      const updated = {
+        ...existing,
+        lastTouchedAt: now,
+        expiresAt: now + STALE_THRESHOLD_MS
+      };
+      await this.storage.setItem(this.key, updated);
+    }
+    // ── RAII-style helper ─────────────────────────────────────────────
+    /**
+     * Acquire, execute `fn`, then release — regardless of success or failure.
+     * Returns `null` if acquisition failed (lock is held by another worker).
+     */
+    async withLock(fn) {
+      const acquired = await this.tryAcquire();
+      if (!acquired) return null;
+      try {
+        return await fn();
+      } finally {
+        await this.release();
+      }
+    }
+  };
+
+  // src/ui/i18n.ts
+  var activeLocale = "en";
+  function getLocale() {
+    return activeLocale;
+  }
+  function setLocale(locale) {
+    activeLocale = locale;
+  }
+  var EN_CATALOG = {
+    // Sidebar
+    "sidebar.kicker": "Director Actor",
+    "sidebar.title": "Director Dashboard",
+    "sidebar.subtitle": "Fullscreen control center for settings, models, prompts, memory, and profiles.",
+    // Sidebar group labels
+    "sidebar.group.general": "General",
+    "sidebar.group.tuning": "Prompt Tuning",
+    "sidebar.group.memory": "Memory",
+    "sidebar.group.profiles": "Profiles",
+    // Tab labels
+    "tab.general": "General",
+    "tab.promptTuning": "Prompt Tuning",
+    "tab.modelSettings": "Model Settings",
+    "tab.memoryCache": "Memory & Cache",
+    "tab.settingsProfiles": "Settings Profiles",
+    // Toolbar
+    "toolbar.kicker": "Cupcake-style dashboard",
+    "toolbar.tagline": "Modern control surface for Director behavior, models, and memory.",
+    // Buttons
+    "btn.save": "Save",
+    "btn.saveChanges": "Save Changes",
+    "btn.discard": "Discard",
+    "btn.cancel": "Cancel",
+    "btn.close": "Close",
+    "btn.closeIcon": "\u2715 Close",
+    "btn.reset": "Reset",
+    "btn.exportSettings": "Export Settings",
+    "btn.testConnection": "Test Connection",
+    "btn.refreshModels": "Refresh Models",
+    "btn.newProfile": "New Profile",
+    "btn.newPromptPreset": "New Prompt Preset",
+    "btn.deletePromptPreset": "Delete Preset",
+    "btn.backfillCurrentChat": "Extract Current Chat",
+    "btn.regenerateCurrentChat": "Regenerate from Current Chat",
+    "btn.deleteSelected": "Delete Selected",
+    "btn.edit": "Edit",
+    "btn.export": "Export",
+    "btn.import": "Import",
+    // Dirty indicator
+    "dirty.unsavedChanges": "Unsaved changes",
+    "dirty.unsavedHint": "Unsaved changes stay local until you save.",
+    // Card: Plugin Status
+    "card.pluginStatus.title": "Plugin Status",
+    "card.pluginStatus.copy": "Enable the director, tune tone strictness, and keep a quick view of connection health.",
+    "label.enabled": "Enabled",
+    "label.assertiveness": "Assertiveness",
+    "label.mode": "Mode",
+    "label.injectionMode": "Injection Mode",
+    "option.light": "Light",
+    "option.standard": "Standard",
+    "option.firm": "Firm",
+    "option.risuAux": "Risu Aux Model",
+    "option.independentProvider": "Independent Provider",
+    "option.auto": "Auto",
+    "option.authorNote": "Author Note",
+    "option.adjacentUser": "Adjacent User",
+    "option.postConstraint": "Post Constraint",
+    "option.bottom": "Bottom",
+    // Card: Metrics Snapshot
+    "card.metricsSnapshot.title": "Metrics Snapshot",
+    "card.metricsSnapshot.copy": "Quick read-only visibility into runtime behavior before you dive deeper.",
+    "metric.totalDirectorCalls": "Total Director Calls",
+    "metric.totalFailures": "Total Failures",
+    "metric.memoryWrites": "Memory Writes",
+    "metric.scenePhase": "Scene Phase",
+    // Card: Prompt Tuning
+    "card.promptTuning.title": "Prompt Tuning",
+    "card.promptTuning.copy": "Tune how strongly the Director pushes, how large the brief is, and whether post-review stays active.",
+    "card.promptPresets.title": "Prompt Presets",
+    "card.promptPresets.copy": "Choose the active preset, clone it into a custom preset, and edit the prompt templates used by the Director.",
+    "label.briefTokenCap": "Brief Token Cap",
+    "label.postReview": "Enable Post-review",
+    "label.embeddings": "Enable Embeddings",
+    "label.promptPreset": "Active Prompt Preset",
+    "label.promptPresetName": "Preset Name",
+    "label.preRequestSystemTemplate": "Pre-request System Template",
+    "label.preRequestUserTemplate": "Pre-request User Template",
+    "label.postResponseSystemTemplate": "Post-response System Template",
+    "label.postResponseUserTemplate": "Post-response User Template",
+    "label.maxRecentMessages": "Recent Message Cap",
+    // Card: Timing & Limits
+    "card.timingLimits.title": "Timing & Limits",
+    "card.timingLimits.copy": "Cooldown and debounce controls keep the Director stable under streaming and bad responses.",
+    "label.cooldownFailures": "Cooldown Failures",
+    "label.cooldownMs": "Cooldown (ms)",
+    "label.outputDebounceMs": "Output Debounce (ms)",
+    // Card: Director Model Settings
+    "card.directorModel.title": "Director Model Settings",
+    "card.directorModel.copy": "Keep the Director on its own provider, base URL, key, and model without touching the main RP model.",
+    "label.provider": "Provider",
+    "label.baseUrl": "Base URL",
+    "label.apiKey": "API Key",
+    "label.model": "Model",
+    "label.customModelId": "Custom Model ID",
+    "option.openai": "OpenAI",
+    "option.anthropic": "Anthropic",
+    "option.google": "Google",
+    "option.copilot": "GitHub Copilot",
+    "option.vertex": "Google Vertex AI",
+    "option.custom": "Custom",
+    // Card: Embedding Settings
+    "card.embeddingSettings.title": "Embedding Settings",
+    "card.embeddingSettings.copy": "Configure the embedding provider used for semantic memory retrieval.",
+    "label.embeddingProvider": "Embedding Provider",
+    "label.embeddingBaseUrl": "Embedding Base URL",
+    "label.embeddingApiKey": "Embedding API Key",
+    "label.embeddingModel": "Embedding Model",
+    "label.embeddingDimensions": "Embedding Dimensions",
+    "option.embedding.voyageai": "Voyage AI",
+    "option.embedding.openai": "OpenAI",
+    "option.embedding.google": "Google",
+    "option.embedding.vertex": "Google Vertex AI",
+    "option.embedding.custom": "Custom",
+    // Card: Memory & Cache
+    "card.memoryCache.title": "Memory & Cache",
+    "card.memoryCache.copy": "Inspect the long-memory substrate and keep an eye on the cache/memory write behavior.",
+    "card.memoryCache.hint": "Memory summaries, entity graphs, and cache controls will appear here.",
+    "card.memorySummaries.title": "Summaries",
+    "card.continuityFacts.title": "Continuity Facts",
+    "btn.delete": "Delete",
+    "btn.add": "Add",
+    "memory.addSummaryPlaceholder": "New summary text\u2026",
+    "memory.addFactPlaceholder": "New continuity fact\u2026",
+    "memory.addWorldFactPlaceholder": "New world fact\u2026",
+    "memory.addEntityNamePlaceholder": "New entity name\u2026",
+    "memory.addRelationSourcePlaceholder": "Source ID",
+    "memory.addRelationLabelPlaceholder": "Label",
+    "memory.addRelationTargetPlaceholder": "Target ID",
+    "memory.filterPlaceholder": "Filter memory\u2026",
+    "memory.emptyHint": "No memory items yet. Summaries and continuity facts will appear here as the story progresses.",
+    "card.worldFacts.title": "World Facts",
+    "card.entities.title": "Entities",
+    "card.relations.title": "Relations",
+    // Card: Memory Operations
+    "card.memoryOps.title": "Memory Operations",
+    "card.memoryOps.copy": "Live status of extraction and consolidation workers, with operator actions.",
+    "memoryOps.lastExtract": "Last Extraction",
+    "memoryOps.lastDream": "Last Consolidation",
+    "memoryOps.freshness": "Notebook Freshness",
+    "memoryOps.docCounts": "Document Counts",
+    "memoryOps.freshnessUnknown": "Unknown",
+    "memoryOps.freshnessCurrent": "Current",
+    "memoryOps.freshnessStale": "Stale",
+    "memoryOps.neverRun": "Never",
+    "memoryOps.locked": "Memory locked \u2014 consolidation in progress",
+    "memoryOps.staleExtract": "Memory extraction is more than 24 h old",
+    "memoryOps.staleDream": "Last consolidation pass is more than 24 h old",
+    "memoryOps.fallbackEnabled": "Fallback retrieval ON",
+    "memoryOps.fallbackDisabled": "Fallback retrieval OFF",
+    "btn.forceExtract": "Run Extract Now",
+    "btn.forceDream": "Run Dream Now",
+    "btn.inspectRecalled": "Inspect Recalled",
+    "btn.toggleFallback": "Toggle Fallback Retrieval",
+    "toast.extractStarted": "Extraction started",
+    "toast.dreamStarted": "Consolidation started",
+    "toast.extractFailed": "Extraction failed: {{error}}",
+    "toast.dreamFailed": "Consolidation failed: {{error}}",
+    "toast.fallbackToggled": "Fallback retrieval toggled",
+    "toast.noCallback": "Action not available \u2014 runtime callback not configured",
+    // Card: Settings Profiles
+    "card.settingsProfiles.title": "Settings Profiles",
+    "card.settingsProfiles.copy": "Save reusable presets, swap them in one click, and move them between saves with JSON import/export.",
+    // Connection status
+    "connection.notTested": "Not tested",
+    "connection.testing": "Testing\u2026",
+    "connection.connected": "Connected ({{count}} models)",
+    // Toast messages
+    "toast.settingsSaved": "Settings saved",
+    "toast.changesDiscarded": "Changes discarded",
+    "toast.profileCreated": "Profile created",
+    "toast.profileExported": "Profile exported",
+    "toast.profileImported": "Profile imported",
+    "toast.noProfileSelected": "No profile selected",
+    "toast.invalidProfileFormat": "Invalid profile format",
+    "toast.failedParseProfile": "Failed to parse profile JSON",
+    "toast.backfillCompleted": "Chat extraction completed ({{count}} updates)",
+    "toast.backfillSkipped": "No chat memories were extracted",
+    "error.backfillScopeMismatch": "The active chat changed while the dashboard was open. Return to the original chat and try again.",
+    // Import alert
+    "alert.importInstructions": 'To import a profile, save the JSON to plugin storage key "{{key}}" and click Import again.',
+    // Placeholders
+    "placeholder.customModelId": "type a model ID directly",
+    // Profile names
+    "profile.defaultName": "Profile {{n}}",
+    "profile.balanced": "Balanced",
+    "profile.gentle": "Gentle",
+    "profile.strict": "Strict",
+    "promptPreset.defaultName": "Default Preset",
+    "promptPreset.customName": "Custom Preset {{n}}",
+    "promptPreset.readOnlyHint": "Built-in presets are read-only. Clone the current preset to customize it.",
+    // Fallback summary (settings.ts non-DOM path)
+    "fallback.header": "\u2500\u2500 Director Plugin Settings \u2500\u2500",
+    "fallback.enabled": "Enabled",
+    "fallback.assertiveness": "Assertiveness",
+    "fallback.provider": "Provider",
+    "fallback.model": "Model",
+    "fallback.injection": "Injection",
+    "fallback.postReview": "Post-review",
+    "fallback.briefCap": "Brief cap",
+    "fallback.briefCapUnit": "tokens",
+    // Language selector
+    "lang.label": "Language",
+    "lang.en": "English",
+    "lang.ko": "\uD55C\uAD6D\uC5B4"
+  };
+  var KO_CATALOG = {
+    // Sidebar
+    "sidebar.kicker": "Director Actor",
+    "sidebar.title": "\uB514\uB809\uD130 \uB300\uC2DC\uBCF4\uB4DC",
+    "sidebar.subtitle": "\uC124\uC815, \uBAA8\uB378, \uD504\uB86C\uD504\uD2B8, \uBA54\uBAA8\uB9AC, \uD504\uB85C\uD544\uC744 \uC704\uD55C \uC804\uCCB4\uD654\uBA74 \uCEE8\uD2B8\uB864 \uC13C\uD130.",
+    // Sidebar group labels
+    "sidebar.group.general": "\uC77C\uBC18",
+    "sidebar.group.tuning": "\uD504\uB86C\uD504\uD2B8 \uD29C\uB2DD",
+    "sidebar.group.memory": "\uBA54\uBAA8\uB9AC",
+    "sidebar.group.profiles": "\uD504\uB85C\uD544",
+    // Tab labels
+    "tab.general": "\uC77C\uBC18",
+    "tab.promptTuning": "\uD504\uB86C\uD504\uD2B8 \uD29C\uB2DD",
+    "tab.modelSettings": "\uBAA8\uB378 \uC124\uC815",
+    "tab.memoryCache": "\uBA54\uBAA8\uB9AC & \uCE90\uC2DC",
+    "tab.settingsProfiles": "\uC124\uC815 \uD504\uB85C\uD544",
+    // Toolbar
+    "toolbar.kicker": "\uCEF5\uCF00\uC774\uD06C \uC2A4\uD0C0\uC77C \uB300\uC2DC\uBCF4\uB4DC",
+    "toolbar.tagline": "\uB514\uB809\uD130 \uD589\uB3D9, \uBAA8\uB378, \uBA54\uBAA8\uB9AC\uB97C \uC704\uD55C \uBAA8\uB358 \uCEE8\uD2B8\uB864 \uC11C\uD53C\uC2A4.",
+    // Buttons
+    "btn.save": "\uC800\uC7A5",
+    "btn.saveChanges": "\uBCC0\uACBD\uC0AC\uD56D \uC800\uC7A5",
+    "btn.discard": "\uB418\uB3CC\uB9AC\uAE30",
+    "btn.cancel": "\uCDE8\uC18C",
+    "btn.close": "\uB2EB\uAE30",
+    "btn.closeIcon": "\u2715 \uB2EB\uAE30",
+    "btn.reset": "\uCD08\uAE30\uD654",
+    "btn.exportSettings": "\uC124\uC815 \uB0B4\uBCF4\uB0B4\uAE30",
+    "btn.testConnection": "\uC5F0\uACB0 \uD14C\uC2A4\uD2B8",
+    "btn.refreshModels": "\uBAA8\uB378 \uC0C8\uB85C\uACE0\uCE68",
+    "btn.newProfile": "\uC0C8 \uD504\uB85C\uD544",
+    "btn.newPromptPreset": "\uC0C8 \uD504\uB86C\uD504\uD2B8 \uD504\uB9AC\uC14B",
+    "btn.deletePromptPreset": "\uD504\uB9AC\uC14B \uC0AD\uC81C",
+    "btn.backfillCurrentChat": "\uD604\uC7AC \uCC44\uD305 \uCD94\uCD9C",
+    "btn.regenerateCurrentChat": "\uD604\uC7AC \uCC44\uD305 \uAE30\uC900 \uC7AC\uC0DD\uC131",
+    "btn.deleteSelected": "\uC120\uD0DD \uC0AD\uC81C",
+    "btn.edit": "\uD3B8\uC9D1",
+    "btn.export": "\uB0B4\uBCF4\uB0B4\uAE30",
+    "btn.import": "\uAC00\uC838\uC624\uAE30",
+    // Dirty indicator
+    "dirty.unsavedChanges": "\uC800\uC7A5\uB418\uC9C0 \uC54A\uC740 \uBCC0\uACBD\uC0AC\uD56D",
+    "dirty.unsavedHint": "\uC800\uC7A5\uD558\uAE30 \uC804\uAE4C\uC9C0 \uBCC0\uACBD\uC0AC\uD56D\uC740 \uB85C\uCEEC\uC5D0 \uC720\uC9C0\uB429\uB2C8\uB2E4.",
+    // Card: Plugin Status
+    "card.pluginStatus.title": "\uD50C\uB7EC\uADF8\uC778 \uC0C1\uD0DC",
+    "card.pluginStatus.copy": "\uB514\uB809\uD130\uB97C \uD65C\uC131\uD654\uD558\uACE0, \uD1A4 \uC5C4\uACA9\uB3C4\uB97C \uC870\uC808\uD558\uBA70, \uC5F0\uACB0 \uC0C1\uD0DC\uB97C \uBE60\uB974\uAC8C \uD655\uC778\uD558\uC138\uC694.",
+    "label.enabled": "\uD65C\uC131\uD654",
+    "label.assertiveness": "\uC801\uADF9\uC131",
+    "label.mode": "\uBAA8\uB4DC",
+    "label.injectionMode": "\uC8FC\uC785 \uBAA8\uB4DC",
+    "option.light": "\uAC00\uBCBC\uC6C0",
+    "option.standard": "\uD45C\uC900",
+    "option.firm": "\uC5C4\uACA9",
+    "option.risuAux": "Risu \uBCF4\uC870 \uBAA8\uB378",
+    "option.independentProvider": "\uB3C5\uB9BD \uD504\uB85C\uBC14\uC774\uB354",
+    "option.auto": "\uC790\uB3D9",
+    "option.authorNote": "\uC791\uC131\uC790 \uB178\uD2B8",
+    "option.adjacentUser": "\uC778\uC811 \uC0AC\uC6A9\uC790",
+    "option.postConstraint": "\uD6C4\uC18D \uC81C\uC57D",
+    "option.bottom": "\uD558\uB2E8",
+    // Card: Metrics Snapshot
+    "card.metricsSnapshot.title": "\uBA54\uD2B8\uB9AD \uC2A4\uB0C5\uC0F7",
+    "card.metricsSnapshot.copy": "\uB354 \uAE4A\uC774 \uB4E4\uC5B4\uAC00\uAE30 \uC804\uC5D0 \uB7F0\uD0C0\uC784 \uB3D9\uC791\uC744 \uBE60\uB974\uAC8C \uC77D\uAE30 \uC804\uC6A9\uC73C\uB85C \uD655\uC778\uD558\uC138\uC694.",
+    "metric.totalDirectorCalls": "\uCD1D \uB514\uB809\uD130 \uD638\uCD9C \uC218",
+    "metric.totalFailures": "\uCD1D \uC2E4\uD328 \uC218",
+    "metric.memoryWrites": "\uBA54\uBAA8\uB9AC \uC4F0\uAE30 \uC218",
+    "metric.scenePhase": "\uC7A5\uBA74 \uB2E8\uACC4",
+    // Card: Prompt Tuning
+    "card.promptTuning.title": "\uD504\uB86C\uD504\uD2B8 \uD29C\uB2DD",
+    "card.promptTuning.copy": "\uB514\uB809\uD130\uAC00 \uC5BC\uB9C8\uB098 \uAC15\uD558\uAC8C \uC720\uB3C4\uD560\uC9C0, \uBE0C\uB9AC\uD504 \uD06C\uAE30, \uC0AC\uD6C4 \uB9AC\uBDF0 \uD65C\uC131\uD654 \uC5EC\uBD80\uB97C \uC870\uC808\uD558\uC138\uC694.",
+    "card.promptPresets.title": "\uD504\uB86C\uD504\uD2B8 \uD504\uB9AC\uC14B",
+    "card.promptPresets.copy": "\uD65C\uC131 \uD504\uB9AC\uC14B\uC744 \uC120\uD0DD\uD558\uACE0, \uD604\uC7AC \uD504\uB9AC\uC14B\uC744 \uBCF5\uC81C\uD574 \uCEE4\uC2A4\uD140 \uD504\uB9AC\uC14B\uC744 \uB9CC\uB4E0 \uB4A4 \uB514\uB809\uD130 \uD504\uB86C\uD504\uD2B8 \uD15C\uD50C\uB9BF\uC744 \uD3B8\uC9D1\uD558\uC138\uC694.",
+    "label.briefTokenCap": "\uBE0C\uB9AC\uD504 \uD1A0\uD070 \uC0C1\uD55C",
+    "label.postReview": "\uC0AC\uD6C4 \uB9AC\uBDF0 \uD65C\uC131\uD654",
+    "label.embeddings": "\uC784\uBCA0\uB529 \uD65C\uC131\uD654",
+    "label.promptPreset": "\uD65C\uC131 \uD504\uB86C\uD504\uD2B8 \uD504\uB9AC\uC14B",
+    "label.promptPresetName": "\uD504\uB9AC\uC14B \uC774\uB984",
+    "label.preRequestSystemTemplate": "\uC0AC\uC804 \uC694\uCCAD \uC2DC\uC2A4\uD15C \uD15C\uD50C\uB9BF",
+    "label.preRequestUserTemplate": "\uC0AC\uC804 \uC694\uCCAD \uC0AC\uC6A9\uC790 \uD15C\uD50C\uB9BF",
+    "label.postResponseSystemTemplate": "\uC0AC\uD6C4 \uC751\uB2F5 \uC2DC\uC2A4\uD15C \uD15C\uD50C\uB9BF",
+    "label.postResponseUserTemplate": "\uC0AC\uD6C4 \uC751\uB2F5 \uC0AC\uC6A9\uC790 \uD15C\uD50C\uB9BF",
+    "label.maxRecentMessages": "\uCD5C\uADFC \uBA54\uC2DC\uC9C0 \uC0C1\uD55C",
+    // Card: Timing & Limits
+    "card.timingLimits.title": "\uD0C0\uC774\uBC0D & \uC81C\uD55C",
+    "card.timingLimits.copy": "\uCFE8\uB2E4\uC6B4\uACFC \uB514\uBC14\uC6B4\uC2A4 \uC81C\uC5B4\uB85C \uC2A4\uD2B8\uB9AC\uBC0D \uBC0F \uC798\uBABB\uB41C \uC751\uB2F5\uC5D0\uC11C \uB514\uB809\uD130\uB97C \uC548\uC815\uC801\uC73C\uB85C \uC720\uC9C0\uD569\uB2C8\uB2E4.",
+    "label.cooldownFailures": "\uCFE8\uB2E4\uC6B4 \uC2E4\uD328 \uD69F\uC218",
+    "label.cooldownMs": "\uCFE8\uB2E4\uC6B4 (ms)",
+    "label.outputDebounceMs": "\uCD9C\uB825 \uB514\uBC14\uC6B4\uC2A4 (ms)",
+    // Card: Director Model Settings
+    "card.directorModel.title": "\uB514\uB809\uD130 \uBAA8\uB378 \uC124\uC815",
+    "card.directorModel.copy": "\uBA54\uC778 RP \uBAA8\uB378\uC744 \uAC74\uB4DC\uB9AC\uC9C0 \uC54A\uACE0 \uB514\uB809\uD130 \uC804\uC6A9 \uD504\uB85C\uBC14\uC774\uB354, Base URL, \uD0A4, \uBAA8\uB378\uC744 \uC720\uC9C0\uD558\uC138\uC694.",
+    "label.provider": "\uD504\uB85C\uBC14\uC774\uB354",
+    "label.baseUrl": "Base URL",
+    "label.apiKey": "API \uD0A4",
+    "label.model": "\uBAA8\uB378",
+    "label.customModelId": "\uCEE4\uC2A4\uD140 \uBAA8\uB378 ID",
+    "option.openai": "OpenAI",
+    "option.anthropic": "Anthropic",
+    "option.google": "Google",
+    "option.copilot": "GitHub Copilot",
+    "option.vertex": "Google Vertex AI",
+    "option.custom": "\uCEE4\uC2A4\uD140",
+    // Card: Embedding Settings
+    "card.embeddingSettings.title": "\uC784\uBCA0\uB529 \uC124\uC815",
+    "card.embeddingSettings.copy": "\uC2DC\uB9E8\uD2F1 \uBA54\uBAA8\uB9AC \uAC80\uC0C9\uC5D0 \uC0AC\uC6A9\uD560 \uC784\uBCA0\uB529 \uD504\uB85C\uBC14\uC774\uB354\uB97C \uC124\uC815\uD558\uC138\uC694.",
+    "label.embeddingProvider": "\uC784\uBCA0\uB529 \uD504\uB85C\uBC14\uC774\uB354",
+    "label.embeddingBaseUrl": "\uC784\uBCA0\uB529 Base URL",
+    "label.embeddingApiKey": "\uC784\uBCA0\uB529 API \uD0A4",
+    "label.embeddingModel": "\uC784\uBCA0\uB529 \uBAA8\uB378",
+    "label.embeddingDimensions": "\uC784\uBCA0\uB529 \uCC28\uC6D0",
+    "option.embedding.voyageai": "Voyage AI",
+    "option.embedding.openai": "OpenAI",
+    "option.embedding.google": "Google",
+    "option.embedding.vertex": "Google Vertex AI",
+    "option.embedding.custom": "\uCEE4\uC2A4\uD140",
+    // Card: Memory & Cache
+    "card.memoryCache.title": "\uBA54\uBAA8\uB9AC & \uCE90\uC2DC",
+    "card.memoryCache.copy": "\uC7A5\uAE30 \uBA54\uBAA8\uB9AC \uAE30\uBC18\uACFC \uCE90\uC2DC/\uBA54\uBAA8\uB9AC \uC4F0\uAE30 \uB3D9\uC791\uC744 \uC810\uAC80\uD558\uC138\uC694.",
+    "card.memoryCache.hint": "\uBA54\uBAA8\uB9AC \uC694\uC57D, \uC5D4\uD2F0\uD2F0 \uADF8\uB798\uD504, \uCE90\uC2DC \uC81C\uC5B4\uAC00 \uC5EC\uAE30\uC5D0 \uD45C\uC2DC\uB429\uB2C8\uB2E4.",
+    "card.memorySummaries.title": "\uC694\uC57D",
+    "card.continuityFacts.title": "\uC5F0\uC18D\uC131 \uC0AC\uC2E4",
+    "btn.delete": "\uC0AD\uC81C",
+    "btn.add": "\uCD94\uAC00",
+    "memory.addSummaryPlaceholder": "\uC0C8 \uC694\uC57D \uD14D\uC2A4\uD2B8\u2026",
+    "memory.addFactPlaceholder": "\uC0C8 \uC5F0\uC18D\uC131 \uC0AC\uC2E4\u2026",
+    "memory.addWorldFactPlaceholder": "\uC0C8 \uC138\uACC4 \uC0AC\uC2E4\u2026",
+    "memory.addEntityNamePlaceholder": "\uC0C8 \uC5D4\uD2F0\uD2F0 \uC774\uB984\u2026",
+    "memory.addRelationSourcePlaceholder": "\uC18C\uC2A4 ID",
+    "memory.addRelationLabelPlaceholder": "\uB77C\uBCA8",
+    "memory.addRelationTargetPlaceholder": "\uB300\uC0C1 ID",
+    "memory.filterPlaceholder": "\uBA54\uBAA8\uB9AC \uD544\uD130\u2026",
+    "memory.emptyHint": "\uC544\uC9C1 \uBA54\uBAA8\uB9AC \uD56D\uBAA9\uC774 \uC5C6\uC2B5\uB2C8\uB2E4. \uC774\uC57C\uAE30\uAC00 \uC9C4\uD589\uB428\uC5D0 \uB530\uB77C \uC694\uC57D \uBC0F \uC5F0\uC18D\uC131 \uC0AC\uC2E4\uC774 \uC5EC\uAE30\uC5D0 \uD45C\uC2DC\uB429\uB2C8\uB2E4.",
+    "card.worldFacts.title": "\uC138\uACC4 \uC0AC\uC2E4",
+    "card.entities.title": "\uC5D4\uD2F0\uD2F0",
+    "card.relations.title": "\uAD00\uACC4",
+    // Card: Memory Operations
+    "card.memoryOps.title": "\uBA54\uBAA8\uB9AC \uC791\uC5C5",
+    "card.memoryOps.copy": "\uCD94\uCD9C \uBC0F \uD1B5\uD569 \uC6CC\uCEE4\uC758 \uC2E4\uC2DC\uAC04 \uC0C1\uD0DC\uC640 \uC6B4\uC601\uC790 \uC791\uC5C5.",
+    "memoryOps.lastExtract": "\uB9C8\uC9C0\uB9C9 \uCD94\uCD9C",
+    "memoryOps.lastDream": "\uB9C8\uC9C0\uB9C9 \uD1B5\uD569",
+    "memoryOps.freshness": "\uB178\uD2B8\uBD81 \uC2E0\uC120\uB3C4",
+    "memoryOps.docCounts": "\uBB38\uC11C \uC218",
+    "memoryOps.freshnessUnknown": "\uC54C \uC218 \uC5C6\uC74C",
+    "memoryOps.freshnessCurrent": "\uCD5C\uC2E0",
+    "memoryOps.freshnessStale": "\uC624\uB798\uB428",
+    "memoryOps.neverRun": "\uC5C6\uC74C",
+    "memoryOps.locked": "\uBA54\uBAA8\uB9AC \uC7A0\uAE40 \u2014 \uD1B5\uD569 \uC9C4\uD589 \uC911",
+    "memoryOps.staleExtract": "\uBA54\uBAA8\uB9AC \uCD94\uCD9C\uC774 24\uC2DC\uAC04 \uC774\uC0C1 \uACBD\uACFC\uD588\uC2B5\uB2C8\uB2E4",
+    "memoryOps.staleDream": "\uB9C8\uC9C0\uB9C9 \uD1B5\uD569 \uD328\uC2A4\uAC00 24\uC2DC\uAC04 \uC774\uC0C1 \uACBD\uACFC\uD588\uC2B5\uB2C8\uB2E4",
+    "memoryOps.fallbackEnabled": "\uB300\uCCB4 \uAC80\uC0C9 \uCF1C\uC9D0",
+    "memoryOps.fallbackDisabled": "\uB300\uCCB4 \uAC80\uC0C9 \uAEBC\uC9D0",
+    "btn.forceExtract": "\uC9C0\uAE08 \uCD94\uCD9C \uC2E4\uD589",
+    "btn.forceDream": "\uC9C0\uAE08 \uD1B5\uD569 \uC2E4\uD589",
+    "btn.inspectRecalled": "\uD68C\uC0C1 \uBB38\uC11C \uD655\uC778",
+    "btn.toggleFallback": "\uB300\uCCB4 \uAC80\uC0C9 \uD1A0\uAE00",
+    "toast.extractStarted": "\uCD94\uCD9C\uC774 \uC2DC\uC791\uB418\uC5C8\uC2B5\uB2C8\uB2E4",
+    "toast.dreamStarted": "\uD1B5\uD569\uC774 \uC2DC\uC791\uB418\uC5C8\uC2B5\uB2C8\uB2E4",
+    "toast.extractFailed": "\uCD94\uCD9C \uC2E4\uD328: {{error}}",
+    "toast.dreamFailed": "\uD1B5\uD569 \uC2E4\uD328: {{error}}",
+    "toast.fallbackToggled": "\uB300\uCCB4 \uAC80\uC0C9\uC774 \uD1A0\uAE00\uB418\uC5C8\uC2B5\uB2C8\uB2E4",
+    "toast.noCallback": "\uC0AC\uC6A9 \uBD88\uAC00 \u2014 \uB7F0\uD0C0\uC784 \uCF5C\uBC31\uC774 \uC124\uC815\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4",
+    // Card: Settings Profiles
+    "card.settingsProfiles.title": "\uC124\uC815 \uD504\uB85C\uD544",
+    "card.settingsProfiles.copy": "\uC7AC\uC0AC\uC6A9 \uAC00\uB2A5\uD55C \uD504\uB9AC\uC14B\uC744 \uC800\uC7A5\uD558\uACE0, \uD55C \uBC88\uC758 \uD074\uB9AD\uC73C\uB85C \uAD50\uCCB4\uD558\uBA70, JSON \uAC00\uC838\uC624\uAE30/\uB0B4\uBCF4\uB0B4\uAE30\uB85C \uC774\uB3D9\uD558\uC138\uC694.",
+    // Connection status
+    "connection.notTested": "\uD14C\uC2A4\uD2B8\uB418\uC9C0 \uC54A\uC74C",
+    "connection.testing": "\uD14C\uC2A4\uD2B8 \uC911\u2026",
+    "connection.connected": "\uC5F0\uACB0\uB428 ({{count}}\uAC1C \uBAA8\uB378)",
+    // Toast messages
+    "toast.settingsSaved": "\uC124\uC815\uC774 \uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4",
+    "toast.changesDiscarded": "\uBCC0\uACBD\uC0AC\uD56D\uC774 \uCDE8\uC18C\uB418\uC5C8\uC2B5\uB2C8\uB2E4",
+    "toast.profileCreated": "\uD504\uB85C\uD544\uC774 \uC0DD\uC131\uB418\uC5C8\uC2B5\uB2C8\uB2E4",
+    "toast.profileExported": "\uD504\uB85C\uD544\uC774 \uB0B4\uBCF4\uB0B4\uC84C\uC2B5\uB2C8\uB2E4",
+    "toast.profileImported": "\uD504\uB85C\uD544\uC744 \uAC00\uC838\uC654\uC2B5\uB2C8\uB2E4",
+    "toast.noProfileSelected": "\uC120\uD0DD\uB41C \uD504\uB85C\uD544\uC774 \uC5C6\uC2B5\uB2C8\uB2E4",
+    "toast.invalidProfileFormat": "\uC798\uBABB\uB41C \uD504\uB85C\uD544 \uD615\uC2DD\uC785\uB2C8\uB2E4",
+    "toast.failedParseProfile": "\uD504\uB85C\uD544 JSON \uD30C\uC2F1\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4",
+    "toast.backfillCompleted": "\uCC44\uD305 \uCD94\uCD9C\uC774 \uC644\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4 ({{count}}\uAC1C \uC5C5\uB370\uC774\uD2B8)",
+    "toast.backfillSkipped": "\uCD94\uCD9C\uB41C \uCC44\uD305 \uBA54\uBAA8\uB9AC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4",
+    "error.backfillScopeMismatch": "\uB300\uC2DC\uBCF4\uB4DC\uB97C \uC5F0 \uB4A4 \uD65C\uC131 \uCC44\uD305\uC774 \uBC14\uB00C\uC5C8\uC2B5\uB2C8\uB2E4. \uC6D0\uB798 \uCC44\uD305\uC73C\uB85C \uB3CC\uC544\uAC04 \uB4A4 \uB2E4\uC2DC \uC2DC\uB3C4\uD558\uC138\uC694.",
+    // Import alert
+    "alert.importInstructions": '\uD504\uB85C\uD544\uC744 \uAC00\uC838\uC624\uB824\uBA74 JSON\uC744 \uD50C\uB7EC\uADF8\uC778 \uC800\uC7A5\uC18C \uD0A4 "{{key}}"\uC5D0 \uC800\uC7A5\uD55C \uD6C4 \uAC00\uC838\uC624\uAE30\uB97C \uB2E4\uC2DC \uD074\uB9AD\uD558\uC138\uC694.',
+    // Placeholders
+    "placeholder.customModelId": "\uBAA8\uB378 ID\uB97C \uC9C1\uC811 \uC785\uB825\uD558\uC138\uC694",
+    // Profile names
+    "profile.defaultName": "\uD504\uB85C\uD544 {{n}}",
+    "profile.balanced": "\uADE0\uD615",
+    "profile.gentle": "\uBD80\uB4DC\uB7EC\uC6C0",
+    "profile.strict": "\uC5C4\uACA9",
+    "promptPreset.defaultName": "\uAE30\uBCF8 \uD504\uB9AC\uC14B",
+    "promptPreset.customName": "\uCEE4\uC2A4\uD140 \uD504\uB9AC\uC14B {{n}}",
+    "promptPreset.readOnlyHint": "\uB0B4\uC7A5 \uD504\uB9AC\uC14B\uC740 \uC77D\uAE30 \uC804\uC6A9\uC785\uB2C8\uB2E4. \uD604\uC7AC \uD504\uB9AC\uC14B\uC744 \uBCF5\uC81C\uD574 \uC0AC\uC6A9\uC790 \uC815\uC758\uD558\uC138\uC694.",
+    // Fallback summary
+    "fallback.header": "\u2500\u2500 \uB514\uB809\uD130 \uD50C\uB7EC\uADF8\uC778 \uC124\uC815 \u2500\u2500",
+    "fallback.enabled": "\uD65C\uC131\uD654",
+    "fallback.assertiveness": "\uC801\uADF9\uC131",
+    "fallback.provider": "\uD504\uB85C\uBC14\uC774\uB354",
+    "fallback.model": "\uBAA8\uB378",
+    "fallback.injection": "\uC8FC\uC785",
+    "fallback.postReview": "\uC0AC\uD6C4 \uB9AC\uBDF0",
+    "fallback.briefCap": "\uBE0C\uB9AC\uD504 \uC0C1\uD55C",
+    "fallback.briefCapUnit": "\uD1A0\uD070",
+    // Language selector
+    "lang.label": "\uC5B8\uC5B4",
+    "lang.en": "English",
+    "lang.ko": "\uD55C\uAD6D\uC5B4"
+  };
+  var CATALOGS = {
+    en: EN_CATALOG,
+    ko: KO_CATALOG
+  };
+  function t(key, params) {
+    const catalog = CATALOGS[activeLocale];
+    let value = catalog[key] ?? CATALOGS.en[key] ?? key;
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        value = value.replaceAll(`{{${k}}}`, v);
+      }
+    }
+    return value;
+  }
+  var TAB_KEY_MAP = {
+    "general": "tab.general",
+    "prompt-tuning": "tab.promptTuning",
+    "model-settings": "tab.modelSettings",
+    "memory-cache": "tab.memoryCache",
+    "settings-profiles": "tab.settingsProfiles"
+  };
+  function tabLabel(tabId) {
+    const key = TAB_KEY_MAP[tabId];
+    return key ? t(key) : tabId;
+  }
+  var SIDEBAR_GROUP_KEY_MAP = {
+    "general": "sidebar.group.general",
+    "tuning": "sidebar.group.tuning",
+    "memory": "sidebar.group.memory",
+    "profiles": "sidebar.group.profiles"
+  };
+  function sidebarGroupLabel(groupId) {
+    const key = SIDEBAR_GROUP_KEY_MAP[groupId];
+    return key ? t(key) : groupId;
+  }
+  var EMBEDDING_PROVIDER_KEY_MAP = {
+    openai: "option.embedding.openai",
+    voyageai: "option.embedding.voyageai",
+    google: "option.embedding.google",
+    vertex: "option.embedding.vertex",
+    custom: "option.embedding.custom"
+  };
+  function embeddingProviderLabel(providerId) {
+    return t(EMBEDDING_PROVIDER_KEY_MAP[providerId]);
+  }
+  var BUILTIN_PROFILE_KEY_MAP = {
+    "builtin-balanced": "profile.balanced",
+    "builtin-gentle": "profile.gentle",
+    "builtin-strict": "profile.strict"
+  };
+  function profileDisplayName(id, fallbackName) {
+    const key = BUILTIN_PROFILE_KEY_MAP[id];
+    return key ? t(key) : fallbackName;
+  }
+
+  // src/ui/dashboardState.ts
+  var DASHBOARD_SETTINGS_KEY = "dashboard-settings-v1";
+  var DASHBOARD_PROFILE_MANIFEST_KEY = "dashboard-profile-manifest-v1";
+  var DASHBOARD_LOCALE_KEY = "dashboard-locale-v1";
+  var DASHBOARD_SCHEMA_VERSION = 1;
+  function normalizePersistedSettings(raw) {
+    return {
+      ...DEFAULT_DIRECTOR_SETTINGS,
+      ...raw,
+      promptPresetId: typeof raw.promptPresetId === "string" ? raw.promptPresetId : DEFAULT_DIRECTOR_SETTINGS.promptPresetId,
+      promptPresets: normalizePromptPresets(raw.promptPresets)
+    };
+  }
+  function createDashboardDraft(settings) {
+    return {
+      isDirty: false,
+      settings: { ...settings }
+    };
+  }
+  function isValidPromptPreset(value) {
+    if (value == null || typeof value !== "object") return false;
+    const record = value;
+    const directives = record.assertivenessDirectives;
+    if (directives == null || typeof directives !== "object") return false;
+    const directiveRecord = directives;
+    return typeof record.preRequestSystemTemplate === "string" && typeof record.preRequestUserTemplate === "string" && typeof record.postResponseSystemTemplate === "string" && typeof record.postResponseUserTemplate === "string" && typeof record.sceneBriefSchema === "string" && typeof record.memoryUpdateSchema === "string" && typeof record.maxRecentMessages === "number" && typeof directiveRecord.light === "string" && typeof directiveRecord.standard === "string" && typeof directiveRecord.firm === "string";
+  }
+  function normalizePromptPresets(raw) {
+    if (raw == null || typeof raw !== "object") return {};
+    const entries = Object.entries(raw);
+    const normalized = {};
+    for (const [key, value] of entries) {
+      if (value == null || typeof value !== "object") continue;
+      const candidate = value;
+      if (typeof candidate.id !== "string" || typeof candidate.name !== "string" || typeof candidate.createdAt !== "number" || typeof candidate.updatedAt !== "number" || !isValidPromptPreset(candidate.preset)) {
+        continue;
+      }
+      normalized[key] = {
+        id: candidate.id,
+        name: candidate.name,
+        createdAt: candidate.createdAt,
+        updatedAt: candidate.updatedAt,
+        preset: structuredClone(candidate.preset)
+      };
+    }
+    return normalized;
+  }
+  function createBuiltinPromptPresetRecord() {
+    return {
+      id: BUILTIN_PROMPT_PRESET_ID,
+      name: BUILTIN_PROMPT_PRESET_NAME,
+      createdAt: 0,
+      updatedAt: 0,
+      preset: structuredClone(DEFAULT_DIRECTOR_PROMPT_PRESET)
+    };
+  }
+  function resolveSelectedPromptPreset(settings) {
+    const stored = settings.promptPresets[settings.promptPresetId];
+    if (stored) {
+      return structuredClone(stored);
+    }
+    return createBuiltinPromptPresetRecord();
+  }
+  function createPromptPresetFromSettings(settings, name) {
+    const now = Date.now();
+    const count = Object.keys(settings.promptPresets).length + 1;
+    return {
+      id: `prompt-preset-${now}-${Math.random().toString(36).slice(2, 8)}`,
+      name: name?.trim() || t("promptPreset.customName", { n: String(count) }),
+      createdAt: now,
+      updatedAt: now,
+      preset: structuredClone(resolvePromptPreset(settings))
+    };
+  }
+  var BUILTIN_PROFILES = [
+    {
+      id: "builtin-balanced",
+      name: "Balanced",
+      createdAt: 0,
+      updatedAt: 0,
+      basedOn: null,
+      overrides: { assertiveness: "standard" }
+    },
+    {
+      id: "builtin-gentle",
+      name: "Gentle",
+      createdAt: 0,
+      updatedAt: 0,
+      basedOn: null,
+      overrides: { assertiveness: "light" }
+    },
+    {
+      id: "builtin-strict",
+      name: "Strict",
+      createdAt: 0,
+      updatedAt: 0,
+      basedOn: null,
+      overrides: { assertiveness: "firm", postReviewEnabled: true }
+    }
+  ];
+  function createDefaultProfileManifest() {
+    const activeProfileId = BUILTIN_PROFILES[0]?.id ?? "builtin-balanced";
+    return {
+      version: DASHBOARD_SCHEMA_VERSION,
+      activeProfileId,
+      profiles: BUILTIN_PROFILES.map((p) => ({ ...p }))
+    };
+  }
+  function createProfileExportPayload(profile) {
+    return {
+      schema: "director-actor-dashboard-profile",
+      version: 1,
+      profile: { ...profile }
+    };
+  }
+  var DASHBOARD_DREAM_STATE_KEY = "dashboard-dream-state-v1";
+  function createDefaultDreamState() {
+    return {
+      lastDreamTs: 0,
+      turnsSinceLastDream: 0,
+      sessionsSinceLastDream: 0
+    };
+  }
+  async function loadDreamState(storage) {
+    const raw = await storage.getItem(DASHBOARD_DREAM_STATE_KEY);
+    if (raw != null && typeof raw === "object" && typeof raw.lastDreamTs === "number" && typeof raw.turnsSinceLastDream === "number" && typeof raw.sessionsSinceLastDream === "number") {
+      return raw;
+    }
+    return createDefaultDreamState();
+  }
+  async function saveDreamState(storage, state) {
+    await storage.setItem(DASHBOARD_DREAM_STATE_KEY, state);
+  }
+  function mergeDashboardSettingsIntoPluginState(state, dashboardSettings) {
+    return {
+      ...state,
+      settings: { ...state.settings, ...dashboardSettings }
+    };
+  }
+  var DASHBOARD_MEMORY_OPS_PREFS_KEY = "dashboard-memory-ops-prefs-v1";
+  var FRESHNESS_STALE_THRESHOLD_MS = 24 * 60 * 60 * 1e3;
+  function computeDocumentCounts(memory) {
+    return {
+      summaries: memory.summaries.length,
+      continuityFacts: memory.continuityFacts.length,
+      worldFacts: memory.worldFacts.length,
+      entities: memory.entities.length,
+      relations: memory.relations.length
+    };
+  }
+  function computeNotebookFreshness(lastExtractTs, lastDreamTs) {
+    const latest = Math.max(lastExtractTs, lastDreamTs);
+    if (latest === 0) return "unknown";
+    const elapsed = Date.now() - latest;
+    return elapsed > FRESHNESS_STALE_THRESHOLD_MS ? "stale" : "current";
+  }
+  async function loadMemoryOpsPrefs(storage) {
+    const raw = await storage.getItem(DASHBOARD_MEMORY_OPS_PREFS_KEY);
+    if (raw != null && typeof raw === "object" && typeof raw.fallbackRetrievalEnabled === "boolean") {
+      return raw;
+    }
+    return { fallbackRetrievalEnabled: false };
+  }
+  async function saveMemoryOpsPrefs(storage, prefs) {
+    await storage.setItem(DASHBOARD_MEMORY_OPS_PREFS_KEY, prefs);
+  }
 
   // src/runtime/circuitBreaker.ts
   var CircuitBreaker = class {
@@ -2952,551 +4580,6 @@
     }
   }
 
-  // src/ui/i18n.ts
-  var activeLocale = "en";
-  function getLocale() {
-    return activeLocale;
-  }
-  function setLocale(locale) {
-    activeLocale = locale;
-  }
-  var EN_CATALOG = {
-    // Sidebar
-    "sidebar.kicker": "Director Actor",
-    "sidebar.title": "Director Dashboard",
-    "sidebar.subtitle": "Fullscreen control center for settings, models, prompts, memory, and profiles.",
-    // Sidebar group labels
-    "sidebar.group.general": "General",
-    "sidebar.group.tuning": "Prompt Tuning",
-    "sidebar.group.memory": "Memory",
-    "sidebar.group.profiles": "Profiles",
-    // Tab labels
-    "tab.general": "General",
-    "tab.promptTuning": "Prompt Tuning",
-    "tab.modelSettings": "Model Settings",
-    "tab.memoryCache": "Memory & Cache",
-    "tab.settingsProfiles": "Settings Profiles",
-    // Toolbar
-    "toolbar.kicker": "Cupcake-style dashboard",
-    "toolbar.tagline": "Modern control surface for Director behavior, models, and memory.",
-    // Buttons
-    "btn.save": "Save",
-    "btn.saveChanges": "Save Changes",
-    "btn.discard": "Discard",
-    "btn.cancel": "Cancel",
-    "btn.close": "Close",
-    "btn.closeIcon": "\u2715 Close",
-    "btn.reset": "Reset",
-    "btn.exportSettings": "Export Settings",
-    "btn.testConnection": "Test Connection",
-    "btn.refreshModels": "Refresh Models",
-    "btn.newProfile": "New Profile",
-    "btn.newPromptPreset": "New Prompt Preset",
-    "btn.deletePromptPreset": "Delete Preset",
-    "btn.backfillCurrentChat": "Extract Current Chat",
-    "btn.regenerateCurrentChat": "Regenerate from Current Chat",
-    "btn.deleteSelected": "Delete Selected",
-    "btn.edit": "Edit",
-    "btn.export": "Export",
-    "btn.import": "Import",
-    // Dirty indicator
-    "dirty.unsavedChanges": "Unsaved changes",
-    "dirty.unsavedHint": "Unsaved changes stay local until you save.",
-    // Card: Plugin Status
-    "card.pluginStatus.title": "Plugin Status",
-    "card.pluginStatus.copy": "Enable the director, tune tone strictness, and keep a quick view of connection health.",
-    "label.enabled": "Enabled",
-    "label.assertiveness": "Assertiveness",
-    "label.mode": "Mode",
-    "label.injectionMode": "Injection Mode",
-    "option.light": "Light",
-    "option.standard": "Standard",
-    "option.firm": "Firm",
-    "option.risuAux": "Risu Aux Model",
-    "option.independentProvider": "Independent Provider",
-    "option.auto": "Auto",
-    "option.authorNote": "Author Note",
-    "option.adjacentUser": "Adjacent User",
-    "option.postConstraint": "Post Constraint",
-    "option.bottom": "Bottom",
-    // Card: Metrics Snapshot
-    "card.metricsSnapshot.title": "Metrics Snapshot",
-    "card.metricsSnapshot.copy": "Quick read-only visibility into runtime behavior before you dive deeper.",
-    "metric.totalDirectorCalls": "Total Director Calls",
-    "metric.totalFailures": "Total Failures",
-    "metric.memoryWrites": "Memory Writes",
-    "metric.scenePhase": "Scene Phase",
-    // Card: Prompt Tuning
-    "card.promptTuning.title": "Prompt Tuning",
-    "card.promptTuning.copy": "Tune how strongly the Director pushes, how large the brief is, and whether post-review stays active.",
-    "card.promptPresets.title": "Prompt Presets",
-    "card.promptPresets.copy": "Choose the active preset, clone it into a custom preset, and edit the prompt templates used by the Director.",
-    "label.briefTokenCap": "Brief Token Cap",
-    "label.postReview": "Enable Post-review",
-    "label.embeddings": "Enable Embeddings",
-    "label.promptPreset": "Active Prompt Preset",
-    "label.promptPresetName": "Preset Name",
-    "label.preRequestSystemTemplate": "Pre-request System Template",
-    "label.preRequestUserTemplate": "Pre-request User Template",
-    "label.postResponseSystemTemplate": "Post-response System Template",
-    "label.postResponseUserTemplate": "Post-response User Template",
-    "label.maxRecentMessages": "Recent Message Cap",
-    // Card: Timing & Limits
-    "card.timingLimits.title": "Timing & Limits",
-    "card.timingLimits.copy": "Cooldown and debounce controls keep the Director stable under streaming and bad responses.",
-    "label.cooldownFailures": "Cooldown Failures",
-    "label.cooldownMs": "Cooldown (ms)",
-    "label.outputDebounceMs": "Output Debounce (ms)",
-    // Card: Director Model Settings
-    "card.directorModel.title": "Director Model Settings",
-    "card.directorModel.copy": "Keep the Director on its own provider, base URL, key, and model without touching the main RP model.",
-    "label.provider": "Provider",
-    "label.baseUrl": "Base URL",
-    "label.apiKey": "API Key",
-    "label.model": "Model",
-    "label.customModelId": "Custom Model ID",
-    "option.openai": "OpenAI",
-    "option.anthropic": "Anthropic",
-    "option.google": "Google",
-    "option.copilot": "GitHub Copilot",
-    "option.vertex": "Google Vertex AI",
-    "option.custom": "Custom",
-    // Card: Embedding Settings
-    "card.embeddingSettings.title": "Embedding Settings",
-    "card.embeddingSettings.copy": "Configure the embedding provider used for semantic memory retrieval.",
-    "label.embeddingProvider": "Embedding Provider",
-    "label.embeddingBaseUrl": "Embedding Base URL",
-    "label.embeddingApiKey": "Embedding API Key",
-    "label.embeddingModel": "Embedding Model",
-    "label.embeddingDimensions": "Embedding Dimensions",
-    "option.embedding.voyageai": "Voyage AI",
-    "option.embedding.openai": "OpenAI",
-    "option.embedding.google": "Google",
-    "option.embedding.vertex": "Google Vertex AI",
-    "option.embedding.custom": "Custom",
-    // Card: Memory & Cache
-    "card.memoryCache.title": "Memory & Cache",
-    "card.memoryCache.copy": "Inspect the long-memory substrate and keep an eye on the cache/memory write behavior.",
-    "card.memoryCache.hint": "Memory summaries, entity graphs, and cache controls will appear here.",
-    "card.memorySummaries.title": "Summaries",
-    "card.continuityFacts.title": "Continuity Facts",
-    "btn.delete": "Delete",
-    "btn.add": "Add",
-    "memory.addSummaryPlaceholder": "New summary text\u2026",
-    "memory.addFactPlaceholder": "New continuity fact\u2026",
-    "memory.addWorldFactPlaceholder": "New world fact\u2026",
-    "memory.addEntityNamePlaceholder": "New entity name\u2026",
-    "memory.addRelationSourcePlaceholder": "Source ID",
-    "memory.addRelationLabelPlaceholder": "Label",
-    "memory.addRelationTargetPlaceholder": "Target ID",
-    "memory.filterPlaceholder": "Filter memory\u2026",
-    "memory.emptyHint": "No memory items yet. Summaries and continuity facts will appear here as the story progresses.",
-    "card.worldFacts.title": "World Facts",
-    "card.entities.title": "Entities",
-    "card.relations.title": "Relations",
-    // Card: Settings Profiles
-    "card.settingsProfiles.title": "Settings Profiles",
-    "card.settingsProfiles.copy": "Save reusable presets, swap them in one click, and move them between saves with JSON import/export.",
-    // Connection status
-    "connection.notTested": "Not tested",
-    "connection.testing": "Testing\u2026",
-    "connection.connected": "Connected ({{count}} models)",
-    // Toast messages
-    "toast.settingsSaved": "Settings saved",
-    "toast.changesDiscarded": "Changes discarded",
-    "toast.profileCreated": "Profile created",
-    "toast.profileExported": "Profile exported",
-    "toast.profileImported": "Profile imported",
-    "toast.noProfileSelected": "No profile selected",
-    "toast.invalidProfileFormat": "Invalid profile format",
-    "toast.failedParseProfile": "Failed to parse profile JSON",
-    "toast.backfillCompleted": "Chat extraction completed ({{count}} updates)",
-    "toast.backfillSkipped": "No chat memories were extracted",
-    "error.backfillScopeMismatch": "The active chat changed while the dashboard was open. Return to the original chat and try again.",
-    // Import alert
-    "alert.importInstructions": 'To import a profile, save the JSON to plugin storage key "{{key}}" and click Import again.',
-    // Placeholders
-    "placeholder.customModelId": "type a model ID directly",
-    // Profile names
-    "profile.defaultName": "Profile {{n}}",
-    "profile.balanced": "Balanced",
-    "profile.gentle": "Gentle",
-    "profile.strict": "Strict",
-    "promptPreset.defaultName": "Default Preset",
-    "promptPreset.customName": "Custom Preset {{n}}",
-    "promptPreset.readOnlyHint": "Built-in presets are read-only. Clone the current preset to customize it.",
-    // Fallback summary (settings.ts non-DOM path)
-    "fallback.header": "\u2500\u2500 Director Plugin Settings \u2500\u2500",
-    "fallback.enabled": "Enabled",
-    "fallback.assertiveness": "Assertiveness",
-    "fallback.provider": "Provider",
-    "fallback.model": "Model",
-    "fallback.injection": "Injection",
-    "fallback.postReview": "Post-review",
-    "fallback.briefCap": "Brief cap",
-    "fallback.briefCapUnit": "tokens",
-    // Language selector
-    "lang.label": "Language",
-    "lang.en": "English",
-    "lang.ko": "\uD55C\uAD6D\uC5B4"
-  };
-  var KO_CATALOG = {
-    // Sidebar
-    "sidebar.kicker": "Director Actor",
-    "sidebar.title": "\uB514\uB809\uD130 \uB300\uC2DC\uBCF4\uB4DC",
-    "sidebar.subtitle": "\uC124\uC815, \uBAA8\uB378, \uD504\uB86C\uD504\uD2B8, \uBA54\uBAA8\uB9AC, \uD504\uB85C\uD544\uC744 \uC704\uD55C \uC804\uCCB4\uD654\uBA74 \uCEE8\uD2B8\uB864 \uC13C\uD130.",
-    // Sidebar group labels
-    "sidebar.group.general": "\uC77C\uBC18",
-    "sidebar.group.tuning": "\uD504\uB86C\uD504\uD2B8 \uD29C\uB2DD",
-    "sidebar.group.memory": "\uBA54\uBAA8\uB9AC",
-    "sidebar.group.profiles": "\uD504\uB85C\uD544",
-    // Tab labels
-    "tab.general": "\uC77C\uBC18",
-    "tab.promptTuning": "\uD504\uB86C\uD504\uD2B8 \uD29C\uB2DD",
-    "tab.modelSettings": "\uBAA8\uB378 \uC124\uC815",
-    "tab.memoryCache": "\uBA54\uBAA8\uB9AC & \uCE90\uC2DC",
-    "tab.settingsProfiles": "\uC124\uC815 \uD504\uB85C\uD544",
-    // Toolbar
-    "toolbar.kicker": "\uCEF5\uCF00\uC774\uD06C \uC2A4\uD0C0\uC77C \uB300\uC2DC\uBCF4\uB4DC",
-    "toolbar.tagline": "\uB514\uB809\uD130 \uD589\uB3D9, \uBAA8\uB378, \uBA54\uBAA8\uB9AC\uB97C \uC704\uD55C \uBAA8\uB358 \uCEE8\uD2B8\uB864 \uC11C\uD53C\uC2A4.",
-    // Buttons
-    "btn.save": "\uC800\uC7A5",
-    "btn.saveChanges": "\uBCC0\uACBD\uC0AC\uD56D \uC800\uC7A5",
-    "btn.discard": "\uB418\uB3CC\uB9AC\uAE30",
-    "btn.cancel": "\uCDE8\uC18C",
-    "btn.close": "\uB2EB\uAE30",
-    "btn.closeIcon": "\u2715 \uB2EB\uAE30",
-    "btn.reset": "\uCD08\uAE30\uD654",
-    "btn.exportSettings": "\uC124\uC815 \uB0B4\uBCF4\uB0B4\uAE30",
-    "btn.testConnection": "\uC5F0\uACB0 \uD14C\uC2A4\uD2B8",
-    "btn.refreshModels": "\uBAA8\uB378 \uC0C8\uB85C\uACE0\uCE68",
-    "btn.newProfile": "\uC0C8 \uD504\uB85C\uD544",
-    "btn.newPromptPreset": "\uC0C8 \uD504\uB86C\uD504\uD2B8 \uD504\uB9AC\uC14B",
-    "btn.deletePromptPreset": "\uD504\uB9AC\uC14B \uC0AD\uC81C",
-    "btn.backfillCurrentChat": "\uD604\uC7AC \uCC44\uD305 \uCD94\uCD9C",
-    "btn.regenerateCurrentChat": "\uD604\uC7AC \uCC44\uD305 \uAE30\uC900 \uC7AC\uC0DD\uC131",
-    "btn.deleteSelected": "\uC120\uD0DD \uC0AD\uC81C",
-    "btn.edit": "\uD3B8\uC9D1",
-    "btn.export": "\uB0B4\uBCF4\uB0B4\uAE30",
-    "btn.import": "\uAC00\uC838\uC624\uAE30",
-    // Dirty indicator
-    "dirty.unsavedChanges": "\uC800\uC7A5\uB418\uC9C0 \uC54A\uC740 \uBCC0\uACBD\uC0AC\uD56D",
-    "dirty.unsavedHint": "\uC800\uC7A5\uD558\uAE30 \uC804\uAE4C\uC9C0 \uBCC0\uACBD\uC0AC\uD56D\uC740 \uB85C\uCEEC\uC5D0 \uC720\uC9C0\uB429\uB2C8\uB2E4.",
-    // Card: Plugin Status
-    "card.pluginStatus.title": "\uD50C\uB7EC\uADF8\uC778 \uC0C1\uD0DC",
-    "card.pluginStatus.copy": "\uB514\uB809\uD130\uB97C \uD65C\uC131\uD654\uD558\uACE0, \uD1A4 \uC5C4\uACA9\uB3C4\uB97C \uC870\uC808\uD558\uBA70, \uC5F0\uACB0 \uC0C1\uD0DC\uB97C \uBE60\uB974\uAC8C \uD655\uC778\uD558\uC138\uC694.",
-    "label.enabled": "\uD65C\uC131\uD654",
-    "label.assertiveness": "\uC801\uADF9\uC131",
-    "label.mode": "\uBAA8\uB4DC",
-    "label.injectionMode": "\uC8FC\uC785 \uBAA8\uB4DC",
-    "option.light": "\uAC00\uBCBC\uC6C0",
-    "option.standard": "\uD45C\uC900",
-    "option.firm": "\uC5C4\uACA9",
-    "option.risuAux": "Risu \uBCF4\uC870 \uBAA8\uB378",
-    "option.independentProvider": "\uB3C5\uB9BD \uD504\uB85C\uBC14\uC774\uB354",
-    "option.auto": "\uC790\uB3D9",
-    "option.authorNote": "\uC791\uC131\uC790 \uB178\uD2B8",
-    "option.adjacentUser": "\uC778\uC811 \uC0AC\uC6A9\uC790",
-    "option.postConstraint": "\uD6C4\uC18D \uC81C\uC57D",
-    "option.bottom": "\uD558\uB2E8",
-    // Card: Metrics Snapshot
-    "card.metricsSnapshot.title": "\uBA54\uD2B8\uB9AD \uC2A4\uB0C5\uC0F7",
-    "card.metricsSnapshot.copy": "\uB354 \uAE4A\uC774 \uB4E4\uC5B4\uAC00\uAE30 \uC804\uC5D0 \uB7F0\uD0C0\uC784 \uB3D9\uC791\uC744 \uBE60\uB974\uAC8C \uC77D\uAE30 \uC804\uC6A9\uC73C\uB85C \uD655\uC778\uD558\uC138\uC694.",
-    "metric.totalDirectorCalls": "\uCD1D \uB514\uB809\uD130 \uD638\uCD9C \uC218",
-    "metric.totalFailures": "\uCD1D \uC2E4\uD328 \uC218",
-    "metric.memoryWrites": "\uBA54\uBAA8\uB9AC \uC4F0\uAE30 \uC218",
-    "metric.scenePhase": "\uC7A5\uBA74 \uB2E8\uACC4",
-    // Card: Prompt Tuning
-    "card.promptTuning.title": "\uD504\uB86C\uD504\uD2B8 \uD29C\uB2DD",
-    "card.promptTuning.copy": "\uB514\uB809\uD130\uAC00 \uC5BC\uB9C8\uB098 \uAC15\uD558\uAC8C \uC720\uB3C4\uD560\uC9C0, \uBE0C\uB9AC\uD504 \uD06C\uAE30, \uC0AC\uD6C4 \uB9AC\uBDF0 \uD65C\uC131\uD654 \uC5EC\uBD80\uB97C \uC870\uC808\uD558\uC138\uC694.",
-    "card.promptPresets.title": "\uD504\uB86C\uD504\uD2B8 \uD504\uB9AC\uC14B",
-    "card.promptPresets.copy": "\uD65C\uC131 \uD504\uB9AC\uC14B\uC744 \uC120\uD0DD\uD558\uACE0, \uD604\uC7AC \uD504\uB9AC\uC14B\uC744 \uBCF5\uC81C\uD574 \uCEE4\uC2A4\uD140 \uD504\uB9AC\uC14B\uC744 \uB9CC\uB4E0 \uB4A4 \uB514\uB809\uD130 \uD504\uB86C\uD504\uD2B8 \uD15C\uD50C\uB9BF\uC744 \uD3B8\uC9D1\uD558\uC138\uC694.",
-    "label.briefTokenCap": "\uBE0C\uB9AC\uD504 \uD1A0\uD070 \uC0C1\uD55C",
-    "label.postReview": "\uC0AC\uD6C4 \uB9AC\uBDF0 \uD65C\uC131\uD654",
-    "label.embeddings": "\uC784\uBCA0\uB529 \uD65C\uC131\uD654",
-    "label.promptPreset": "\uD65C\uC131 \uD504\uB86C\uD504\uD2B8 \uD504\uB9AC\uC14B",
-    "label.promptPresetName": "\uD504\uB9AC\uC14B \uC774\uB984",
-    "label.preRequestSystemTemplate": "\uC0AC\uC804 \uC694\uCCAD \uC2DC\uC2A4\uD15C \uD15C\uD50C\uB9BF",
-    "label.preRequestUserTemplate": "\uC0AC\uC804 \uC694\uCCAD \uC0AC\uC6A9\uC790 \uD15C\uD50C\uB9BF",
-    "label.postResponseSystemTemplate": "\uC0AC\uD6C4 \uC751\uB2F5 \uC2DC\uC2A4\uD15C \uD15C\uD50C\uB9BF",
-    "label.postResponseUserTemplate": "\uC0AC\uD6C4 \uC751\uB2F5 \uC0AC\uC6A9\uC790 \uD15C\uD50C\uB9BF",
-    "label.maxRecentMessages": "\uCD5C\uADFC \uBA54\uC2DC\uC9C0 \uC0C1\uD55C",
-    // Card: Timing & Limits
-    "card.timingLimits.title": "\uD0C0\uC774\uBC0D & \uC81C\uD55C",
-    "card.timingLimits.copy": "\uCFE8\uB2E4\uC6B4\uACFC \uB514\uBC14\uC6B4\uC2A4 \uC81C\uC5B4\uB85C \uC2A4\uD2B8\uB9AC\uBC0D \uBC0F \uC798\uBABB\uB41C \uC751\uB2F5\uC5D0\uC11C \uB514\uB809\uD130\uB97C \uC548\uC815\uC801\uC73C\uB85C \uC720\uC9C0\uD569\uB2C8\uB2E4.",
-    "label.cooldownFailures": "\uCFE8\uB2E4\uC6B4 \uC2E4\uD328 \uD69F\uC218",
-    "label.cooldownMs": "\uCFE8\uB2E4\uC6B4 (ms)",
-    "label.outputDebounceMs": "\uCD9C\uB825 \uB514\uBC14\uC6B4\uC2A4 (ms)",
-    // Card: Director Model Settings
-    "card.directorModel.title": "\uB514\uB809\uD130 \uBAA8\uB378 \uC124\uC815",
-    "card.directorModel.copy": "\uBA54\uC778 RP \uBAA8\uB378\uC744 \uAC74\uB4DC\uB9AC\uC9C0 \uC54A\uACE0 \uB514\uB809\uD130 \uC804\uC6A9 \uD504\uB85C\uBC14\uC774\uB354, Base URL, \uD0A4, \uBAA8\uB378\uC744 \uC720\uC9C0\uD558\uC138\uC694.",
-    "label.provider": "\uD504\uB85C\uBC14\uC774\uB354",
-    "label.baseUrl": "Base URL",
-    "label.apiKey": "API \uD0A4",
-    "label.model": "\uBAA8\uB378",
-    "label.customModelId": "\uCEE4\uC2A4\uD140 \uBAA8\uB378 ID",
-    "option.openai": "OpenAI",
-    "option.anthropic": "Anthropic",
-    "option.google": "Google",
-    "option.copilot": "GitHub Copilot",
-    "option.vertex": "Google Vertex AI",
-    "option.custom": "\uCEE4\uC2A4\uD140",
-    // Card: Embedding Settings
-    "card.embeddingSettings.title": "\uC784\uBCA0\uB529 \uC124\uC815",
-    "card.embeddingSettings.copy": "\uC2DC\uB9E8\uD2F1 \uBA54\uBAA8\uB9AC \uAC80\uC0C9\uC5D0 \uC0AC\uC6A9\uD560 \uC784\uBCA0\uB529 \uD504\uB85C\uBC14\uC774\uB354\uB97C \uC124\uC815\uD558\uC138\uC694.",
-    "label.embeddingProvider": "\uC784\uBCA0\uB529 \uD504\uB85C\uBC14\uC774\uB354",
-    "label.embeddingBaseUrl": "\uC784\uBCA0\uB529 Base URL",
-    "label.embeddingApiKey": "\uC784\uBCA0\uB529 API \uD0A4",
-    "label.embeddingModel": "\uC784\uBCA0\uB529 \uBAA8\uB378",
-    "label.embeddingDimensions": "\uC784\uBCA0\uB529 \uCC28\uC6D0",
-    "option.embedding.voyageai": "Voyage AI",
-    "option.embedding.openai": "OpenAI",
-    "option.embedding.google": "Google",
-    "option.embedding.vertex": "Google Vertex AI",
-    "option.embedding.custom": "\uCEE4\uC2A4\uD140",
-    // Card: Memory & Cache
-    "card.memoryCache.title": "\uBA54\uBAA8\uB9AC & \uCE90\uC2DC",
-    "card.memoryCache.copy": "\uC7A5\uAE30 \uBA54\uBAA8\uB9AC \uAE30\uBC18\uACFC \uCE90\uC2DC/\uBA54\uBAA8\uB9AC \uC4F0\uAE30 \uB3D9\uC791\uC744 \uC810\uAC80\uD558\uC138\uC694.",
-    "card.memoryCache.hint": "\uBA54\uBAA8\uB9AC \uC694\uC57D, \uC5D4\uD2F0\uD2F0 \uADF8\uB798\uD504, \uCE90\uC2DC \uC81C\uC5B4\uAC00 \uC5EC\uAE30\uC5D0 \uD45C\uC2DC\uB429\uB2C8\uB2E4.",
-    "card.memorySummaries.title": "\uC694\uC57D",
-    "card.continuityFacts.title": "\uC5F0\uC18D\uC131 \uC0AC\uC2E4",
-    "btn.delete": "\uC0AD\uC81C",
-    "btn.add": "\uCD94\uAC00",
-    "memory.addSummaryPlaceholder": "\uC0C8 \uC694\uC57D \uD14D\uC2A4\uD2B8\u2026",
-    "memory.addFactPlaceholder": "\uC0C8 \uC5F0\uC18D\uC131 \uC0AC\uC2E4\u2026",
-    "memory.addWorldFactPlaceholder": "\uC0C8 \uC138\uACC4 \uC0AC\uC2E4\u2026",
-    "memory.addEntityNamePlaceholder": "\uC0C8 \uC5D4\uD2F0\uD2F0 \uC774\uB984\u2026",
-    "memory.addRelationSourcePlaceholder": "\uC18C\uC2A4 ID",
-    "memory.addRelationLabelPlaceholder": "\uB77C\uBCA8",
-    "memory.addRelationTargetPlaceholder": "\uB300\uC0C1 ID",
-    "memory.filterPlaceholder": "\uBA54\uBAA8\uB9AC \uD544\uD130\u2026",
-    "memory.emptyHint": "\uC544\uC9C1 \uBA54\uBAA8\uB9AC \uD56D\uBAA9\uC774 \uC5C6\uC2B5\uB2C8\uB2E4. \uC774\uC57C\uAE30\uAC00 \uC9C4\uD589\uB428\uC5D0 \uB530\uB77C \uC694\uC57D \uBC0F \uC5F0\uC18D\uC131 \uC0AC\uC2E4\uC774 \uC5EC\uAE30\uC5D0 \uD45C\uC2DC\uB429\uB2C8\uB2E4.",
-    "card.worldFacts.title": "\uC138\uACC4 \uC0AC\uC2E4",
-    "card.entities.title": "\uC5D4\uD2F0\uD2F0",
-    "card.relations.title": "\uAD00\uACC4",
-    // Card: Settings Profiles
-    "card.settingsProfiles.title": "\uC124\uC815 \uD504\uB85C\uD544",
-    "card.settingsProfiles.copy": "\uC7AC\uC0AC\uC6A9 \uAC00\uB2A5\uD55C \uD504\uB9AC\uC14B\uC744 \uC800\uC7A5\uD558\uACE0, \uD55C \uBC88\uC758 \uD074\uB9AD\uC73C\uB85C \uAD50\uCCB4\uD558\uBA70, JSON \uAC00\uC838\uC624\uAE30/\uB0B4\uBCF4\uB0B4\uAE30\uB85C \uC774\uB3D9\uD558\uC138\uC694.",
-    // Connection status
-    "connection.notTested": "\uD14C\uC2A4\uD2B8\uB418\uC9C0 \uC54A\uC74C",
-    "connection.testing": "\uD14C\uC2A4\uD2B8 \uC911\u2026",
-    "connection.connected": "\uC5F0\uACB0\uB428 ({{count}}\uAC1C \uBAA8\uB378)",
-    // Toast messages
-    "toast.settingsSaved": "\uC124\uC815\uC774 \uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4",
-    "toast.changesDiscarded": "\uBCC0\uACBD\uC0AC\uD56D\uC774 \uCDE8\uC18C\uB418\uC5C8\uC2B5\uB2C8\uB2E4",
-    "toast.profileCreated": "\uD504\uB85C\uD544\uC774 \uC0DD\uC131\uB418\uC5C8\uC2B5\uB2C8\uB2E4",
-    "toast.profileExported": "\uD504\uB85C\uD544\uC774 \uB0B4\uBCF4\uB0B4\uC84C\uC2B5\uB2C8\uB2E4",
-    "toast.profileImported": "\uD504\uB85C\uD544\uC744 \uAC00\uC838\uC654\uC2B5\uB2C8\uB2E4",
-    "toast.noProfileSelected": "\uC120\uD0DD\uB41C \uD504\uB85C\uD544\uC774 \uC5C6\uC2B5\uB2C8\uB2E4",
-    "toast.invalidProfileFormat": "\uC798\uBABB\uB41C \uD504\uB85C\uD544 \uD615\uC2DD\uC785\uB2C8\uB2E4",
-    "toast.failedParseProfile": "\uD504\uB85C\uD544 JSON \uD30C\uC2F1\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4",
-    "toast.backfillCompleted": "\uCC44\uD305 \uCD94\uCD9C\uC774 \uC644\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4 ({{count}}\uAC1C \uC5C5\uB370\uC774\uD2B8)",
-    "toast.backfillSkipped": "\uCD94\uCD9C\uB41C \uCC44\uD305 \uBA54\uBAA8\uB9AC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4",
-    "error.backfillScopeMismatch": "\uB300\uC2DC\uBCF4\uB4DC\uB97C \uC5F0 \uB4A4 \uD65C\uC131 \uCC44\uD305\uC774 \uBC14\uB00C\uC5C8\uC2B5\uB2C8\uB2E4. \uC6D0\uB798 \uCC44\uD305\uC73C\uB85C \uB3CC\uC544\uAC04 \uB4A4 \uB2E4\uC2DC \uC2DC\uB3C4\uD558\uC138\uC694.",
-    // Import alert
-    "alert.importInstructions": '\uD504\uB85C\uD544\uC744 \uAC00\uC838\uC624\uB824\uBA74 JSON\uC744 \uD50C\uB7EC\uADF8\uC778 \uC800\uC7A5\uC18C \uD0A4 "{{key}}"\uC5D0 \uC800\uC7A5\uD55C \uD6C4 \uAC00\uC838\uC624\uAE30\uB97C \uB2E4\uC2DC \uD074\uB9AD\uD558\uC138\uC694.',
-    // Placeholders
-    "placeholder.customModelId": "\uBAA8\uB378 ID\uB97C \uC9C1\uC811 \uC785\uB825\uD558\uC138\uC694",
-    // Profile names
-    "profile.defaultName": "\uD504\uB85C\uD544 {{n}}",
-    "profile.balanced": "\uADE0\uD615",
-    "profile.gentle": "\uBD80\uB4DC\uB7EC\uC6C0",
-    "profile.strict": "\uC5C4\uACA9",
-    "promptPreset.defaultName": "\uAE30\uBCF8 \uD504\uB9AC\uC14B",
-    "promptPreset.customName": "\uCEE4\uC2A4\uD140 \uD504\uB9AC\uC14B {{n}}",
-    "promptPreset.readOnlyHint": "\uB0B4\uC7A5 \uD504\uB9AC\uC14B\uC740 \uC77D\uAE30 \uC804\uC6A9\uC785\uB2C8\uB2E4. \uD604\uC7AC \uD504\uB9AC\uC14B\uC744 \uBCF5\uC81C\uD574 \uC0AC\uC6A9\uC790 \uC815\uC758\uD558\uC138\uC694.",
-    // Fallback summary
-    "fallback.header": "\u2500\u2500 \uB514\uB809\uD130 \uD50C\uB7EC\uADF8\uC778 \uC124\uC815 \u2500\u2500",
-    "fallback.enabled": "\uD65C\uC131\uD654",
-    "fallback.assertiveness": "\uC801\uADF9\uC131",
-    "fallback.provider": "\uD504\uB85C\uBC14\uC774\uB354",
-    "fallback.model": "\uBAA8\uB378",
-    "fallback.injection": "\uC8FC\uC785",
-    "fallback.postReview": "\uC0AC\uD6C4 \uB9AC\uBDF0",
-    "fallback.briefCap": "\uBE0C\uB9AC\uD504 \uC0C1\uD55C",
-    "fallback.briefCapUnit": "\uD1A0\uD070",
-    // Language selector
-    "lang.label": "\uC5B8\uC5B4",
-    "lang.en": "English",
-    "lang.ko": "\uD55C\uAD6D\uC5B4"
-  };
-  var CATALOGS = {
-    en: EN_CATALOG,
-    ko: KO_CATALOG
-  };
-  function t(key, params) {
-    const catalog = CATALOGS[activeLocale];
-    let value = catalog[key] ?? CATALOGS.en[key] ?? key;
-    if (params) {
-      for (const [k, v] of Object.entries(params)) {
-        value = value.replaceAll(`{{${k}}}`, v);
-      }
-    }
-    return value;
-  }
-  var TAB_KEY_MAP = {
-    "general": "tab.general",
-    "prompt-tuning": "tab.promptTuning",
-    "model-settings": "tab.modelSettings",
-    "memory-cache": "tab.memoryCache",
-    "settings-profiles": "tab.settingsProfiles"
-  };
-  function tabLabel(tabId) {
-    const key = TAB_KEY_MAP[tabId];
-    return key ? t(key) : tabId;
-  }
-  var SIDEBAR_GROUP_KEY_MAP = {
-    "general": "sidebar.group.general",
-    "tuning": "sidebar.group.tuning",
-    "memory": "sidebar.group.memory",
-    "profiles": "sidebar.group.profiles"
-  };
-  function sidebarGroupLabel(groupId) {
-    const key = SIDEBAR_GROUP_KEY_MAP[groupId];
-    return key ? t(key) : groupId;
-  }
-  var EMBEDDING_PROVIDER_KEY_MAP = {
-    openai: "option.embedding.openai",
-    voyageai: "option.embedding.voyageai",
-    google: "option.embedding.google",
-    vertex: "option.embedding.vertex",
-    custom: "option.embedding.custom"
-  };
-  function embeddingProviderLabel(providerId) {
-    return t(EMBEDDING_PROVIDER_KEY_MAP[providerId]);
-  }
-  var BUILTIN_PROFILE_KEY_MAP = {
-    "builtin-balanced": "profile.balanced",
-    "builtin-gentle": "profile.gentle",
-    "builtin-strict": "profile.strict"
-  };
-  function profileDisplayName(id, fallbackName) {
-    const key = BUILTIN_PROFILE_KEY_MAP[id];
-    return key ? t(key) : fallbackName;
-  }
-
-  // src/ui/dashboardState.ts
-  var DASHBOARD_SETTINGS_KEY = "dashboard-settings-v1";
-  var DASHBOARD_PROFILE_MANIFEST_KEY = "dashboard-profile-manifest-v1";
-  var DASHBOARD_LOCALE_KEY = "dashboard-locale-v1";
-  var DASHBOARD_SCHEMA_VERSION = 1;
-  function normalizePersistedSettings(raw) {
-    return {
-      ...DEFAULT_DIRECTOR_SETTINGS,
-      ...raw,
-      promptPresetId: typeof raw.promptPresetId === "string" ? raw.promptPresetId : DEFAULT_DIRECTOR_SETTINGS.promptPresetId,
-      promptPresets: normalizePromptPresets(raw.promptPresets)
-    };
-  }
-  function createDashboardDraft(settings) {
-    return {
-      isDirty: false,
-      settings: { ...settings }
-    };
-  }
-  function isValidPromptPreset(value) {
-    if (value == null || typeof value !== "object") return false;
-    const record = value;
-    const directives = record.assertivenessDirectives;
-    if (directives == null || typeof directives !== "object") return false;
-    const directiveRecord = directives;
-    return typeof record.preRequestSystemTemplate === "string" && typeof record.preRequestUserTemplate === "string" && typeof record.postResponseSystemTemplate === "string" && typeof record.postResponseUserTemplate === "string" && typeof record.sceneBriefSchema === "string" && typeof record.memoryUpdateSchema === "string" && typeof record.maxRecentMessages === "number" && typeof directiveRecord.light === "string" && typeof directiveRecord.standard === "string" && typeof directiveRecord.firm === "string";
-  }
-  function normalizePromptPresets(raw) {
-    if (raw == null || typeof raw !== "object") return {};
-    const entries = Object.entries(raw);
-    const normalized = {};
-    for (const [key, value] of entries) {
-      if (value == null || typeof value !== "object") continue;
-      const candidate = value;
-      if (typeof candidate.id !== "string" || typeof candidate.name !== "string" || typeof candidate.createdAt !== "number" || typeof candidate.updatedAt !== "number" || !isValidPromptPreset(candidate.preset)) {
-        continue;
-      }
-      normalized[key] = {
-        id: candidate.id,
-        name: candidate.name,
-        createdAt: candidate.createdAt,
-        updatedAt: candidate.updatedAt,
-        preset: structuredClone(candidate.preset)
-      };
-    }
-    return normalized;
-  }
-  function createBuiltinPromptPresetRecord() {
-    return {
-      id: BUILTIN_PROMPT_PRESET_ID,
-      name: BUILTIN_PROMPT_PRESET_NAME,
-      createdAt: 0,
-      updatedAt: 0,
-      preset: structuredClone(DEFAULT_DIRECTOR_PROMPT_PRESET)
-    };
-  }
-  function resolveSelectedPromptPreset(settings) {
-    const stored = settings.promptPresets[settings.promptPresetId];
-    if (stored) {
-      return structuredClone(stored);
-    }
-    return createBuiltinPromptPresetRecord();
-  }
-  function createPromptPresetFromSettings(settings, name) {
-    const now = Date.now();
-    const count = Object.keys(settings.promptPresets).length + 1;
-    return {
-      id: `prompt-preset-${now}-${Math.random().toString(36).slice(2, 8)}`,
-      name: name?.trim() || t("promptPreset.customName", { n: String(count) }),
-      createdAt: now,
-      updatedAt: now,
-      preset: structuredClone(resolvePromptPreset(settings))
-    };
-  }
-  var BUILTIN_PROFILES = [
-    {
-      id: "builtin-balanced",
-      name: "Balanced",
-      createdAt: 0,
-      updatedAt: 0,
-      basedOn: null,
-      overrides: { assertiveness: "standard" }
-    },
-    {
-      id: "builtin-gentle",
-      name: "Gentle",
-      createdAt: 0,
-      updatedAt: 0,
-      basedOn: null,
-      overrides: { assertiveness: "light" }
-    },
-    {
-      id: "builtin-strict",
-      name: "Strict",
-      createdAt: 0,
-      updatedAt: 0,
-      basedOn: null,
-      overrides: { assertiveness: "firm", postReviewEnabled: true }
-    }
-  ];
-  function createDefaultProfileManifest() {
-    const activeProfileId = BUILTIN_PROFILES[0]?.id ?? "builtin-balanced";
-    return {
-      version: DASHBOARD_SCHEMA_VERSION,
-      activeProfileId,
-      profiles: BUILTIN_PROFILES.map((p) => ({ ...p }))
-    };
-  }
-  function createProfileExportPayload(profile) {
-    return {
-      schema: "director-actor-dashboard-profile",
-      version: 1,
-      profile: { ...profile }
-    };
-  }
-  function mergeDashboardSettingsIntoPluginState(state, dashboardSettings) {
-    return {
-      ...state,
-      settings: { ...state.settings, ...dashboardSettings }
-    };
-  }
-
   // src/ui/dashboardDom.ts
   var DASHBOARD_TABS = [
     { id: "general", group: "general" },
@@ -3790,6 +4873,55 @@
         </section>${embeddingSection}
       </div>`;
   }
+  function formatTimestamp(ts) {
+    if (ts === 0) return t("memoryOps.neverRun");
+    return new Date(ts).toLocaleString();
+  }
+  function freshnessLabel(freshness) {
+    switch (freshness) {
+      case "current":
+        return t("memoryOps.freshnessCurrent");
+      case "stale":
+        return t("memoryOps.freshnessStale");
+      default:
+        return t("memoryOps.freshnessUnknown");
+    }
+  }
+  function buildMemoryOpsCard(status) {
+    const { documentCounts: dc } = status;
+    const freshnessBadge = `<span class="da-badge" data-kind="${status.notebookFreshness === "stale" ? "error" : status.notebookFreshness === "current" ? "success" : "neutral"}">${freshnessLabel(status.notebookFreshness)}</span>`;
+    const lockedHtml = status.isMemoryLocked ? `<div class="da-warning" data-da-role="memory-locked"><span class="da-badge" data-kind="error">${escapeXml(t("memoryOps.locked"))}</span></div>` : "";
+    const staleHtml = status.staleWarnings.length > 0 ? `<div class="da-warning-list" data-da-role="stale-warnings">${status.staleWarnings.map((w) => `<div class="da-warning-item">${escapeXml(w)}</div>`).join("")}</div>` : "";
+    const fallbackLabel = status.fallbackRetrievalEnabled ? t("memoryOps.fallbackEnabled") : t("memoryOps.fallbackDisabled");
+    const recalledHtml = status.recalledDocs.length > 0 ? `<ul class="da-recalled-list" data-da-role="recalled-docs">${status.recalledDocs.map((d) => {
+      const badge = d.freshness !== "current" ? ` <span class="da-badge da-badge--sm" data-kind="${d.freshness === "stale" ? "error" : "neutral"}">${escapeXml(d.freshness)}</span>` : "";
+      return `<li class="da-recalled-item">${escapeXml(d.title)}${badge}</li>`;
+    }).join("")}</ul>` : "";
+    return `
+        <section class="da-card" data-da-role="memory-ops-status">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">${t("card.memoryOps.title")}</h3>
+              <p class="da-card-copy">${t("card.memoryOps.copy")}</p>
+            </div>
+            ${freshnessBadge}
+          </div>
+          ${lockedHtml}${staleHtml}
+          <ul class="da-metric-list">
+            <li class="da-metric-item"><span>${t("memoryOps.lastExtract")}</span><strong>${formatTimestamp(status.lastExtractTs)}</strong></li>
+            <li class="da-metric-item"><span>${t("memoryOps.lastDream")}</span><strong>${formatTimestamp(status.lastDreamTs)}</strong></li>
+            <li class="da-metric-item"><span>${t("memoryOps.docCounts")}</span><strong>${t("card.memorySummaries.title")}: ${dc.summaries} \xB7 ${t("card.continuityFacts.title")}: ${dc.continuityFacts} \xB7 ${t("card.worldFacts.title")}: ${dc.worldFacts} \xB7 ${t("card.entities.title")}: ${dc.entities} \xB7 ${t("card.relations.title")}: ${dc.relations}</strong></li>
+            <li class="da-metric-item"><span>${fallbackLabel}</span></li>
+          </ul>
+          <div class="da-inline">
+            <button class="da-btn da-btn--primary da-btn--sm" data-da-action="force-extract">${t("btn.forceExtract")}</button>
+            <button class="da-btn da-btn--sm" data-da-action="force-dream">${t("btn.forceDream")}</button>
+            <button class="da-btn da-btn--sm" data-da-action="inspect-recalled">${t("btn.inspectRecalled")}</button>
+            <button class="da-btn da-btn--sm" data-da-action="toggle-fallback-retrieval">${t("btn.toggleFallback")}</button>
+          </div>
+          ${recalledHtml}
+        </section>`;
+  }
   function buildMemoryCachePage(input) {
     const { pluginState } = input;
     const summaries = pluginState.memory.summaries;
@@ -3887,8 +5019,10 @@
       )
     ).join("");
     const emptyHintHtml = isEmpty ? `<p class="da-empty" data-da-role="memory-empty">${t("memory.emptyHint")}</p>` : "";
+    const memoryOpsCardHtml = input.memoryOpsStatus ? buildMemoryOpsCard(input.memoryOpsStatus) : "";
     return `
       ${backfillHtml}${regenerateHtml}${bulkDeleteHtml}${filterHtml}${emptyHintHtml}
+      ${memoryOpsCardHtml}
       <div class="da-grid">
         <section class="da-card">
           <div class="da-card-header">
@@ -4176,6 +5310,42 @@
     patchLegacyMemory(state);
     return state;
   }
+  function computeLatestMemoryTs(state) {
+    let latest = 0;
+    for (const s of state.memory.summaries) latest = Math.max(latest, s.updatedAt ?? 0);
+    for (const w of state.memory.worldFacts) latest = Math.max(latest, w.updatedAt ?? 0);
+    for (const e of state.memory.entities) latest = Math.max(latest, e.updatedAt ?? 0);
+    for (const r of state.memory.relations) latest = Math.max(latest, r.updatedAt ?? 0);
+    return latest;
+  }
+  function buildStaleWarnings(lastExtractTs, lastDreamTs) {
+    const warnings = [];
+    const now = Date.now();
+    const STALE_MS = 24 * 60 * 60 * 1e3;
+    if (lastExtractTs > 0 && now - lastExtractTs > STALE_MS) {
+      warnings.push(t("memoryOps.staleExtract"));
+    }
+    if (lastDreamTs > 0 && now - lastDreamTs > STALE_MS) {
+      warnings.push(t("memoryOps.staleDream"));
+    }
+    return warnings;
+  }
+  async function buildMemoryOpsStatus(store, canonicalState) {
+    const dreamState = await loadDreamState(store.storage);
+    const prefs = await loadMemoryOpsPrefs(store.storage);
+    const isLocked = store.isMemoryLocked ? await store.isMemoryLocked() : false;
+    const latestMemoryTs = computeLatestMemoryTs(canonicalState);
+    return {
+      lastExtractTs: latestMemoryTs,
+      lastDreamTs: dreamState.lastDreamTs,
+      notebookFreshness: computeNotebookFreshness(latestMemoryTs, dreamState.lastDreamTs),
+      documentCounts: computeDocumentCounts(canonicalState.memory),
+      fallbackRetrievalEnabled: prefs.fallbackRetrievalEnabled,
+      isMemoryLocked: isLocked,
+      staleWarnings: buildStaleWarnings(latestMemoryTs, dreamState.lastDreamTs),
+      recalledDocs: []
+    };
+  }
   var DashboardInstance = class {
     api;
     store;
@@ -4190,7 +5360,8 @@
     canonicalState;
     selectedMemoryKeys = /* @__PURE__ */ new Set();
     editingMemory = null;
-    constructor(api, store, doc, draft, profiles, modelOptions, canonicalState) {
+    memoryOpsStatus;
+    constructor(api, store, doc, draft, profiles, modelOptions, canonicalState, memoryOpsStatus) {
       this.api = api;
       this.store = store;
       this.doc = doc;
@@ -4200,6 +5371,7 @@
       this.modelOptions = modelOptions;
       this.connectionStatus = { kind: "idle", message: t("connection.notTested") };
       this.canonicalState = canonicalState;
+      this.memoryOpsStatus = memoryOpsStatus;
     }
     // ── public ────────────────────────────────────────────────────────────
     async mount() {
@@ -4241,7 +5413,8 @@
         modelOptions: this.modelOptions,
         connectionStatus: this.connectionStatus,
         selectedMemoryKeys: Array.from(this.selectedMemoryKeys),
-        editingMemory: this.editingMemory
+        editingMemory: this.editingMemory,
+        memoryOpsStatus: this.memoryOpsStatus
       };
     }
     renderRoot() {
@@ -4497,6 +5670,18 @@
           break;
         case "add-relation":
           await this.handleAddRelation();
+          break;
+        case "force-extract":
+          await this.handleForceExtract();
+          break;
+        case "force-dream":
+          await this.handleForceDream();
+          break;
+        case "inspect-recalled":
+          await this.handleInspectRecalled();
+          break;
+        case "toggle-fallback-retrieval":
+          await this.handleToggleFallbackRetrieval();
           break;
       }
     }
@@ -5110,6 +6295,83 @@
       this.canonicalState = state;
       this.fullReRender();
     }
+    // ── Memory operations actions ──────────────────────────────────────
+    async handleForceExtract() {
+      if (!this.store.forceExtract) {
+        this.showToast(t("toast.noCallback"));
+        return;
+      }
+      try {
+        await this.store.forceExtract();
+      } catch (err) {
+        this.showToast(t("toast.extractFailed", { error: String(err) }));
+        return;
+      }
+      this.showToast(t("toast.extractStarted"));
+      await this.refreshMemoryOpsStatus();
+      this.fullReRender();
+    }
+    async handleForceDream() {
+      if (!this.store.forceDream) {
+        this.showToast(t("toast.noCallback"));
+        return;
+      }
+      try {
+        await this.store.forceDream();
+      } catch (err) {
+        this.showToast(t("toast.dreamFailed", { error: String(err) }));
+        return;
+      }
+      this.showToast(t("toast.dreamStarted"));
+      await this.refreshMemoryOpsStatus();
+      this.fullReRender();
+    }
+    async handleInspectRecalled() {
+      if (!this.store.getRecalledDocs) {
+        this.showToast(t("toast.noCallback"));
+        return;
+      }
+      const docs = await this.store.getRecalledDocs();
+      this.memoryOpsStatus = {
+        ...this.memoryOpsStatus,
+        recalledDocs: docs.map((d) => ({
+          id: d.id,
+          title: d.title,
+          freshness: d.freshness
+        }))
+      };
+      this.fullReRender();
+    }
+    async handleToggleFallbackRetrieval() {
+      const next = !this.memoryOpsStatus.fallbackRetrievalEnabled;
+      this.memoryOpsStatus = {
+        ...this.memoryOpsStatus,
+        fallbackRetrievalEnabled: next
+      };
+      await saveMemoryOpsPrefs(this.store.storage, {
+        fallbackRetrievalEnabled: next
+      });
+      this.showToast(t("toast.fallbackToggled"));
+      this.fullReRender();
+    }
+    async refreshMemoryOpsStatus() {
+      const dreamState = await loadDreamState(this.store.storage);
+      const prefs = await loadMemoryOpsPrefs(this.store.storage);
+      const canonicalState = await readCanonicalState(this.store);
+      this.canonicalState = canonicalState;
+      const isLocked = this.store.isMemoryLocked ? await this.store.isMemoryLocked() : false;
+      const latestMemoryTs = computeLatestMemoryTs(canonicalState);
+      this.memoryOpsStatus = {
+        lastExtractTs: latestMemoryTs,
+        lastDreamTs: dreamState.lastDreamTs,
+        notebookFreshness: computeNotebookFreshness(latestMemoryTs, dreamState.lastDreamTs),
+        documentCounts: computeDocumentCounts(canonicalState.memory),
+        fallbackRetrievalEnabled: prefs.fallbackRetrievalEnabled,
+        isMemoryLocked: isLocked,
+        staleWarnings: buildStaleWarnings(latestMemoryTs, dreamState.lastDreamTs),
+        recalledDocs: this.memoryOpsStatus.recalledDocs
+      };
+    }
     // ── Language switch ──────────────────────────────────────────────────
     async handleSwitchLang(btn) {
       const nextLocale = btn.getAttribute("data-da-lang") ?? "en";
@@ -5166,6 +6428,7 @@
     } catch {
     }
     const canonicalState = await readCanonicalState(store);
+    const memoryOpsStatus = await buildMemoryOpsStatus(store, canonicalState);
     const instance = new DashboardInstance(
       api,
       store,
@@ -5173,7 +6436,8 @@
       draft,
       profiles,
       modelOptions,
-      canonicalState
+      canonicalState,
+      memoryOpsStatus
     );
     activeInstance = instance;
     await instance.mount();
@@ -5249,8 +6513,12 @@
     const circuitBreaker = options.circuitBreaker ?? null;
     const turnCache = options.turnCache ?? new TurnCache();
     const openSettings = options.openSettings ?? (async () => showSettingsOverlay(api));
+    const onTurnFinalized = options.onTurnFinalized ?? null;
+    const onShutdown = options.onShutdown ?? null;
+    const sessionNotebook = options.sessionNotebook ?? null;
     let currentTurnId = null;
     let debounceTimer = null;
+    let turnIndex = 0;
     function clearActiveTurn() {
       if (currentTurnId !== null) {
         turnCache.drop(currentTurnId);
@@ -5263,6 +6531,11 @@
     async function finalizeTurn(content) {
       const activeTurn = getCurrentTurn();
       if (!activeTurn || activeTurn.finalized) return;
+      turnIndex += 1;
+      if (sessionNotebook) {
+        const estimatedTokens = Math.ceil((content ?? "").length / 4);
+        sessionNotebook.recordTurn(estimatedTokens);
+      }
       try {
         const finalizePatch = {
           finalized: true
@@ -5290,6 +6563,20 @@
         }
         await director.postResponse(postInput);
         circuitBreaker?.recordSuccess();
+        if (onTurnFinalized && finalizedTurn.brief) {
+          try {
+            await onTurnFinalized({
+              turnId: finalizedTurn.turnId,
+              turnIndex,
+              type: finalizedTurn.type,
+              content: postInput.content,
+              messages: postInput.messages,
+              brief: finalizedTurn.brief
+            });
+          } catch (hkErr) {
+            await safeLog(api, `Housekeeping afterTurn failed: ${hkErr}`);
+          }
+        }
       } catch (err) {
         await safeLog(api, `Director postResponse failed: ${err}`);
         circuitBreaker?.recordFailure(String(err));
@@ -5354,13 +6641,26 @@
       return null;
     });
     await registerPluginUi(api, { onOpen: openSettings });
-    await api.onUnload(() => {
+    await api.onUnload(async () => {
       clearDebounce();
       clearActiveTurn();
+      if (onShutdown) {
+        try {
+          await onShutdown();
+        } catch (err) {
+          await safeLog(api, `Plugin shutdown hook failed: ${err}`);
+        }
+      }
     });
   }
 
   // src/index.ts
+  function createId3(prefix) {
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+  var LS_LAST_EXTRACTION_TS = "director:extraction:lastTs";
+  var LS_LAST_PROCESSED_CURSOR = "director:extraction:cursor";
+  var RECALL_TIMEOUT_MS = 3e3;
   function latestUserText(messages) {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       if (messages[index]?.role === "user") {
@@ -5419,6 +6719,158 @@
       initialState.settings.cooldownFailureThreshold,
       initialState.settings.cooldownMs
     );
+    const memdirScopeKey = scopeResolution.isFallback ? "default" : scopeResolution.storageKey;
+    const memdirStore = new MemdirStore(api.pluginStorage, memdirScopeKey);
+    const recallCache = new RecallCache(initialState.settings.recallCooldownMs);
+    const sessionNotebook = new SessionNotebook(memdirScopeKey);
+    const seenHashes = /* @__PURE__ */ new Set();
+    const extractionWorker = createExtractionWorker(
+      {
+        async runExtraction(ctx) {
+          const state = await store.load();
+          if (!state.settings.postReviewEnabled) {
+            return { applied: false, memoryUpdate: null };
+          }
+          const promptPreset = resolvePromptPreset(state.settings);
+          const service = createDirectorService(api, state.settings);
+          const result = await service.postResponse({
+            responseText: ctx.content,
+            brief: ctx.brief,
+            messages: ctx.messages,
+            directorState: state.director,
+            memory: state.memory,
+            assertiveness: state.settings.assertiveness,
+            promptPreset
+          });
+          if (!result.ok) {
+            return { applied: false, memoryUpdate: null };
+          }
+          return { applied: true, memoryUpdate: result.update };
+        },
+        async persistDocuments(update, ctx) {
+          const now = Date.now();
+          const docs = [];
+          for (const fact of update.durableFacts) {
+            docs.push({
+              id: `ext-fact-${createId3("f")}`,
+              type: "plot",
+              title: fact.slice(0, 60),
+              description: fact,
+              scopeKey: memdirScopeKey,
+              updatedAt: now,
+              source: "extraction",
+              freshness: "current",
+              tags: []
+            });
+          }
+          for (const entityData of update.entityUpdates) {
+            const name = typeof entityData.name === "string" ? entityData.name : "unknown";
+            const facts = Array.isArray(entityData.facts) ? entityData.facts.join("; ") : "";
+            docs.push({
+              id: `ext-entity-${createId3("e")}`,
+              type: "character",
+              title: name,
+              description: facts || name,
+              scopeKey: memdirScopeKey,
+              updatedAt: now,
+              source: "extraction",
+              freshness: "current",
+              tags: []
+            });
+          }
+          for (const doc of docs) {
+            await memdirStore.putDocument(doc);
+          }
+        },
+        log(message) {
+          api.log(message);
+        },
+        async getLastExtractionTs() {
+          const raw = await api.safeLocalStorage.getItem(LS_LAST_EXTRACTION_TS);
+          return typeof raw === "number" ? raw : 0;
+        },
+        async setLastExtractionTs(ts) {
+          await api.safeLocalStorage.setItem(LS_LAST_EXTRACTION_TS, ts);
+        },
+        async getLastProcessedCursor() {
+          const raw = await api.safeLocalStorage.getItem(LS_LAST_PROCESSED_CURSOR);
+          return typeof raw === "number" ? raw : 0;
+        },
+        async setLastProcessedCursor(cursor) {
+          await api.safeLocalStorage.setItem(LS_LAST_PROCESSED_CURSOR, cursor);
+        },
+        hashRequest: hashExtractionContext
+      },
+      {
+        extractionMinTurnInterval: initialState.settings.extractionMinTurnInterval,
+        seenHashes
+      }
+    );
+    const dreamState = await loadDreamState(api.pluginStorage);
+    let lastUserInteractionTs = Date.now();
+    const dreamWorker = createAutoDreamWorker({
+      memdirStore,
+      log(message) {
+        api.log(message);
+      },
+      async runConsolidationModel(prompt) {
+        const state = await store.load();
+        const result = await api.runLLMModel({
+          messages: [
+            { role: "system", content: "You are a memory consolidation assistant." },
+            { role: "user", content: prompt }
+          ],
+          staticModel: state.settings.directorModel,
+          mode: state.settings.directorMode
+        });
+        if (result.type === "fail") {
+          throw new Error(`Consolidation model call failed: ${result.result}`);
+        }
+        return result.result;
+      }
+    });
+    const consolidationLock = new ConsolidationLock(
+      api.pluginStorage,
+      memdirScopeKey,
+      `worker-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    );
+    const housekeeping = createBackgroundHousekeeping(
+      {
+        submitExtraction: (ctx) => extractionWorker.submit(ctx),
+        flushExtraction: () => extractionWorker.flush(),
+        getExtractionMinTurnInterval: () => initialState.settings.extractionMinTurnInterval,
+        log(message) {
+          api.log(message);
+        }
+      },
+      {
+        async buildCadenceGate() {
+          const freshState = await store.load();
+          return {
+            enabled: freshState.settings.enabled && freshState.settings.postReviewEnabled,
+            lastDreamTs: dreamState.lastDreamTs,
+            dreamMinHoursElapsed: freshState.settings.dreamMinHoursElapsed,
+            turnsSinceLastDream: dreamState.turnsSinceLastDream,
+            dreamMinTurnsElapsed: freshState.settings.extractionMinTurnInterval * 3,
+            sessionsSinceLastDream: dreamState.sessionsSinceLastDream,
+            dreamMinSessionsElapsed: freshState.settings.dreamMinSessionsElapsed,
+            userInteractionGuardMs: 1e4,
+            lastUserInteractionTs
+          };
+        },
+        dreamWorker,
+        consolidationLock,
+        async onDreamComplete(result) {
+          dreamState.lastDreamTs = Date.now();
+          dreamState.turnsSinceLastDream = 0;
+          dreamState.sessionsSinceLastDream = 0;
+          await saveDreamState(api.pluginStorage, dreamState);
+        },
+        log(message) {
+          api.log(message);
+        }
+      }
+    );
     const director = {
       async preRequest(input) {
         const state = await store.load();
@@ -5428,7 +6880,36 @@
           messages: input.messages
         });
         turnCache.patch(input.turnId, { retrieval: retrieved });
+        const recentText = input.messages.map((m) => m.content).join(" ");
+        const memDocs = await memdirStore.listDocuments();
+        const storedMd = await memdirStore.getMemoryMd();
+        const memoryMdContent = storedMd ?? buildMemoryMd(memDocs, { tokenBudget: state.settings.briefTokenCap });
+        const recallDeps = {
+          runRecallModel: (manifest, text) => makeRecallRequest(api, manifest, text, {
+            model: state.settings.directorModel,
+            mode: state.settings.directorMode
+          }),
+          log: (msg) => api.log(msg)
+        };
+        const recallPromise = findRelevantMemories(
+          recallDeps,
+          { docs: memDocs, recentText, memoryMdContent },
+          recallCache
+        );
+        let recalledDocsBlock = memoryMdContent;
+        try {
+          const recallResult = await Promise.race([
+            recallPromise,
+            new Promise((resolve) => setTimeout(() => resolve(null), RECALL_TIMEOUT_MS))
+          ]);
+          if (recallResult) {
+            recalledDocsBlock = formatRecalledDocsBlock(recallResult);
+          }
+        } catch (err) {
+          api.log(`Recall prefetch failed: ${err}`);
+        }
         const promptPreset = resolvePromptPreset(state.settings);
+        const notebookBlock = formatNotebookBlock(sessionNotebook.snapshot());
         const service = createDirectorService(api, state.settings);
         const result = await service.preRequest({
           messages: input.messages,
@@ -5436,7 +6917,9 @@
           memory: projectRetrievedMemory(state, retrieved),
           assertiveness: state.settings.assertiveness,
           briefTokenCap: state.settings.briefTokenCap,
-          promptPreset
+          promptPreset,
+          notebookBlock: notebookBlock || "",
+          recalledDocsBlock
         });
         if (!result.ok) {
           await store.writeFirst((current) => recordDirectorFailure(current, result.error));
@@ -5488,6 +6971,13 @@
       outputDebounceMs: initialState.settings.outputDebounceMs,
       circuitBreaker,
       turnCache,
+      sessionNotebook,
+      onTurnFinalized: (ctx) => {
+        lastUserInteractionTs = Date.now();
+        dreamState.turnsSinceLastDream += 1;
+        return housekeeping.afterTurn(ctx);
+      },
+      onShutdown: () => housekeeping.shutdown(),
       openSettings: async () => {
         const dashboardStore = createDashboardStore(
           api,

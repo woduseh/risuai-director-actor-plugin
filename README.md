@@ -17,13 +17,55 @@ Director-Actor collaborative long-memory plugin for **RisuAI Plugin V3**.
 - Can backfill or fully regenerate memory from the current active chat into the scoped store
 - Stores embedding provider/model settings for VoyageAI, OpenAI, Google, Vertex AI, and custom endpoints
 
+## Claude-Inspired Memory Lifecycle
+
+The plugin implements a multi-layer memory system inspired by Claude Code's `CLAUDE.md` pattern:
+
+### Memory Layers
+
+1. **Canonical Store** — Legacy scoped blob persisting `DirectorPluginState` per character/chat. Remains the backward-compatible source of truth for settings, director state, actor state, and metrics.
+2. **Virtual Memdir** — Individually addressable memory documents (`MemdirDocument`) stored in a virtual directory structure. Each scope has its own index manifest and individually addressable records.
+3. **Session Notebook** — Lightweight within-session continuity notebook (5 sections: current state, immediate goals, recent developments, unresolved threads, recent mistakes). Threshold-gated updates keep it fresh without churn.
+
+### Memory Lifecycle Stages
+
+| Stage | Description |
+|-------|-------------|
+| **Extract** | After each finalized turn, the extraction worker produces new memdir documents from conversation context. Debounced and hash-deduplicated. |
+| **Recall** | Before each Director pass, a recall model selects relevant documents from the memdir manifest. Falls back to deterministic keyword ranking on model failure. |
+| **Session Notebook** | Updated every N turns or N tokens within a single session. Provides stable short-term context independent of retrieval budgets. |
+| **Dream** | Periodic auto-consolidation worker (orient → gather → consolidate → prune) that merges redundant extraction documents and prunes stale entries. Never touches operator/manual-locked memories. |
+
+### Migration from Legacy Canonical Memory
+
+When a `MemdirStore` is provided to `CanonicalStore`, the plugin performs a **lazy, non-destructive migration** on first load per scope:
+
+- Entities → `character` documents
+- Relations → `relationship` documents
+- World facts → `world` documents
+- Continuity facts → `continuity` documents
+- Summaries → `plot` documents
+
+The migration is **idempotent** (deterministic IDs prevent duplicates), **non-destructive** (the canonical blob is never modified or deleted), and **safe when partially complete** (canonical reads remain available as a fallback; the migration marker is only set after all documents are persisted).
+
+A per-scope migration marker (`director-memdir:migrated:{scopeKey}`) records when migration completed successfully. If the marker is absent, migration is retried on next load.
+
+### Operator Controls
+
+The dashboard Memory Operations card provides operator controls:
+
+- **Run Extract Now** — Force an immediate extraction pass
+- **Run Dream Now** — Force an immediate consolidation pass
+- **Inspect Recalled Docs** — View the last recall result
+- **Toggle Fallback Retrieval** — Switch between model-based and keyword-based recall
+
 ## Project layout
 
 - `src/index.ts` — live plugin entrypoint and auto-bootstrap
 - `src/runtime/plugin.ts` — hook orchestration
 - `src/director/` — prompt assembly, model calls, validation
 - `src/adapter/` — prompt topology classification and injection
-- `src/memory/` — canonical store, retrieval, turn cache, update application
+- `src/memory/` — canonical store, memdir store, extraction worker, recall, session notebook, auto-dream consolidation, migration
 - `src/ui/` — fullscreen dashboard registration, state, model adapters, and rendering
 - `dist/risuai-director-actor-plugin.js` — bundled Plugin V3 output
 
