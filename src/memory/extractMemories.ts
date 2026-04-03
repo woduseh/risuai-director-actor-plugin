@@ -4,6 +4,7 @@ import type {
   OpenAIChat,
   SceneBrief,
 } from '../contracts/types.js'
+import { withRetry, type RetryOptions } from '../runtime/network.js'
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -50,6 +51,8 @@ export interface ExtractionWorkerOptions {
   extractionMinTurnInterval: number
   /** Shared set used for hash-based duplicate skip (hot cache). */
   seenHashes?: Set<string>
+  /** Retry options for transient extraction failures. */
+  retryOptions?: RetryOptions
 }
 
 export interface ExtractionWorker {
@@ -92,7 +95,14 @@ export function createExtractionWorker(
     }
 
     try {
-      const result = await deps.runExtraction(ctx)
+      const retryOpts: RetryOptions = {
+        ...options.retryOptions,
+        log: (msg) => deps.log(`[extraction-worker] ${msg}`),
+      }
+      const result = await withRetry(
+        () => deps.runExtraction(ctx),
+        retryOpts,
+      )
 
       // Persist documents *before* recording success markers so that a
       // persistence failure leaves the turn retryable on next attempt.

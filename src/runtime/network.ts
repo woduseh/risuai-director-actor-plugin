@@ -3,7 +3,8 @@
  *
  * Provides a fast, deterministic content hash for duplicate-request
  * detection without requiring crypto dependencies, plus host-safe
- * recall model routing.
+ * recall model routing and a reusable retry helper with exponential
+ * backoff for transient failures.
  */
 
 import type { ExtractionContext } from '../memory/extractMemories.js'
@@ -39,6 +40,79 @@ export function hashExtractionContext(ctx: ExtractionContext): string {
   const contentPrefix = ctx.content.slice(0, 200)
   const raw = `${ctx.turnId}|${ctx.type}|${ctx.messages.length}|${contentPrefix}`
   return fnv1aHash(raw)
+}
+
+// ---------------------------------------------------------------------------
+// Transient error detection & retry with exponential backoff
+// ---------------------------------------------------------------------------
+
+const TRANSIENT_STATUS_CODES = [429, 502, 503, 504, 524]
+const TRANSIENT_KEYWORDS = ['rate limit', 'timeout', 'overloaded']
+
+const DEFAULT_MAX_RETRIES = 2
+const DEFAULT_BASE_DELAY_MS = 1500
+
+export interface RetryOptions {
+  maxRetries?: number
+  baseDelayMs?: number
+  isRetryable?: (error: unknown) => boolean
+  log?: (message: string) => void
+}
+
+/**
+ * Determine whether an error (or plain string) looks like a transient
+ * failure that is worth retrying — e.g. 429, 502-504, 524, or common
+ * rate-limit / timeout wording.
+ */
+export function isTransientError(error: unknown): boolean {
+  const message = (
+    error instanceof Error ? error.message : String(error)
+  ).toLowerCase()
+
+  for (const code of TRANSIENT_STATUS_CODES) {
+    if (message.includes(String(code))) return true
+  }
+  for (const keyword of TRANSIENT_KEYWORDS) {
+    if (message.includes(keyword)) return true
+  }
+  return false
+}
+
+/**
+ * Execute `fn` with up to `maxRetries` retry attempts on transient
+ * errors, using exponential backoff (base × 2^attempt).
+ *
+ * Non-retryable errors are re-thrown immediately.
+ */
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  options?: RetryOptions,
+): Promise<T> {
+  const maxRetries = options?.maxRetries ?? DEFAULT_MAX_RETRIES
+  const baseDelayMs = options?.baseDelayMs ?? DEFAULT_BASE_DELAY_MS
+  const isRetryable = options?.isRetryable ?? isTransientError
+  const log = options?.log
+
+  let lastError: unknown
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      lastError = err
+      if (attempt < maxRetries && isRetryable(err)) {
+        const delay = baseDelayMs * Math.pow(2, attempt)
+        if (log) {
+          const msg = err instanceof Error ? err.message : String(err)
+          log(`Retrying (${attempt + 1}/${maxRetries}) after ${delay}ms: ${msg}`)
+        }
+        await new Promise((resolve) => setTimeout(resolve, delay))
+        continue
+      }
+      throw err
+    }
+  }
+  // Unreachable — the loop always returns or throws
+  throw lastError
 }
 
 // ---------------------------------------------------------------------------

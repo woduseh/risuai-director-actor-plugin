@@ -4,7 +4,7 @@ import {
   type HousekeepingDeps,
   type DreamHousekeepingDeps,
 } from '../src/runtime/backgroundHousekeeping.js'
-import { makeRecallRequest } from '../src/runtime/network.js'
+import { makeRecallRequest, isTransientError, withRetry } from '../src/runtime/network.js'
 import type { DreamCadenceGate, DreamResult } from '../src/memory/autoDream.js'
 import type { ExtractionContext } from '../src/memory/extractMemories.js'
 
@@ -241,5 +241,117 @@ describe('makeRecallRequest', () => {
 
     expect(result.ok).toBe(false)
     expect(result.text).toContain('rate limited')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// isTransientError — status-aware transient detection
+// ---------------------------------------------------------------------------
+
+describe('isTransientError', () => {
+  test('identifies 429 rate limit errors as transient', () => {
+    expect(isTransientError(new Error('HTTP 429 Too Many Requests'))).toBe(true)
+  })
+
+  test('identifies 502/503/504 gateway errors as transient', () => {
+    expect(isTransientError(new Error('502 Bad Gateway'))).toBe(true)
+    expect(isTransientError(new Error('503 Service Unavailable'))).toBe(true)
+    expect(isTransientError(new Error('504 Gateway Timeout'))).toBe(true)
+  })
+
+  test('identifies 524 timeout as transient', () => {
+    expect(isTransientError(new Error('524 A Timeout Occurred'))).toBe(true)
+  })
+
+  test('identifies rate limit wording as transient', () => {
+    expect(isTransientError(new Error('rate limit exceeded'))).toBe(true)
+    expect(isTransientError('rate limited')).toBe(true)
+  })
+
+  test('identifies timeout and overloaded wording as transient', () => {
+    expect(isTransientError(new Error('request timeout'))).toBe(true)
+    expect(isTransientError(new Error('server overloaded'))).toBe(true)
+  })
+
+  test('does not flag non-transient errors', () => {
+    expect(isTransientError(new Error('invalid API key'))).toBe(false)
+    expect(isTransientError(new Error('authentication failed'))).toBe(false)
+    expect(isTransientError(new Error('permission denied'))).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// withRetry — exponential backoff retry helper
+// ---------------------------------------------------------------------------
+
+describe('withRetry', () => {
+  test('returns result on first success without retrying', async () => {
+    const fn = vi.fn(async () => 'ok')
+    const result = await withRetry(fn, { baseDelayMs: 0 })
+    expect(result).toBe('ok')
+    expect(fn).toHaveBeenCalledTimes(1)
+  })
+
+  test('retries on transient error and succeeds on later attempt', async () => {
+    let calls = 0
+    const fn = vi.fn(async () => {
+      calls++
+      if (calls <= 2) throw new Error('503 Service Unavailable')
+      return 'recovered'
+    })
+
+    const result = await withRetry(fn, { baseDelayMs: 0 })
+    expect(result).toBe('recovered')
+    expect(fn).toHaveBeenCalledTimes(3)
+  })
+
+  test('does not retry non-transient errors', async () => {
+    const fn = vi.fn(async () => {
+      throw new Error('invalid API key')
+    })
+
+    await expect(withRetry(fn, { baseDelayMs: 0 })).rejects.toThrow('invalid API key')
+    expect(fn).toHaveBeenCalledTimes(1)
+  })
+
+  test('throws after exhausting all retries', async () => {
+    const fn = vi.fn(async () => {
+      throw new Error('429 Too Many Requests')
+    })
+
+    await expect(
+      withRetry(fn, { baseDelayMs: 0, maxRetries: 2 }),
+    ).rejects.toThrow('429')
+    expect(fn).toHaveBeenCalledTimes(3) // 1 initial + 2 retries
+  })
+
+  test('calls log callback on each retry attempt', async () => {
+    const logFn = vi.fn()
+    let calls = 0
+    const fn = vi.fn(async () => {
+      calls++
+      if (calls === 1) throw new Error('503 Service Unavailable')
+      return 'ok'
+    })
+
+    await withRetry(fn, { baseDelayMs: 0, log: logFn })
+    expect(logFn).toHaveBeenCalledTimes(1)
+    expect(logFn).toHaveBeenCalledWith(expect.stringContaining('503'))
+  })
+
+  test('respects custom isRetryable predicate', async () => {
+    let calls = 0
+    const fn = vi.fn(async () => {
+      calls++
+      if (calls === 1) throw new Error('custom transient')
+      return 'ok'
+    })
+
+    const result = await withRetry(fn, {
+      baseDelayMs: 0,
+      isRetryable: (err) => String(err).includes('custom transient'),
+    })
+    expect(result).toBe('ok')
+    expect(fn).toHaveBeenCalledTimes(2)
   })
 })

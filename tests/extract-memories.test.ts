@@ -245,7 +245,10 @@ describe('ExtractionWorker', () => {
         throw new Error('LLM timeout')
       }),
     })
-    const worker = createExtractionWorker(deps, { extractionMinTurnInterval: 1 })
+    const worker = createExtractionWorker(deps, {
+      extractionMinTurnInterval: 1,
+      retryOptions: { maxRetries: 0 },
+    })
 
     await worker.submit(makeContext({ turnIndex: 1 }))
     await worker.flush()
@@ -361,5 +364,74 @@ describe('ExtractionWorker', () => {
     await worker.flush()
     expect(cursor).toBe(1)
     expect(deps.persistDocuments).toHaveBeenCalledTimes(2)
+  })
+
+  // ── Retry with exponential backoff ────────────────────────────────
+
+  test('retries transient extraction failures and succeeds on later attempt', async () => {
+    let callCount = 0
+    const deps = makeDeps({
+      runExtraction: vi.fn(async () => {
+        callCount++
+        if (callCount === 1) throw new Error('503 Service Unavailable')
+        return { applied: true, memoryUpdate: null }
+      }),
+    })
+    const worker = createExtractionWorker(deps, {
+      extractionMinTurnInterval: 1,
+      retryOptions: { baseDelayMs: 0 },
+    })
+
+    await worker.submit(makeContext({ turnIndex: 1 }))
+    await worker.flush()
+
+    expect(deps.runExtraction).toHaveBeenCalledTimes(2)
+    expect(deps.setLastProcessedCursor).toHaveBeenCalledWith(1)
+  })
+
+  test('does not retry non-transient extraction failures', async () => {
+    const deps = makeDeps({
+      runExtraction: vi.fn(async () => {
+        throw new Error('invalid API key')
+      }),
+    })
+    const worker = createExtractionWorker(deps, {
+      extractionMinTurnInterval: 1,
+      retryOptions: { baseDelayMs: 0 },
+    })
+
+    await worker.submit(makeContext({ turnIndex: 1 }))
+    await worker.flush()
+
+    expect(deps.runExtraction).toHaveBeenCalledTimes(1)
+    expect(deps.log).toHaveBeenCalledWith(
+      expect.stringContaining('invalid API key'),
+    )
+  })
+
+  test('logs retry attempts for transient extraction failures', async () => {
+    let callCount = 0
+    const deps = makeDeps({
+      runExtraction: vi.fn(async () => {
+        callCount++
+        if (callCount <= 2) throw new Error('429 Too Many Requests')
+        return { applied: true, memoryUpdate: null }
+      }),
+    })
+    const worker = createExtractionWorker(deps, {
+      extractionMinTurnInterval: 1,
+      retryOptions: { baseDelayMs: 0 },
+    })
+
+    await worker.submit(makeContext({ turnIndex: 1 }))
+    await worker.flush()
+
+    expect(deps.runExtraction).toHaveBeenCalledTimes(3)
+    // Should have logged retry attempts
+    const logCalls = (deps.log as ReturnType<typeof vi.fn>).mock.calls as string[][]
+    const retryLogs = logCalls.filter((args) =>
+      args[0]?.toLowerCase().includes('retry'),
+    )
+    expect(retryLogs.length).toBeGreaterThan(0)
   })
 })

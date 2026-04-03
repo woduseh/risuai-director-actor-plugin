@@ -193,11 +193,16 @@ describe('findRelevantMemories', () => {
       })),
     })
 
-    const result = await findRelevantMemories(deps, {
-      docs,
-      recentText: 'Something happens',
-      memoryMdContent: '# MEMORY.md',
-    })
+    const result = await findRelevantMemories(
+      deps,
+      {
+        docs,
+        recentText: 'Something happens',
+        memoryMdContent: '# MEMORY.md',
+      },
+      undefined,
+      { maxRetries: 0 },
+    )
 
     expect(result.source).toBe('fallback')
     expect(deps.log).toHaveBeenCalled()
@@ -283,6 +288,113 @@ describe('findRelevantMemories', () => {
 
     expect(result.memoryMdBlock).toContain('MEMORY.md')
   })
+
+  // ── Retry with exponential backoff ────────────────────────────────
+
+  test('retries transient recall thrown errors and succeeds on later attempt', async () => {
+    let callCount = 0
+    const docs = [makeDoc({ id: 'doc-1' })]
+    const deps = makeDeps({
+      runRecallModel: vi.fn(async () => {
+        callCount++
+        if (callCount === 1) throw new Error('503 Service Unavailable')
+        return { ok: true, text: '["doc-1"]' }
+      }),
+    })
+
+    const result = await findRelevantMemories(
+      deps,
+      { docs, recentText: 'query', memoryMdContent: '# MEMORY.md' },
+      undefined,
+      { baseDelayMs: 0 },
+    )
+
+    expect(result.source).toBe('recall')
+    expect(deps.runRecallModel).toHaveBeenCalledTimes(2)
+  })
+
+  test('retries transient recall failure responses (ok=false with transient text)', async () => {
+    let callCount = 0
+    const docs = [makeDoc({ id: 'doc-1' })]
+    const deps = makeDeps({
+      runRecallModel: vi.fn(async () => {
+        callCount++
+        if (callCount === 1) return { ok: false, text: '429 rate limit exceeded' }
+        return { ok: true, text: '["doc-1"]' }
+      }),
+    })
+
+    const result = await findRelevantMemories(
+      deps,
+      { docs, recentText: 'query', memoryMdContent: '# MEMORY.md' },
+      undefined,
+      { baseDelayMs: 0 },
+    )
+
+    expect(result.source).toBe('recall')
+    expect(deps.runRecallModel).toHaveBeenCalledTimes(2)
+  })
+
+  test('does not retry malformed recall output — falls back immediately', async () => {
+    const docs = [
+      makeDoc({ id: 'doc-1', title: 'Alice', description: 'Alice guards the gate' }),
+    ]
+    const deps = makeDeps({
+      runRecallModel: vi.fn(async () => ({
+        ok: true,
+        text: 'This is not valid JSON at all!!!',
+      })),
+    })
+
+    const result = await findRelevantMemories(
+      deps,
+      { docs, recentText: 'Alice opened the gate', memoryMdContent: '# MEMORY.md' },
+      undefined,
+      { baseDelayMs: 0 },
+    )
+
+    expect(result.source).toBe('fallback')
+    expect(deps.runRecallModel).toHaveBeenCalledTimes(1)
+  })
+
+  test('does not retry non-transient recall failure responses', async () => {
+    const docs = [makeDoc({ id: 'doc-1' })]
+    const deps = makeDeps({
+      runRecallModel: vi.fn(async () => ({
+        ok: false,
+        text: 'invalid API key',
+      })),
+    })
+
+    const result = await findRelevantMemories(
+      deps,
+      { docs, recentText: 'query', memoryMdContent: '# MEMORY.md' },
+      undefined,
+      { baseDelayMs: 0 },
+    )
+
+    expect(result.source).toBe('fallback')
+    expect(deps.runRecallModel).toHaveBeenCalledTimes(1)
+  })
+
+  test('falls back after exhausting retries on transient recall errors', async () => {
+    const docs = [makeDoc({ id: 'doc-1' })]
+    const deps = makeDeps({
+      runRecallModel: vi.fn(async () => {
+        throw new Error('503 Service Unavailable')
+      }),
+    })
+
+    const result = await findRelevantMemories(
+      deps,
+      { docs, recentText: 'query', memoryMdContent: '# MEMORY.md' },
+      undefined,
+      { baseDelayMs: 0, maxRetries: 2 },
+    )
+
+    expect(result.source).toBe('fallback')
+    expect(deps.runRecallModel).toHaveBeenCalledTimes(3) // 1 initial + 2 retries
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -363,6 +475,7 @@ describe('RecallCache', () => {
       deps,
       { docs, recentText: 'q', memoryMdContent: 'md', nowMs: 1000 },
       cache,
+      { maxRetries: 0 },
     )
     expect(r1.source).toBe('fallback')
     expect(deps.runRecallModel).toHaveBeenCalledTimes(1)
@@ -372,6 +485,7 @@ describe('RecallCache', () => {
       deps,
       { docs, recentText: 'q2', memoryMdContent: 'md', nowMs: 5000 },
       cache,
+      { maxRetries: 0 },
     )
     expect(deps.runRecallModel).toHaveBeenCalledTimes(1)
     expect(r2.source).toBe('cache')

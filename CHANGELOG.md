@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.1] - 2026-04-04
+
+### Added
+
+- Reusable `withRetry` helper with exponential backoff in `src/runtime/network.ts`
+- `isTransientError` classifier for status codes 429/502/503/504/524 and common transient wording (rate limit, timeout, overloaded)
+- Extraction worker retries transient `runExtraction` failures (2 retries, 1500ms base backoff)
+- Recall model retries transient thrown errors and transient `ok:false` responses within `findRelevantMemories`
+- Malformed recall output still falls back immediately without retry
+- Optional `retryOptions` on `ExtractionWorkerOptions` and `findRelevantMemories` for caller control
+- Comprehensive test coverage for retry, non-retry, and exhaustion paths
+
 ## [0.4.0] - 2026-04-03
 
 ### Added

@@ -10,6 +10,11 @@
 
 import type { MemdirDocument, MemdirFreshness } from '../contracts/types.js'
 import { rankDocsByKeywordOverlap } from './retrieval.js'
+import {
+  isTransientError,
+  withRetry,
+  type RetryOptions,
+} from '../runtime/network.js'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -176,6 +181,7 @@ export async function findRelevantMemories(
   deps: RecallDeps,
   input: FindRelevantMemoriesInput,
   cache?: RecallCache,
+  retryOptions?: RetryOptions,
 ): Promise<RecallResult> {
   const maxResults = input.maxResults ?? DEFAULT_MAX_RESULTS
 
@@ -202,9 +208,21 @@ export async function findRelevantMemories(
   // Format manifest (headers only — no full bodies)
   const manifest = formatManifest(input.docs)
 
-  // Try recall model
+  // Try recall model (with retry for transient failures)
   try {
-    const response = await deps.runRecallModel(manifest, input.recentText)
+    const recallRetryOpts: RetryOptions = {
+      ...retryOptions,
+      log: (msg) => deps.log(`[recall] ${msg}`),
+    }
+    const response = await withRetry(async () => {
+      const resp = await deps.runRecallModel(manifest, input.recentText)
+      // Convert transient !ok responses to thrown errors so withRetry
+      // can retry them.  Non-transient failures pass through as-is.
+      if (!resp.ok && isTransientError(resp.text)) {
+        throw new Error(resp.text)
+      }
+      return resp
+    }, recallRetryOpts)
 
     if (!response.ok) {
       deps.log(`Recall model failed: ${response.text}`)
