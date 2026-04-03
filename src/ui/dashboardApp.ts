@@ -1,5 +1,9 @@
 import type { RisuaiApi, AsyncKeyValueStore } from '../contracts/risuai.js'
-import type { DirectorSettings, DirectorPluginState } from '../contracts/types.js'
+import type {
+  DirectorSettings,
+  DirectorPluginState,
+  StoredDirectorPromptPreset,
+} from '../contracts/types.js'
 import { DEFAULT_DIRECTOR_SETTINGS, createEmptyState } from '../contracts/types.js'
 import { buildDashboardCss, DASHBOARD_STYLE_ID, DASHBOARD_ROOT_CLASS } from './dashboardCss.js'
 import { buildDashboardMarkup, DASHBOARD_TABS } from './dashboardDom.js'
@@ -10,8 +14,10 @@ import {
   DASHBOARD_PROFILE_MANIFEST_KEY,
   DASHBOARD_LOCALE_KEY,
   createDashboardDraft,
+  createPromptPresetFromSettings,
   createDefaultProfileManifest,
   normalizePersistedSettings,
+  resolveSelectedPromptPreset,
   mergeDashboardSettingsIntoPluginState,
   createProfileExportPayload,
 } from './dashboardState.js'
@@ -30,8 +36,12 @@ import {
 import type { ConnectionTestResult } from './dashboardModel.js'
 import { t, setLocale, getLocale } from './i18n.js'
 import type { DashboardLocale } from './i18n.js'
-import { DIRECTOR_STATE_STORAGE_KEY } from '../memory/canonicalStore.js'
-import { deleteSummary, deleteContinuityFact, upsertSummary, upsertContinuityFact } from '../memory/memoryMutations.js'
+import { BUILTIN_PROMPT_PRESET_ID } from '../director/prompt.js'
+import { backfillCurrentChat } from '../director/backfill.js'
+import { DIRECTOR_STATE_STORAGE_KEY, patchLegacyMemory } from '../memory/canonicalStore.js'
+import { resolveScopeStorageKey } from '../memory/scopeResolver.js'
+import { deleteSummary, deleteContinuityFact, upsertSummary, upsertContinuityFact, deleteWorldFact, upsertWorldFact, deleteEntity, upsertEntity, deleteRelation, upsertRelation } from '../memory/memoryMutations.js'
+import { escapeXml } from '../utils/xml.js'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -144,7 +154,12 @@ async function readCanonicalState(store: DashboardStore): Promise<DirectorPlugin
   }
   const key = store.stateStorageKey ?? DIRECTOR_STATE_STORAGE_KEY
   const raw = await store.storage.getItem<DirectorPluginState>(key)
-  return raw ? structuredClone(raw) : createEmptyState()
+  if (!raw) {
+    return createEmptyState()
+  }
+  const state = structuredClone(raw)
+  patchLegacyMemory(state)
+  return state
 }
 
 // ---------------------------------------------------------------------------
@@ -164,6 +179,11 @@ class DashboardInstance {
   private connectionStatus: { kind: string; message: string }
   private root: HTMLElement | null = null
   private canonicalState: DirectorPluginState
+  private readonly selectedMemoryKeys = new Set<string>()
+  private editingMemory: {
+    kind: 'summary' | 'continuity-fact' | 'world-fact' | 'entity' | 'relation'
+    id: string
+  } | null = null
 
   constructor(
     api: RisuaiApi,
@@ -233,6 +253,8 @@ class DashboardInstance {
       activeTab: this.activeTab,
       modelOptions: this.modelOptions,
       connectionStatus: this.connectionStatus,
+      selectedMemoryKeys: Array.from(this.selectedMemoryKeys),
+      editingMemory: this.editingMemory,
     }
   }
 
@@ -347,7 +369,7 @@ class DashboardInstance {
     sel.innerHTML = this.modelOptions
       .map(
         (m) =>
-          `<option value="${m}"${m === this.draft.settings.directorModel ? ' selected' : ''}>${m}</option>`,
+          `<option value="${escapeXml(m)}"${m === this.draft.settings.directorModel ? ' selected' : ''}>${escapeXml(m)}</option>`,
       )
       .join('')
   }
@@ -358,6 +380,23 @@ class DashboardInstance {
     if (indicator) {
       indicator.classList.toggle('da-hidden', !this.draft.isDirty)
     }
+  }
+
+  private getSelectedPromptPreset(): StoredDirectorPromptPreset {
+    return resolveSelectedPromptPreset(this.draft.settings)
+  }
+
+  private getSelectedCustomPromptPreset(): StoredDirectorPromptPreset | null {
+    if (this.draft.settings.promptPresetId === BUILTIN_PROMPT_PRESET_ID) {
+      return null
+    }
+
+    return this.draft.settings.promptPresets[this.draft.settings.promptPresetId] ?? null
+  }
+
+  private markDirty(): void {
+    this.draft.isDirty = true
+    this.updateDirtyIndicator()
   }
 
   // ── Event binding ─────────────────────────────────────────────────────
@@ -373,7 +412,22 @@ class DashboardInstance {
     })
 
     this.lifecycle.listen(this.root, 'change', (e) => {
-      this.handleFieldChange(e.target as HTMLElement)
+      const target = e.target as HTMLElement
+      if (
+        target instanceof HTMLInputElement &&
+        target.getAttribute('data-da-role') === 'memory-select'
+      ) {
+        this.handleMemorySelectionChange(target)
+        return
+      }
+      if (
+        target instanceof HTMLSelectElement &&
+        target.getAttribute('data-da-role') === 'prompt-preset-select'
+      ) {
+        this.handlePromptPresetSelect(target.value)
+        return
+      }
+      this.handleFieldChange(target)
     })
 
     this.lifecycle.listen(this.root, 'input', (e) => {
@@ -383,6 +437,14 @@ class DashboardInstance {
         el.getAttribute('data-da-role') === 'memory-filter'
       ) {
         this.handleMemoryFilter(el.value)
+        return
+      }
+      if (
+        (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) &&
+        typeof el.getAttribute('data-da-role') === 'string' &&
+        el.getAttribute('data-da-role')?.startsWith('prompt-')
+      ) {
+        this.handlePromptPresetInput(el)
         return
       }
       if (
@@ -439,6 +501,9 @@ class DashboardInstance {
       case 'test-connection':
         await this.handleTestConnection()
         break
+      case 'refresh-models':
+        await this.handleRefreshModels()
+        break
       case 'create-profile':
         await this.handleCreateProfile()
         break
@@ -447,6 +512,30 @@ class DashboardInstance {
         break
       case 'import-profile':
         await this.handleImportProfile()
+        break
+      case 'create-prompt-preset':
+        this.handleCreatePromptPreset()
+        break
+      case 'delete-prompt-preset':
+        this.handleDeletePromptPreset()
+        break
+      case 'backfill-current-chat':
+        await this.handleBackfillCurrentChat()
+        break
+      case 'regenerate-current-chat':
+        await this.handleRegenerateCurrentChat()
+        break
+      case 'bulk-delete-memory':
+        await this.handleBulkDeleteMemory()
+        break
+      case 'edit-memory-item':
+        this.handleEditMemoryItem(btn)
+        break
+      case 'save-memory-edit':
+        await this.handleSaveMemoryEdit(btn)
+        break
+      case 'cancel-memory-edit':
+        this.handleCancelMemoryEdit()
         break
       case 'switch-lang':
         await this.handleSwitchLang(btn)
@@ -462,6 +551,24 @@ class DashboardInstance {
         break
       case 'add-continuity-fact':
         await this.handleAddMemoryItem('continuity-fact')
+        break
+      case 'delete-world-fact':
+        await this.handleDeleteMemoryItem(btn, 'world-fact')
+        break
+      case 'add-world-fact':
+        await this.handleAddMemoryItem('world-fact')
+        break
+      case 'delete-entity':
+        await this.handleDeleteMemoryItem(btn, 'entity')
+        break
+      case 'add-entity':
+        await this.handleAddMemoryItem('entity')
+        break
+      case 'delete-relation':
+        await this.handleDeleteMemoryItem(btn, 'relation')
+        break
+      case 'add-relation':
+        await this.handleAddRelation()
         break
     }
   }
@@ -502,8 +609,7 @@ class DashboardInstance {
     const defaults = DEFAULT_DIRECTOR_SETTINGS
     if (typeof defaults[key] === typeof value) {
       ;(this.draft.settings as unknown as Record<string, unknown>)[key] = value
-      this.draft.isDirty = true
-      this.updateDirtyIndicator()
+      this.markDirty()
     }
 
     // Provider change → apply base URL defaults
@@ -512,7 +618,13 @@ class DashboardInstance {
         value as DirectorSettings['directorProvider'],
       )
       this.draft.settings.directorBaseUrl = providerDefaults.baseUrl
-      this.draft.isDirty = true
+      this.modelOptions = Array.from(
+        new Set([
+          this.draft.settings.directorModel,
+          ...providerDefaults.curatedModels,
+        ]),
+      )
+      this.markDirty()
 
       const baseUrlInput = this.root?.querySelector(
         '[data-da-field="directorBaseUrl"]',
@@ -520,6 +632,7 @@ class DashboardInstance {
       if (baseUrlInput) {
         baseUrlInput.value = providerDefaults.baseUrl
       }
+      this.updateModelSelectDom()
     }
 
     if (key === 'embeddingProvider') {
@@ -527,7 +640,7 @@ class DashboardInstance {
         value as DirectorSettings['embeddingProvider'],
       )
       this.draft.settings.embeddingBaseUrl = providerDefaults.baseUrl
-      this.draft.isDirty = true
+      this.markDirty()
 
       const baseUrlInput = this.root?.querySelector(
         '[data-da-field="embeddingBaseUrl"]',
@@ -608,6 +721,22 @@ class DashboardInstance {
       }
     }
     this.updateConnectionStatusDom()
+  }
+
+  private async handleRefreshModels(): Promise<void> {
+    try {
+      const models = await loadProviderModels(this.api, this.draft.settings)
+      this.modelOptions = models.includes(this.draft.settings.directorModel)
+        ? models
+        : [this.draft.settings.directorModel, ...models]
+      this.updateModelSelectDom()
+    } catch (error) {
+      this.connectionStatus = {
+        kind: 'error',
+        message: error instanceof Error ? error.message : String(error),
+      }
+      this.updateConnectionStatusDom()
+    }
   }
 
   // ── Profile flows ─────────────────────────────────────────────────────
@@ -708,6 +837,299 @@ class DashboardInstance {
     }
   }
 
+  private handlePromptPresetSelect(presetId: string): void {
+    this.draft.settings.promptPresetId =
+      presetId === BUILTIN_PROMPT_PRESET_ID ||
+      this.draft.settings.promptPresets[presetId] != null
+        ? presetId
+        : BUILTIN_PROMPT_PRESET_ID
+    this.markDirty()
+    this.fullReRender()
+  }
+
+  private handleCreatePromptPreset(): void {
+    const preset = createPromptPresetFromSettings(this.draft.settings)
+    this.draft.settings.promptPresets[preset.id] = preset
+    this.draft.settings.promptPresetId = preset.id
+    this.markDirty()
+    this.fullReRender()
+  }
+
+  private handleDeletePromptPreset(): void {
+    const current = this.getSelectedCustomPromptPreset()
+    if (!current) return
+    delete this.draft.settings.promptPresets[current.id]
+    this.draft.settings.promptPresetId = BUILTIN_PROMPT_PRESET_ID
+    this.markDirty()
+    this.fullReRender()
+  }
+
+  private handlePromptPresetInput(
+    el: HTMLInputElement | HTMLTextAreaElement,
+  ): void {
+    const current = this.getSelectedCustomPromptPreset()
+    if (!current) return
+
+    const role = el.getAttribute('data-da-role')
+    if (!role) return
+
+    switch (role) {
+      case 'prompt-preset-name':
+        current.name = el.value.trim() || current.name
+        break
+      case 'prompt-pre-request-system':
+        current.preset.preRequestSystemTemplate = el.value
+        break
+      case 'prompt-pre-request-user':
+        current.preset.preRequestUserTemplate = el.value
+        break
+      case 'prompt-post-response-system':
+        current.preset.postResponseSystemTemplate = el.value
+        break
+      case 'prompt-post-response-user':
+        current.preset.postResponseUserTemplate = el.value
+        break
+      case 'prompt-max-recent-messages': {
+        const numeric = Number(el.value)
+        current.preset.maxRecentMessages = Number.isFinite(numeric) && numeric > 0
+          ? Math.floor(numeric)
+          : this.getSelectedPromptPreset().preset.maxRecentMessages
+        break
+      }
+      default:
+        return
+    }
+
+    current.updatedAt = Date.now()
+    this.markDirty()
+  }
+
+  private async handleBackfillCurrentChat(): Promise<void> {
+    const resolution = await resolveScopeStorageKey(this.api)
+    if (resolution.storageKey !== this.resolveStateKey()) {
+      await this.api.alertError(t('error.backfillScopeMismatch'))
+      return
+    }
+
+    const result = await backfillCurrentChat(this.api, {
+      load: async () => structuredClone(await readCanonicalState(this.store)),
+      save: async (next) => {
+        if (this.store.writeCanonical) {
+          const persisted = await this.store.writeCanonical(() => structuredClone(next))
+          this.canonicalState = structuredClone(persisted)
+          return
+        }
+
+        await this.store.storage.setItem(this.resolveStateKey(), structuredClone(next))
+        this.canonicalState = structuredClone(next)
+      },
+    })
+
+    if (!this.store.writeCanonical) {
+      this.canonicalState = await readCanonicalState(this.store)
+    }
+
+    this.fullReRender()
+    if (result.appliedUpdates > 0) {
+      this.showToast(
+        t('toast.backfillCompleted', { count: String(result.appliedUpdates) }),
+      )
+      return
+    }
+
+    this.showToast(t('toast.backfillSkipped'))
+  }
+
+  private async handleRegenerateCurrentChat(): Promise<void> {
+    const resolution = await resolveScopeStorageKey(this.api)
+    if (resolution.storageKey !== this.resolveStateKey()) {
+      await this.api.alertError(t('error.backfillScopeMismatch'))
+      return
+    }
+
+    const resetCanonical = async (): Promise<void> => {
+      if (this.store.writeCanonical) {
+        const persisted = await this.store.writeCanonical((current) => {
+          const empty = createEmptyState({
+            projectKey: current.projectKey,
+            characterKey: current.characterKey,
+            sessionKey: current.sessionKey,
+          })
+          empty.settings = structuredClone(current.settings)
+          return empty
+        })
+        this.canonicalState = structuredClone(persisted)
+        return
+      }
+
+      const current = await readCanonicalState(this.store)
+      const empty = createEmptyState({
+        projectKey: current.projectKey,
+        characterKey: current.characterKey,
+        sessionKey: current.sessionKey,
+      })
+      empty.settings = structuredClone(current.settings)
+      await this.store.storage.setItem(this.resolveStateKey(), structuredClone(empty))
+      this.canonicalState = empty
+    }
+
+    await resetCanonical()
+    this.selectedMemoryKeys.clear()
+    this.editingMemory = null
+    await this.handleBackfillCurrentChat()
+  }
+
+  private handleMemorySelectionChange(input: HTMLInputElement): void {
+    const itemKey = input.getAttribute('data-da-item-key')
+    if (!itemKey) return
+    if (input.checked) {
+      this.selectedMemoryKeys.add(itemKey)
+    } else {
+      this.selectedMemoryKeys.delete(itemKey)
+    }
+
+    const bulkDeleteBtn = this.root?.querySelector(
+      '[data-da-action="bulk-delete-memory"]',
+    ) as HTMLButtonElement | null
+    if (bulkDeleteBtn) {
+      bulkDeleteBtn.disabled = this.selectedMemoryKeys.size === 0
+    }
+  }
+
+  private handleEditMemoryItem(btn: HTMLElement): void {
+    const itemKey = btn.getAttribute('data-da-item-key')
+    if (!itemKey) return
+    const [kind, id] = itemKey.split(':', 2)
+    if (!kind || !id) return
+    this.editingMemory = {
+      kind: kind as 'summary' | 'continuity-fact' | 'world-fact' | 'entity' | 'relation',
+      id,
+    }
+    this.fullReRender()
+  }
+
+  private handleCancelMemoryEdit(): void {
+    this.editingMemory = null
+    this.fullReRender()
+  }
+
+  private async handleSaveMemoryEdit(btn: HTMLElement): Promise<void> {
+    const itemKey = btn.getAttribute('data-da-item-key')
+    if (!itemKey) return
+    const [kind, id] = itemKey.split(':', 2)
+    if (!kind || !id) return
+    const row = btn.closest('.da-memory-item') as HTMLElement | null
+    if (!row) return
+
+    const applyEdit = (state: DirectorPluginState): void => {
+      switch (kind) {
+        case 'summary': {
+          const input = row.querySelector(
+            'input[data-da-role="edit-summary-text"]',
+          ) as HTMLInputElement | null
+          const text = input?.value.trim() ?? ''
+          if (!text) return
+          upsertSummary(state, { id, text, recencyWeight: 1 })
+          break
+        }
+        case 'continuity-fact': {
+          const input = row.querySelector(
+            'input[data-da-role="edit-continuity-fact-text"]',
+          ) as HTMLInputElement | null
+          const text = input?.value.trim() ?? ''
+          if (!text) return
+          upsertContinuityFact(state, { id, text, priority: 5 })
+          break
+        }
+        case 'world-fact': {
+          const input = row.querySelector(
+            'input[data-da-role="edit-world-fact-text"]',
+          ) as HTMLInputElement | null
+          const text = input?.value.trim() ?? ''
+          if (!text) return
+          upsertWorldFact(state, { id, text })
+          break
+        }
+        case 'entity': {
+          const input = row.querySelector(
+            'input[data-da-role="edit-entity-name"]',
+          ) as HTMLInputElement | null
+          const name = input?.value.trim() ?? ''
+          if (!name) return
+          upsertEntity(state, { id, name })
+          break
+        }
+        case 'relation': {
+          const sourceInput = row.querySelector(
+            'input[data-da-role="edit-relation-source"]',
+          ) as HTMLInputElement | null
+          const labelInput = row.querySelector(
+            'input[data-da-role="edit-relation-label"]',
+          ) as HTMLInputElement | null
+          const targetInput = row.querySelector(
+            'input[data-da-role="edit-relation-target"]',
+          ) as HTMLInputElement | null
+          const sourceId = sourceInput?.value.trim() ?? ''
+          const label = labelInput?.value.trim() ?? ''
+          const targetId = targetInput?.value.trim() ?? ''
+          if (!sourceId || !label || !targetId) return
+          upsertRelation(state, { id, sourceId, label, targetId })
+          break
+        }
+      }
+    }
+
+    if (this.store.writeCanonical) {
+      const nextState = await this.store.writeCanonical((current) => {
+        applyEdit(current)
+        return current
+      })
+      this.canonicalState = structuredClone(nextState)
+    } else {
+      const state = await readCanonicalState(this.store)
+      applyEdit(state)
+      await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state))
+      this.canonicalState = state
+    }
+
+    this.editingMemory = null
+    this.fullReRender()
+  }
+
+  private async handleBulkDeleteMemory(): Promise<void> {
+    if (this.selectedMemoryKeys.size === 0) return
+
+    const applyDelete = (state: DirectorPluginState): void => {
+      for (const itemKey of Array.from(this.selectedMemoryKeys)) {
+        const [kind, id] = itemKey.split(':', 2)
+        if (!kind || !id) continue
+        switch (kind) {
+          case 'summary': deleteSummary(state, id); break
+          case 'continuity-fact': deleteContinuityFact(state, id); break
+          case 'world-fact': deleteWorldFact(state, id); break
+          case 'entity': deleteEntity(state, id); break
+          case 'relation': deleteRelation(state, id); break
+        }
+      }
+    }
+
+    if (this.store.writeCanonical) {
+      const nextState = await this.store.writeCanonical((current) => {
+        applyDelete(current)
+        return current
+      })
+      this.canonicalState = structuredClone(nextState)
+    } else {
+      const state = await readCanonicalState(this.store)
+      applyDelete(state)
+      await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state))
+      this.canonicalState = state
+    }
+
+    this.selectedMemoryKeys.clear()
+    this.fullReRender()
+  }
+
   // ── Memory filter ──────────────────────────────────────────────────────
 
   private handleMemoryFilter(query: string): void {
@@ -724,18 +1146,24 @@ class DashboardInstance {
 
   private async handleDeleteMemoryItem(
     btn: HTMLElement,
-    kind: 'summary' | 'continuity-fact',
+    kind: 'summary' | 'continuity-fact' | 'world-fact' | 'entity' | 'relation',
   ): Promise<void> {
     const itemId = btn.getAttribute('data-da-item-id')
     if (!itemId) return
 
+    const applyDelete = (state: DirectorPluginState): void => {
+      switch (kind) {
+        case 'summary': deleteSummary(state, itemId); break
+        case 'continuity-fact': deleteContinuityFact(state, itemId); break
+        case 'world-fact': deleteWorldFact(state, itemId); break
+        case 'entity': deleteEntity(state, itemId); break
+        case 'relation': deleteRelation(state, itemId); break
+      }
+    }
+
     if (this.store.writeCanonical) {
       const nextState = await this.store.writeCanonical((current) => {
-        if (kind === 'summary') {
-          deleteSummary(current, itemId)
-        } else {
-          deleteContinuityFact(current, itemId)
-        }
+        applyDelete(current)
         return current
       })
       this.canonicalState = structuredClone(nextState)
@@ -744,11 +1172,7 @@ class DashboardInstance {
     }
 
     const state = await readCanonicalState(this.store)
-    if (kind === 'summary') {
-      deleteSummary(state, itemId)
-    } else {
-      deleteContinuityFact(state, itemId)
-    }
+    applyDelete(state)
     await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state))
     this.canonicalState = state
     this.fullReRender()
@@ -757,10 +1181,16 @@ class DashboardInstance {
   // ── Memory add ──────────────────────────────────────────────────────
 
   private async handleAddMemoryItem(
-    kind: 'summary' | 'continuity-fact',
+    kind: 'summary' | 'continuity-fact' | 'world-fact' | 'entity',
   ): Promise<void> {
     if (!this.root) return
-    const inputRole = kind === 'summary' ? 'add-summary-text' : 'add-fact-text'
+    const inputRoleMap: Record<typeof kind, string> = {
+      'summary': 'add-summary-text',
+      'continuity-fact': 'add-fact-text',
+      'world-fact': 'add-world-fact-text',
+      'entity': 'add-entity-name',
+    }
+    const inputRole = inputRoleMap[kind]
     const inputEl = this.root.querySelector(
       `input[data-da-role="${inputRole}"]`,
     ) as HTMLInputElement | null
@@ -769,13 +1199,18 @@ class DashboardInstance {
     const text = inputEl.value.trim()
     if (!text) return
 
+    const applyAdd = (state: DirectorPluginState): void => {
+      switch (kind) {
+        case 'summary': upsertSummary(state, { text, recencyWeight: 1 }); break
+        case 'continuity-fact': upsertContinuityFact(state, { text, priority: 5 }); break
+        case 'world-fact': upsertWorldFact(state, { text }); break
+        case 'entity': upsertEntity(state, { name: text }); break
+      }
+    }
+
     if (this.store.writeCanonical) {
       const nextState = await this.store.writeCanonical((current) => {
-        if (kind === 'summary') {
-          upsertSummary(current, { text, recencyWeight: 1 })
-        } else {
-          upsertContinuityFact(current, { text, priority: 5 })
-        }
+        applyAdd(current)
         return current
       })
       this.canonicalState = structuredClone(nextState)
@@ -784,11 +1219,38 @@ class DashboardInstance {
     }
 
     const state = await readCanonicalState(this.store)
-    if (kind === 'summary') {
-      upsertSummary(state, { text, recencyWeight: 1 })
-    } else {
-      upsertContinuityFact(state, { text, priority: 5 })
+    applyAdd(state)
+    await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state))
+    this.canonicalState = state
+    this.fullReRender()
+  }
+
+  // ── Relation add (multi-field) ─────────────────────────────────────────
+
+  private async handleAddRelation(): Promise<void> {
+    if (!this.root) return
+    const srcEl = this.root.querySelector('input[data-da-role="add-relation-source"]') as HTMLInputElement | null
+    const labelEl = this.root.querySelector('input[data-da-role="add-relation-label"]') as HTMLInputElement | null
+    const tgtEl = this.root.querySelector('input[data-da-role="add-relation-target"]') as HTMLInputElement | null
+    if (!srcEl || !labelEl || !tgtEl) return
+
+    const sourceId = srcEl.value.trim()
+    const label = labelEl.value.trim()
+    const targetId = tgtEl.value.trim()
+    if (!sourceId || !label || !targetId) return
+
+    if (this.store.writeCanonical) {
+      const nextState = await this.store.writeCanonical((current) => {
+        upsertRelation(current, { sourceId, label, targetId })
+        return current
+      })
+      this.canonicalState = structuredClone(nextState)
+      this.fullReRender()
+      return
     }
+
+    const state = await readCanonicalState(this.store)
+    upsertRelation(state, { sourceId, label, targetId })
     await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state))
     this.canonicalState = state
     this.fullReRender()
@@ -888,11 +1350,9 @@ export async function openDashboard(
   // Best-effort initial model load
   let modelOptions: string[] = [settings.directorModel]
   try {
-    if (settings.directorApiKey) {
-      modelOptions = await loadProviderModels(api, settings)
-      if (!modelOptions.includes(settings.directorModel)) {
-        modelOptions.unshift(settings.directorModel)
-      }
+    modelOptions = await loadProviderModels(api, settings)
+    if (!modelOptions.includes(settings.directorModel)) {
+      modelOptions.unshift(settings.directorModel)
     }
   } catch {
     // Non-fatal: show the current model only

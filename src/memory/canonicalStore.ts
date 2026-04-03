@@ -8,13 +8,22 @@ export const DIRECTOR_STATE_STORAGE_KEY = 'director-plugin-state'
  * Patch fields that may be absent in states persisted before the
  * continuityFacts migration. Mutates `state` in place.
  */
-function patchLegacyMemory(state: DirectorPluginState): void {
+export function patchLegacyMemory(state: DirectorPluginState): void {
   if (!Array.isArray(state.memory.continuityFacts)) {
     if (Array.isArray(state.director.continuityFacts) && state.director.continuityFacts.length > 0) {
       state.memory.continuityFacts = structuredClone(state.director.continuityFacts)
     } else {
       state.memory.continuityFacts = []
     }
+  }
+  if (!Array.isArray(state.memory.worldFacts)) {
+    state.memory.worldFacts = []
+  }
+  if (!Array.isArray(state.memory.entities)) {
+    state.memory.entities = []
+  }
+  if (!Array.isArray(state.memory.relations)) {
+    state.memory.relations = []
   }
 }
 

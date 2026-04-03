@@ -1,7 +1,7 @@
 //@name risuai-director-actor-plugin
 //@display-name RisuAI Director Actor
 //@api 3.0
-//@version 0.2.0
+//@version 0.3.0
 //@description Director-Actor collaborative long-memory plugin for RisuAI Plugin V3
 
 "use strict";
@@ -34,6 +34,8 @@
   "memoryOps": [{"op":"insert"|"update"|"merge"|"archive"|"drop","target":"\u2026","payload":{}}],
   "correction?": "\u2026"
 }`;
+  var BUILTIN_PROMPT_PRESET_ID = "builtin-default";
+  var BUILTIN_PROMPT_PRESET_NAME = "Default";
   var DEFAULT_DIRECTOR_PROMPT_PRESET = {
     preRequestSystemTemplate: [
       "You are the Director \u2014 a collaborative-fiction scene analyst.",
@@ -104,6 +106,10 @@
     memoryUpdateSchema: MEMORY_UPDATE_SCHEMA,
     maxRecentMessages: MAX_RECENT_MESSAGES
   };
+  function resolvePromptPreset(settings) {
+    const selected = settings.promptPresets[settings.promptPresetId];
+    return selected?.preset ?? DEFAULT_DIRECTOR_PROMPT_PRESET;
+  }
   function formatConversationTail(messages, max) {
     const tail = messages.slice(-max);
     return tail.map((m) => `[${m.role}] ${m.content}`).join("\n");
@@ -434,7 +440,9 @@
     embeddingBaseUrl: "https://api.openai.com/v1",
     embeddingApiKey: "",
     embeddingModel: "text-embedding-3-small",
-    embeddingDimensions: 1536
+    embeddingDimensions: 1536,
+    promptPresetId: "builtin-default",
+    promptPresets: {}
   };
   function createEmptyState(seed) {
     const now = Date.now();
@@ -494,6 +502,15 @@
       } else {
         state.memory.continuityFacts = [];
       }
+    }
+    if (!Array.isArray(state.memory.worldFacts)) {
+      state.memory.worldFacts = [];
+    }
+    if (!Array.isArray(state.memory.entities)) {
+      state.memory.entities = [];
+    }
+    if (!Array.isArray(state.memory.relations)) {
+      state.memory.relations = [];
     }
   }
   function isValidState(value) {
@@ -836,6 +853,85 @@
     state.memory.summaries.splice(idx, 1);
     return true;
   }
+  function upsertWorldFact(state, input) {
+    const now = Date.now();
+    const { id, text, tags } = input;
+    const worldFacts = state.memory.worldFacts;
+    const existing = id ? worldFacts.find((w) => w.id === id) : void 0;
+    if (existing) {
+      existing.text = text;
+      if (tags) existing.tags = uniqueStrings([...existing.tags ?? [], ...tags]);
+      existing.updatedAt = now;
+      return;
+    }
+    const entry = {
+      id: id ?? createId("world"),
+      text,
+      updatedAt: now
+    };
+    if (tags && tags.length > 0) entry.tags = tags;
+    worldFacts.push(entry);
+  }
+  function deleteWorldFact(state, id) {
+    const idx = state.memory.worldFacts.findIndex((w) => w.id === id);
+    if (idx === -1) return false;
+    state.memory.worldFacts.splice(idx, 1);
+    return true;
+  }
+  function upsertEntity(state, input) {
+    const now = Date.now();
+    const { id, name, facts = [], tags = [] } = input;
+    const entities = state.memory.entities;
+    const existing = id ? entities.find((e) => e.id === id) : name ? entities.find((e) => e.name === name) : void 0;
+    if (existing) {
+      if (name) existing.name = name;
+      existing.facts = uniqueStrings([...existing.facts, ...facts]);
+      existing.tags = uniqueStrings([...existing.tags ?? [], ...tags]);
+      existing.updatedAt = now;
+      return;
+    }
+    entities.push({
+      id: id ?? createId("entity"),
+      name: name ?? `entity-${entities.length + 1}`,
+      facts,
+      tags,
+      updatedAt: now
+    });
+  }
+  function deleteEntity(state, id) {
+    const idx = state.memory.entities.findIndex((e) => e.id === id);
+    if (idx === -1) return false;
+    state.memory.entities.splice(idx, 1);
+    return true;
+  }
+  function upsertRelation(state, input) {
+    const now = Date.now();
+    const { id, sourceId, targetId, label, facts = [] } = input;
+    const relations = state.memory.relations;
+    const existing = id ? relations.find((r) => r.id === id) : void 0;
+    if (existing) {
+      if (sourceId) existing.sourceId = sourceId;
+      if (targetId) existing.targetId = targetId;
+      if (label) existing.label = label;
+      existing.facts = uniqueStrings([...existing.facts ?? [], ...facts]);
+      existing.updatedAt = now;
+      return;
+    }
+    relations.push({
+      id: id ?? createId("relation"),
+      sourceId: sourceId ?? "unknown-source",
+      targetId: targetId ?? "unknown-target",
+      label: label ?? "related",
+      facts,
+      updatedAt: now
+    });
+  }
+  function deleteRelation(state, id) {
+    const idx = state.memory.relations.findIndex((r) => r.id === id);
+    if (idx === -1) return false;
+    state.memory.relations.splice(idx, 1);
+    return true;
+  }
   function upsertContinuityFact(state, input) {
     const { id, text, priority, sceneId, entityIds } = input;
     let resolvedId = id;
@@ -936,7 +1032,7 @@
     }
     summaries.push(next);
   }
-  function upsertWorldFact(worldFacts, text, now, partial) {
+  function upsertWorldFact2(worldFacts, text, now, partial) {
     const existing = worldFacts.find((entry) => entry.text === text || entry.id === partial?.id);
     if (existing) {
       existing.text = text;
@@ -965,7 +1061,7 @@
     if (partial?.entityIds != null) input.entityIds = partial.entityIds;
     upsertContinuityFact(state, input);
   }
-  function upsertEntity(entities, payload, now, warnings) {
+  function upsertEntity2(entities, payload, now, warnings) {
     const id = readString(payload.id);
     const name = readString(payload.name);
     if (!id && !name) {
@@ -990,7 +1086,7 @@
       updatedAt: now
     });
   }
-  function upsertRelation(relations, payload, now, warnings) {
+  function upsertRelation2(relations, payload, now, warnings) {
     const id = readString(payload.id);
     const sourceId = readString(payload.sourceId);
     const targetId = readString(payload.targetId);
@@ -1123,7 +1219,7 @@
         const worldFactTags = readStringArray(payload.tags);
         if (worldFactId !== null) worldFactPartial.id = worldFactId;
         if (worldFactTags.length > 0) worldFactPartial.tags = worldFactTags;
-        upsertWorldFact(state.memory.worldFacts, text, now, {
+        upsertWorldFact2(state.memory.worldFacts, text, now, {
           ...worldFactPartial
         });
         return;
@@ -1181,7 +1277,7 @@
           }
           return;
         }
-        upsertEntity(state.memory.entities, payload, now, warnings);
+        upsertEntity2(state.memory.entities, payload, now, warnings);
         return;
       case "relations":
       case "relation":
@@ -1196,7 +1292,7 @@
           }
           return;
         }
-        upsertRelation(state.memory.relations, payload, now, warnings);
+        upsertRelation2(state.memory.relations, payload, now, warnings);
         return;
       case "activearcs":
       case "activearc":
@@ -1238,7 +1334,7 @@
       });
     }
     for (const worldChange of uniqueStrings2(update.sceneDelta.worldStateChanges ?? [])) {
-      upsertWorldFact(next.memory.worldFacts, worldChange, now);
+      upsertWorldFact2(next.memory.worldFacts, worldChange, now);
     }
     next.memory.sceneLedger.push({
       id: input.turnId,
@@ -1256,7 +1352,7 @@
         warnings.push("Ignored non-object entity update.");
         continue;
       }
-      upsertEntity(next.memory.entities, payload, now, warnings);
+      upsertEntity2(next.memory.entities, payload, now, warnings);
     }
     for (const relationUpdate of update.relationUpdates) {
       const payload = asRecord(relationUpdate);
@@ -1264,7 +1360,7 @@
         warnings.push("Ignored non-object relation update.");
         continue;
       }
-      upsertRelation(next.memory.relations, payload, now, warnings);
+      upsertRelation2(next.memory.relations, payload, now, warnings);
     }
     for (const operation of update.memoryOps) {
       applyMemoryOperation(next, operation, now, input, warnings);
@@ -2665,7 +2761,15 @@
       baseUrl: "https://api.openai.com/v1",
       manualModelOnly: false,
       authMode: "api-key",
-      curatedModels: ["gpt-4.1-mini", "gpt-4.1", "gpt-5.4-mini", "gpt-5.4"]
+      curatedModels: [
+        "gpt-4.1-mini",
+        "gpt-4.1",
+        "gpt-5.3-codex",
+        "gpt-5.4-nano",
+        "gpt-5.4-mini",
+        "gpt-5.4",
+        "gpt-5.4-pro"
+      ]
     },
     {
       id: "anthropic",
@@ -2677,8 +2781,9 @@
         "claude-3-5-haiku-latest",
         "claude-3-5-sonnet-latest",
         "claude-3-7-sonnet-latest",
-        "claude-sonnet-4-20250514",
-        "claude-opus-4-6"
+        "claude-sonnet-4-6",
+        "claude-opus-4-6",
+        "claude-opus-4-6-fast"
       ]
     },
     {
@@ -2691,7 +2796,10 @@
         "gemini-2.0-flash",
         "gemini-2.5-flash-preview-04-17",
         "gemini-2.5-pro-preview-05-06",
-        "gemini-3.1-pro-preview"
+        "gemini-3.1-pro-preview",
+        "gemini-3.1-pro-preview-customtools",
+        "gemini-3.1-flash-lite-preview",
+        "gemini-3.1-flash-live-preview"
       ]
     },
     {
@@ -2700,7 +2808,7 @@
       baseUrl: "https://api.githubcopilot.com/v1",
       manualModelOnly: true,
       authMode: "oauth-device-flow",
-      curatedModels: ["gpt-4.1", "claude-sonnet-4-20250514"]
+      curatedModels: ["gpt-4.1", "gpt-5.4", "claude-sonnet-4-6", "claude-opus-4-6"]
     },
     {
       id: "vertex",
@@ -2710,7 +2818,11 @@
       authMode: "manual-advanced",
       curatedModels: [
         "gemini-2.5-pro-preview-05-06",
-        "gemini-3.1-pro-preview"
+        "gemini-3.1-pro-preview",
+        "gemini-3.1-pro-preview-customtools",
+        "gemini-3.1-flash-lite-preview",
+        "claude-sonnet-4-6",
+        "claude-opus-4-6"
       ]
     },
     {
@@ -2871,6 +2983,7 @@
     "btn.save": "Save",
     "btn.saveChanges": "Save Changes",
     "btn.discard": "Discard",
+    "btn.cancel": "Cancel",
     "btn.close": "Close",
     "btn.closeIcon": "\u2715 Close",
     "btn.reset": "Reset",
@@ -2878,6 +2991,12 @@
     "btn.testConnection": "Test Connection",
     "btn.refreshModels": "Refresh Models",
     "btn.newProfile": "New Profile",
+    "btn.newPromptPreset": "New Prompt Preset",
+    "btn.deletePromptPreset": "Delete Preset",
+    "btn.backfillCurrentChat": "Extract Current Chat",
+    "btn.regenerateCurrentChat": "Regenerate from Current Chat",
+    "btn.deleteSelected": "Delete Selected",
+    "btn.edit": "Edit",
     "btn.export": "Export",
     "btn.import": "Import",
     // Dirty indicator
@@ -2910,9 +3029,18 @@
     // Card: Prompt Tuning
     "card.promptTuning.title": "Prompt Tuning",
     "card.promptTuning.copy": "Tune how strongly the Director pushes, how large the brief is, and whether post-review stays active.",
+    "card.promptPresets.title": "Prompt Presets",
+    "card.promptPresets.copy": "Choose the active preset, clone it into a custom preset, and edit the prompt templates used by the Director.",
     "label.briefTokenCap": "Brief Token Cap",
     "label.postReview": "Enable Post-review",
     "label.embeddings": "Enable Embeddings",
+    "label.promptPreset": "Active Prompt Preset",
+    "label.promptPresetName": "Preset Name",
+    "label.preRequestSystemTemplate": "Pre-request System Template",
+    "label.preRequestUserTemplate": "Pre-request User Template",
+    "label.postResponseSystemTemplate": "Post-response System Template",
+    "label.postResponseUserTemplate": "Post-response User Template",
+    "label.maxRecentMessages": "Recent Message Cap",
     // Card: Timing & Limits
     "card.timingLimits.title": "Timing & Limits",
     "card.timingLimits.copy": "Cooldown and debounce controls keep the Director stable under streaming and bad responses.",
@@ -2956,8 +3084,16 @@
     "btn.add": "Add",
     "memory.addSummaryPlaceholder": "New summary text\u2026",
     "memory.addFactPlaceholder": "New continuity fact\u2026",
+    "memory.addWorldFactPlaceholder": "New world fact\u2026",
+    "memory.addEntityNamePlaceholder": "New entity name\u2026",
+    "memory.addRelationSourcePlaceholder": "Source ID",
+    "memory.addRelationLabelPlaceholder": "Label",
+    "memory.addRelationTargetPlaceholder": "Target ID",
     "memory.filterPlaceholder": "Filter memory\u2026",
     "memory.emptyHint": "No memory items yet. Summaries and continuity facts will appear here as the story progresses.",
+    "card.worldFacts.title": "World Facts",
+    "card.entities.title": "Entities",
+    "card.relations.title": "Relations",
     // Card: Settings Profiles
     "card.settingsProfiles.title": "Settings Profiles",
     "card.settingsProfiles.copy": "Save reusable presets, swap them in one click, and move them between saves with JSON import/export.",
@@ -2974,6 +3110,9 @@
     "toast.noProfileSelected": "No profile selected",
     "toast.invalidProfileFormat": "Invalid profile format",
     "toast.failedParseProfile": "Failed to parse profile JSON",
+    "toast.backfillCompleted": "Chat extraction completed ({{count}} updates)",
+    "toast.backfillSkipped": "No chat memories were extracted",
+    "error.backfillScopeMismatch": "The active chat changed while the dashboard was open. Return to the original chat and try again.",
     // Import alert
     "alert.importInstructions": 'To import a profile, save the JSON to plugin storage key "{{key}}" and click Import again.',
     // Placeholders
@@ -2983,6 +3122,9 @@
     "profile.balanced": "Balanced",
     "profile.gentle": "Gentle",
     "profile.strict": "Strict",
+    "promptPreset.defaultName": "Default Preset",
+    "promptPreset.customName": "Custom Preset {{n}}",
+    "promptPreset.readOnlyHint": "Built-in presets are read-only. Clone the current preset to customize it.",
     // Fallback summary (settings.ts non-DOM path)
     "fallback.header": "\u2500\u2500 Director Plugin Settings \u2500\u2500",
     "fallback.enabled": "Enabled",
@@ -3021,6 +3163,7 @@
     "btn.save": "\uC800\uC7A5",
     "btn.saveChanges": "\uBCC0\uACBD\uC0AC\uD56D \uC800\uC7A5",
     "btn.discard": "\uB418\uB3CC\uB9AC\uAE30",
+    "btn.cancel": "\uCDE8\uC18C",
     "btn.close": "\uB2EB\uAE30",
     "btn.closeIcon": "\u2715 \uB2EB\uAE30",
     "btn.reset": "\uCD08\uAE30\uD654",
@@ -3028,6 +3171,12 @@
     "btn.testConnection": "\uC5F0\uACB0 \uD14C\uC2A4\uD2B8",
     "btn.refreshModels": "\uBAA8\uB378 \uC0C8\uB85C\uACE0\uCE68",
     "btn.newProfile": "\uC0C8 \uD504\uB85C\uD544",
+    "btn.newPromptPreset": "\uC0C8 \uD504\uB86C\uD504\uD2B8 \uD504\uB9AC\uC14B",
+    "btn.deletePromptPreset": "\uD504\uB9AC\uC14B \uC0AD\uC81C",
+    "btn.backfillCurrentChat": "\uD604\uC7AC \uCC44\uD305 \uCD94\uCD9C",
+    "btn.regenerateCurrentChat": "\uD604\uC7AC \uCC44\uD305 \uAE30\uC900 \uC7AC\uC0DD\uC131",
+    "btn.deleteSelected": "\uC120\uD0DD \uC0AD\uC81C",
+    "btn.edit": "\uD3B8\uC9D1",
     "btn.export": "\uB0B4\uBCF4\uB0B4\uAE30",
     "btn.import": "\uAC00\uC838\uC624\uAE30",
     // Dirty indicator
@@ -3060,9 +3209,18 @@
     // Card: Prompt Tuning
     "card.promptTuning.title": "\uD504\uB86C\uD504\uD2B8 \uD29C\uB2DD",
     "card.promptTuning.copy": "\uB514\uB809\uD130\uAC00 \uC5BC\uB9C8\uB098 \uAC15\uD558\uAC8C \uC720\uB3C4\uD560\uC9C0, \uBE0C\uB9AC\uD504 \uD06C\uAE30, \uC0AC\uD6C4 \uB9AC\uBDF0 \uD65C\uC131\uD654 \uC5EC\uBD80\uB97C \uC870\uC808\uD558\uC138\uC694.",
+    "card.promptPresets.title": "\uD504\uB86C\uD504\uD2B8 \uD504\uB9AC\uC14B",
+    "card.promptPresets.copy": "\uD65C\uC131 \uD504\uB9AC\uC14B\uC744 \uC120\uD0DD\uD558\uACE0, \uD604\uC7AC \uD504\uB9AC\uC14B\uC744 \uBCF5\uC81C\uD574 \uCEE4\uC2A4\uD140 \uD504\uB9AC\uC14B\uC744 \uB9CC\uB4E0 \uB4A4 \uB514\uB809\uD130 \uD504\uB86C\uD504\uD2B8 \uD15C\uD50C\uB9BF\uC744 \uD3B8\uC9D1\uD558\uC138\uC694.",
     "label.briefTokenCap": "\uBE0C\uB9AC\uD504 \uD1A0\uD070 \uC0C1\uD55C",
     "label.postReview": "\uC0AC\uD6C4 \uB9AC\uBDF0 \uD65C\uC131\uD654",
     "label.embeddings": "\uC784\uBCA0\uB529 \uD65C\uC131\uD654",
+    "label.promptPreset": "\uD65C\uC131 \uD504\uB86C\uD504\uD2B8 \uD504\uB9AC\uC14B",
+    "label.promptPresetName": "\uD504\uB9AC\uC14B \uC774\uB984",
+    "label.preRequestSystemTemplate": "\uC0AC\uC804 \uC694\uCCAD \uC2DC\uC2A4\uD15C \uD15C\uD50C\uB9BF",
+    "label.preRequestUserTemplate": "\uC0AC\uC804 \uC694\uCCAD \uC0AC\uC6A9\uC790 \uD15C\uD50C\uB9BF",
+    "label.postResponseSystemTemplate": "\uC0AC\uD6C4 \uC751\uB2F5 \uC2DC\uC2A4\uD15C \uD15C\uD50C\uB9BF",
+    "label.postResponseUserTemplate": "\uC0AC\uD6C4 \uC751\uB2F5 \uC0AC\uC6A9\uC790 \uD15C\uD50C\uB9BF",
+    "label.maxRecentMessages": "\uCD5C\uADFC \uBA54\uC2DC\uC9C0 \uC0C1\uD55C",
     // Card: Timing & Limits
     "card.timingLimits.title": "\uD0C0\uC774\uBC0D & \uC81C\uD55C",
     "card.timingLimits.copy": "\uCFE8\uB2E4\uC6B4\uACFC \uB514\uBC14\uC6B4\uC2A4 \uC81C\uC5B4\uB85C \uC2A4\uD2B8\uB9AC\uBC0D \uBC0F \uC798\uBABB\uB41C \uC751\uB2F5\uC5D0\uC11C \uB514\uB809\uD130\uB97C \uC548\uC815\uC801\uC73C\uB85C \uC720\uC9C0\uD569\uB2C8\uB2E4.",
@@ -3106,8 +3264,16 @@
     "btn.add": "\uCD94\uAC00",
     "memory.addSummaryPlaceholder": "\uC0C8 \uC694\uC57D \uD14D\uC2A4\uD2B8\u2026",
     "memory.addFactPlaceholder": "\uC0C8 \uC5F0\uC18D\uC131 \uC0AC\uC2E4\u2026",
+    "memory.addWorldFactPlaceholder": "\uC0C8 \uC138\uACC4 \uC0AC\uC2E4\u2026",
+    "memory.addEntityNamePlaceholder": "\uC0C8 \uC5D4\uD2F0\uD2F0 \uC774\uB984\u2026",
+    "memory.addRelationSourcePlaceholder": "\uC18C\uC2A4 ID",
+    "memory.addRelationLabelPlaceholder": "\uB77C\uBCA8",
+    "memory.addRelationTargetPlaceholder": "\uB300\uC0C1 ID",
     "memory.filterPlaceholder": "\uBA54\uBAA8\uB9AC \uD544\uD130\u2026",
     "memory.emptyHint": "\uC544\uC9C1 \uBA54\uBAA8\uB9AC \uD56D\uBAA9\uC774 \uC5C6\uC2B5\uB2C8\uB2E4. \uC774\uC57C\uAE30\uAC00 \uC9C4\uD589\uB428\uC5D0 \uB530\uB77C \uC694\uC57D \uBC0F \uC5F0\uC18D\uC131 \uC0AC\uC2E4\uC774 \uC5EC\uAE30\uC5D0 \uD45C\uC2DC\uB429\uB2C8\uB2E4.",
+    "card.worldFacts.title": "\uC138\uACC4 \uC0AC\uC2E4",
+    "card.entities.title": "\uC5D4\uD2F0\uD2F0",
+    "card.relations.title": "\uAD00\uACC4",
     // Card: Settings Profiles
     "card.settingsProfiles.title": "\uC124\uC815 \uD504\uB85C\uD544",
     "card.settingsProfiles.copy": "\uC7AC\uC0AC\uC6A9 \uAC00\uB2A5\uD55C \uD504\uB9AC\uC14B\uC744 \uC800\uC7A5\uD558\uACE0, \uD55C \uBC88\uC758 \uD074\uB9AD\uC73C\uB85C \uAD50\uCCB4\uD558\uBA70, JSON \uAC00\uC838\uC624\uAE30/\uB0B4\uBCF4\uB0B4\uAE30\uB85C \uC774\uB3D9\uD558\uC138\uC694.",
@@ -3124,6 +3290,9 @@
     "toast.noProfileSelected": "\uC120\uD0DD\uB41C \uD504\uB85C\uD544\uC774 \uC5C6\uC2B5\uB2C8\uB2E4",
     "toast.invalidProfileFormat": "\uC798\uBABB\uB41C \uD504\uB85C\uD544 \uD615\uC2DD\uC785\uB2C8\uB2E4",
     "toast.failedParseProfile": "\uD504\uB85C\uD544 JSON \uD30C\uC2F1\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4",
+    "toast.backfillCompleted": "\uCC44\uD305 \uCD94\uCD9C\uC774 \uC644\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4 ({{count}}\uAC1C \uC5C5\uB370\uC774\uD2B8)",
+    "toast.backfillSkipped": "\uCD94\uCD9C\uB41C \uCC44\uD305 \uBA54\uBAA8\uB9AC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4",
+    "error.backfillScopeMismatch": "\uB300\uC2DC\uBCF4\uB4DC\uB97C \uC5F0 \uB4A4 \uD65C\uC131 \uCC44\uD305\uC774 \uBC14\uB00C\uC5C8\uC2B5\uB2C8\uB2E4. \uC6D0\uB798 \uCC44\uD305\uC73C\uB85C \uB3CC\uC544\uAC04 \uB4A4 \uB2E4\uC2DC \uC2DC\uB3C4\uD558\uC138\uC694.",
     // Import alert
     "alert.importInstructions": '\uD504\uB85C\uD544\uC744 \uAC00\uC838\uC624\uB824\uBA74 JSON\uC744 \uD50C\uB7EC\uADF8\uC778 \uC800\uC7A5\uC18C \uD0A4 "{{key}}"\uC5D0 \uC800\uC7A5\uD55C \uD6C4 \uAC00\uC838\uC624\uAE30\uB97C \uB2E4\uC2DC \uD074\uB9AD\uD558\uC138\uC694.',
     // Placeholders
@@ -3133,6 +3302,9 @@
     "profile.balanced": "\uADE0\uD615",
     "profile.gentle": "\uBD80\uB4DC\uB7EC\uC6C0",
     "profile.strict": "\uC5C4\uACA9",
+    "promptPreset.defaultName": "\uAE30\uBCF8 \uD504\uB9AC\uC14B",
+    "promptPreset.customName": "\uCEE4\uC2A4\uD140 \uD504\uB9AC\uC14B {{n}}",
+    "promptPreset.readOnlyHint": "\uB0B4\uC7A5 \uD504\uB9AC\uC14B\uC740 \uC77D\uAE30 \uC804\uC6A9\uC785\uB2C8\uB2E4. \uD604\uC7AC \uD504\uB9AC\uC14B\uC744 \uBCF5\uC81C\uD574 \uC0AC\uC6A9\uC790 \uC815\uC758\uD558\uC138\uC694.",
     // Fallback summary
     "fallback.header": "\u2500\u2500 \uB514\uB809\uD130 \uD50C\uB7EC\uADF8\uC778 \uC124\uC815 \u2500\u2500",
     "fallback.enabled": "\uD65C\uC131\uD654",
@@ -3201,6 +3373,128 @@
   function profileDisplayName(id, fallbackName) {
     const key = BUILTIN_PROFILE_KEY_MAP[id];
     return key ? t(key) : fallbackName;
+  }
+
+  // src/ui/dashboardState.ts
+  var DASHBOARD_SETTINGS_KEY = "dashboard-settings-v1";
+  var DASHBOARD_PROFILE_MANIFEST_KEY = "dashboard-profile-manifest-v1";
+  var DASHBOARD_LOCALE_KEY = "dashboard-locale-v1";
+  var DASHBOARD_SCHEMA_VERSION = 1;
+  function normalizePersistedSettings(raw) {
+    return {
+      ...DEFAULT_DIRECTOR_SETTINGS,
+      ...raw,
+      promptPresetId: typeof raw.promptPresetId === "string" ? raw.promptPresetId : DEFAULT_DIRECTOR_SETTINGS.promptPresetId,
+      promptPresets: normalizePromptPresets(raw.promptPresets)
+    };
+  }
+  function createDashboardDraft(settings) {
+    return {
+      isDirty: false,
+      settings: { ...settings }
+    };
+  }
+  function isValidPromptPreset(value) {
+    if (value == null || typeof value !== "object") return false;
+    const record = value;
+    const directives = record.assertivenessDirectives;
+    if (directives == null || typeof directives !== "object") return false;
+    const directiveRecord = directives;
+    return typeof record.preRequestSystemTemplate === "string" && typeof record.preRequestUserTemplate === "string" && typeof record.postResponseSystemTemplate === "string" && typeof record.postResponseUserTemplate === "string" && typeof record.sceneBriefSchema === "string" && typeof record.memoryUpdateSchema === "string" && typeof record.maxRecentMessages === "number" && typeof directiveRecord.light === "string" && typeof directiveRecord.standard === "string" && typeof directiveRecord.firm === "string";
+  }
+  function normalizePromptPresets(raw) {
+    if (raw == null || typeof raw !== "object") return {};
+    const entries = Object.entries(raw);
+    const normalized = {};
+    for (const [key, value] of entries) {
+      if (value == null || typeof value !== "object") continue;
+      const candidate = value;
+      if (typeof candidate.id !== "string" || typeof candidate.name !== "string" || typeof candidate.createdAt !== "number" || typeof candidate.updatedAt !== "number" || !isValidPromptPreset(candidate.preset)) {
+        continue;
+      }
+      normalized[key] = {
+        id: candidate.id,
+        name: candidate.name,
+        createdAt: candidate.createdAt,
+        updatedAt: candidate.updatedAt,
+        preset: structuredClone(candidate.preset)
+      };
+    }
+    return normalized;
+  }
+  function createBuiltinPromptPresetRecord() {
+    return {
+      id: BUILTIN_PROMPT_PRESET_ID,
+      name: BUILTIN_PROMPT_PRESET_NAME,
+      createdAt: 0,
+      updatedAt: 0,
+      preset: structuredClone(DEFAULT_DIRECTOR_PROMPT_PRESET)
+    };
+  }
+  function resolveSelectedPromptPreset(settings) {
+    const stored = settings.promptPresets[settings.promptPresetId];
+    if (stored) {
+      return structuredClone(stored);
+    }
+    return createBuiltinPromptPresetRecord();
+  }
+  function createPromptPresetFromSettings(settings, name) {
+    const now = Date.now();
+    const count = Object.keys(settings.promptPresets).length + 1;
+    return {
+      id: `prompt-preset-${now}-${Math.random().toString(36).slice(2, 8)}`,
+      name: name?.trim() || t("promptPreset.customName", { n: String(count) }),
+      createdAt: now,
+      updatedAt: now,
+      preset: structuredClone(resolvePromptPreset(settings))
+    };
+  }
+  var BUILTIN_PROFILES = [
+    {
+      id: "builtin-balanced",
+      name: "Balanced",
+      createdAt: 0,
+      updatedAt: 0,
+      basedOn: null,
+      overrides: { assertiveness: "standard" }
+    },
+    {
+      id: "builtin-gentle",
+      name: "Gentle",
+      createdAt: 0,
+      updatedAt: 0,
+      basedOn: null,
+      overrides: { assertiveness: "light" }
+    },
+    {
+      id: "builtin-strict",
+      name: "Strict",
+      createdAt: 0,
+      updatedAt: 0,
+      basedOn: null,
+      overrides: { assertiveness: "firm", postReviewEnabled: true }
+    }
+  ];
+  function createDefaultProfileManifest() {
+    const activeProfileId = BUILTIN_PROFILES[0]?.id ?? "builtin-balanced";
+    return {
+      version: DASHBOARD_SCHEMA_VERSION,
+      activeProfileId,
+      profiles: BUILTIN_PROFILES.map((p) => ({ ...p }))
+    };
+  }
+  function createProfileExportPayload(profile) {
+    return {
+      schema: "director-actor-dashboard-profile",
+      version: 1,
+      profile: { ...profile }
+    };
+  }
+  function mergeDashboardSettingsIntoPluginState(state, dashboardSettings) {
+    return {
+      ...state,
+      settings: { ...state.settings, ...dashboardSettings }
+    };
   }
 
   // src/ui/dashboardDom.ts
@@ -3307,6 +3601,16 @@
   }
   function buildPromptTuningPage(input) {
     const { settings } = input;
+    const selectedPreset = resolveSelectedPromptPreset(settings);
+    const selectedPresetId = settings.promptPresets[settings.promptPresetId] ? settings.promptPresetId : BUILTIN_PROMPT_PRESET_ID;
+    const isBuiltinPreset = selectedPresetId === BUILTIN_PROMPT_PRESET_ID;
+    const presetDisabled = isBuiltinPreset ? " disabled" : "";
+    const promptPresetOptions = [
+      `<option value="${BUILTIN_PROMPT_PRESET_ID}"${selectedPresetId === BUILTIN_PROMPT_PRESET_ID ? " selected" : ""}>${t("promptPreset.defaultName")}</option>`,
+      ...Object.values(settings.promptPresets).sort((a, b) => a.createdAt - b.createdAt).map(
+        (preset) => `<option value="${escapeXml(preset.id)}"${preset.id === selectedPresetId ? " selected" : ""}>${escapeXml(preset.name)}</option>`
+      )
+    ].join("");
     return `
       <div class="da-grid">
         <section class="da-card">
@@ -3336,6 +3640,49 @@
         <section class="da-card">
           <div class="da-card-header">
             <div>
+              <h3 class="da-card-title">${t("card.promptPresets.title")}</h3>
+              <p class="da-card-copy">${t("card.promptPresets.copy")}</p>
+            </div>
+          </div>
+          <div class="da-form-grid">
+            <label class="da-label">
+              <span class="da-label-text">${t("label.promptPreset")}</span>
+              <select class="da-select" data-da-role="prompt-preset-select">${promptPresetOptions}</select>
+            </label>
+            <div class="da-inline">
+              <button class="da-btn da-btn--primary" data-da-action="create-prompt-preset">${t("btn.newPromptPreset")}</button>
+              <button class="da-btn da-btn--danger" data-da-action="delete-prompt-preset"${isBuiltinPreset ? " disabled" : ""}>${t("btn.deletePromptPreset")}</button>
+            </div>
+            ${isBuiltinPreset ? `<p class="da-hint">${t("promptPreset.readOnlyHint")}</p>` : ""}
+            <label class="da-label">
+              <span class="da-label-text">${t("label.promptPresetName")}</span>
+              <input type="text" class="da-input" data-da-role="prompt-preset-name" value="${escapeXml(isBuiltinPreset ? t("promptPreset.defaultName") : selectedPreset.name)}"${presetDisabled} />
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">${t("label.preRequestSystemTemplate")}</span>
+              <textarea class="da-textarea" data-da-role="prompt-pre-request-system"${presetDisabled}>${escapeXml(selectedPreset.preset.preRequestSystemTemplate)}</textarea>
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">${t("label.preRequestUserTemplate")}</span>
+              <textarea class="da-textarea" data-da-role="prompt-pre-request-user"${presetDisabled}>${escapeXml(selectedPreset.preset.preRequestUserTemplate)}</textarea>
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">${t("label.postResponseSystemTemplate")}</span>
+              <textarea class="da-textarea" data-da-role="prompt-post-response-system"${presetDisabled}>${escapeXml(selectedPreset.preset.postResponseSystemTemplate)}</textarea>
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">${t("label.postResponseUserTemplate")}</span>
+              <textarea class="da-textarea" data-da-role="prompt-post-response-user"${presetDisabled}>${escapeXml(selectedPreset.preset.postResponseUserTemplate)}</textarea>
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">${t("label.maxRecentMessages")}</span>
+              <input type="number" class="da-input" data-da-role="prompt-max-recent-messages" value="${selectedPreset.preset.maxRecentMessages}"${presetDisabled} />
+            </label>
+          </div>
+        </section>
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
               <h3 class="da-card-title">${t("card.timingLimits.title")}</h3>
               <p class="da-card-copy">${t("card.timingLimits.copy")}</p>
             </div>
@@ -3359,7 +3706,9 @@
   }
   function buildModelSettingsPage(input) {
     const { settings, modelOptions } = input;
-    const modelOptionEls = modelOptions.map((m) => `<option value="${m}"${m === settings.directorModel ? " selected" : ""}>${m}</option>`).join("");
+    const modelOptionEls = modelOptions.map(
+      (m) => `<option value="${escapeXml(m)}"${m === settings.directorModel ? " selected" : ""}>${escapeXml(m)}</option>`
+    ).join("");
     const embeddingProviderOptionEls = EMBEDDING_PROVIDER_CATALOG.map(
       (entry) => `<option value="${entry.id}"${settings.embeddingProvider === entry.id ? " selected" : ""}>${embeddingProviderLabel(entry.id)}</option>`
     ).join("");
@@ -3378,15 +3727,15 @@
             </label>
             <label class="da-label">
               <span class="da-label-text">${t("label.embeddingBaseUrl")}</span>
-              <input type="text" class="da-input" data-da-field="embeddingBaseUrl" value="${settings.embeddingBaseUrl}" />
+              <input type="text" class="da-input" data-da-field="embeddingBaseUrl" value="${escapeXml(settings.embeddingBaseUrl)}" />
             </label>
             <label class="da-label">
               <span class="da-label-text">${t("label.embeddingApiKey")}</span>
-              <input type="password" class="da-input" data-da-field="embeddingApiKey" value="${settings.embeddingApiKey}" />
+              <input type="password" class="da-input" data-da-field="embeddingApiKey" value="${escapeXml(settings.embeddingApiKey)}" />
             </label>
             <label class="da-label">
               <span class="da-label-text">${t("label.embeddingModel")}</span>
-              <input type="text" class="da-input" data-da-field="embeddingModel" value="${settings.embeddingModel}" />
+              <input type="text" class="da-input" data-da-field="embeddingModel" value="${escapeXml(settings.embeddingModel)}" />
             </label>
             <label class="da-label">
               <span class="da-label-text">${t("label.embeddingDimensions")}</span>
@@ -3418,11 +3767,11 @@
             <div class="da-split">
               <label class="da-label">
                 <span class="da-label-text">${t("label.baseUrl")}</span>
-                <input type="text" class="da-input" data-da-field="directorBaseUrl" value="${settings.directorBaseUrl}" />
+                <input type="text" class="da-input" data-da-field="directorBaseUrl" value="${escapeXml(settings.directorBaseUrl)}" />
               </label>
               <label class="da-label">
                 <span class="da-label-text">${t("label.apiKey")}</span>
-                <input type="password" class="da-input" data-da-field="directorApiKey" value="${settings.directorApiKey}" />
+                <input type="password" class="da-input" data-da-field="directorApiKey" value="${escapeXml(settings.directorApiKey)}" />
               </label>
             </div>
             <label class="da-label">
@@ -3431,7 +3780,7 @@
             </label>
             <label class="da-label">
               <span class="da-label-text">${t("label.customModelId")}</span>
-              <input type="text" class="da-input" data-da-field="directorModel" value="${settings.directorModel}" placeholder="${t("placeholder.customModelId")}" />
+              <input type="text" class="da-input" data-da-field="directorModel" value="${escapeXml(settings.directorModel)}" placeholder="${t("placeholder.customModelId")}" />
             </label>
             <div class="da-inline">
               <button class="da-btn da-btn--primary" data-da-action="test-connection">${t("btn.testConnection")}</button>
@@ -3445,19 +3794,101 @@
     const { pluginState } = input;
     const summaries = pluginState.memory.summaries;
     const facts = pluginState.memory.continuityFacts;
-    const isEmpty = summaries.length === 0 && facts.length === 0;
+    const worldFacts = pluginState.memory.worldFacts;
+    const entities = pluginState.memory.entities;
+    const relations = pluginState.memory.relations;
+    const selectedKeys = new Set(input.selectedMemoryKeys ?? []);
+    const editingMemory = input.editingMemory ?? null;
+    const isEmpty = summaries.length === 0 && facts.length === 0 && worldFacts.length === 0 && entities.length === 0 && relations.length === 0;
+    const selectedCount = selectedKeys.size;
+    const backfillHtml = `<div class="da-inline"><button class="da-btn da-btn--primary" data-da-action="backfill-current-chat">${t("btn.backfillCurrentChat")}</button></div>`;
+    const regenerateHtml = `<div class="da-inline"><button class="da-btn" data-da-action="regenerate-current-chat">${t("btn.regenerateCurrentChat")}</button></div>`;
+    const bulkDeleteHtml = `<div class="da-inline"><button class="da-btn da-btn--danger" data-da-action="bulk-delete-memory"${selectedCount === 0 ? " disabled" : ""}>${t("btn.deleteSelected")}</button></div>`;
     const filterHtml = `<input type="text" class="da-input" data-da-role="memory-filter" placeholder="${t("memory.filterPlaceholder")}" />`;
     const addSummaryHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-summary-text" placeholder="${t("memory.addSummaryPlaceholder")}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-summary">${t("btn.add")}</button></div>`;
     const addFactHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-fact-text" placeholder="${t("memory.addFactPlaceholder")}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-continuity-fact">${t("btn.add")}</button></div>`;
+    const addWorldFactHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-world-fact-text" placeholder="${t("memory.addWorldFactPlaceholder")}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-world-fact">${t("btn.add")}</button></div>`;
+    const addEntityHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-entity-name" placeholder="${t("memory.addEntityNamePlaceholder")}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-entity">${t("btn.add")}</button></div>`;
+    const addRelationHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-relation-source" placeholder="${t("memory.addRelationSourcePlaceholder")}" /><input type="text" class="da-input da-input--add" data-da-role="add-relation-label" placeholder="${t("memory.addRelationLabelPlaceholder")}" /><input type="text" class="da-input da-input--add" data-da-role="add-relation-target" placeholder="${t("memory.addRelationTargetPlaceholder")}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-relation">${t("btn.add")}</button></div>`;
+    function renderMemoryItem(kind, id, displayText, deleteAction, editRole, editValue, extraEditFields = "") {
+      const itemKey = `${kind}:${id}`;
+      const checked = selectedKeys.has(itemKey) ? " checked" : "";
+      const isEditing = editingMemory?.kind === kind && editingMemory.id === id;
+      if (isEditing) {
+        return `<li class="da-memory-item">
+        <input type="checkbox" data-da-role="memory-select" data-da-item-key="${escapeXml(itemKey)}"${checked} />
+        <div class="da-form-grid" style="flex:1">
+          <input type="text" class="da-input" data-da-role="${editRole}" data-da-item-id="${escapeXml(id)}" value="${escapeXml(editValue)}" />
+          ${extraEditFields}
+        </div>
+        <button class="da-btn da-btn--primary da-btn--sm" data-da-action="save-memory-edit" data-da-item-key="${escapeXml(itemKey)}">${t("btn.save")}</button>
+        <button class="da-btn da-btn--sm" data-da-action="cancel-memory-edit" data-da-item-key="${escapeXml(itemKey)}">${t("btn.cancel")}</button>
+      </li>`;
+      }
+      return `<li class="da-memory-item">
+      <input type="checkbox" data-da-role="memory-select" data-da-item-key="${escapeXml(itemKey)}"${checked} />
+      <span>${escapeXml(displayText)}</span>
+      <button class="da-btn da-btn--sm" data-da-action="edit-memory-item" data-da-item-key="${escapeXml(itemKey)}">${t("btn.edit")}</button>
+      <button class="da-btn da-btn--danger da-btn--sm" data-da-action="${deleteAction}" data-da-item-id="${escapeXml(id)}">${t("btn.delete")}</button>
+    </li>`;
+    }
     const summaryItems = summaries.map(
-      (s) => `<li class="da-memory-item"><span>${escapeXml(s.text)}</span><button class="da-btn da-btn--danger da-btn--sm" data-da-action="delete-summary" data-da-item-id="${escapeXml(s.id)}">${t("btn.delete")}</button></li>`
+      (s) => renderMemoryItem(
+        "summary",
+        s.id,
+        s.text,
+        "delete-summary",
+        "edit-summary-text",
+        s.text
+      )
     ).join("");
     const factItems = facts.map(
-      (f) => `<li class="da-memory-item"><span>${escapeXml(f.text)}</span><button class="da-btn da-btn--danger da-btn--sm" data-da-action="delete-continuity-fact" data-da-item-id="${escapeXml(f.id)}">${t("btn.delete")}</button></li>`
+      (f) => renderMemoryItem(
+        "continuity-fact",
+        f.id,
+        f.text,
+        "delete-continuity-fact",
+        "edit-continuity-fact-text",
+        f.text
+      )
+    ).join("");
+    const worldFactItems = worldFacts.map(
+      (w) => renderMemoryItem(
+        "world-fact",
+        w.id,
+        w.text,
+        "delete-world-fact",
+        "edit-world-fact-text",
+        w.text
+      )
+    ).join("");
+    const entityItems = entities.map(
+      (e) => renderMemoryItem(
+        "entity",
+        e.id,
+        e.name,
+        "delete-entity",
+        "edit-entity-name",
+        e.name
+      )
+    ).join("");
+    const relationItems = relations.map(
+      (r) => renderMemoryItem(
+        "relation",
+        r.id,
+        `${r.sourceId} \u2192 ${r.label} \u2192 ${r.targetId}`,
+        "delete-relation",
+        "edit-relation-source",
+        r.sourceId,
+        `<div class="da-inline">
+          <input type="text" class="da-input" data-da-role="edit-relation-label" data-da-item-id="${escapeXml(r.id)}" value="${escapeXml(r.label)}" />
+          <input type="text" class="da-input" data-da-role="edit-relation-target" data-da-item-id="${escapeXml(r.id)}" value="${escapeXml(r.targetId)}" />
+        </div>`
+      )
     ).join("");
     const emptyHintHtml = isEmpty ? `<p class="da-empty" data-da-role="memory-empty">${t("memory.emptyHint")}</p>` : "";
     return `
-      ${filterHtml}${emptyHintHtml}
+      ${backfillHtml}${regenerateHtml}${bulkDeleteHtml}${filterHtml}${emptyHintHtml}
       <div class="da-grid">
         <section class="da-card">
           <div class="da-card-header">
@@ -3476,6 +3907,33 @@
           </div>${factItems ? `
           <ul class="da-memory-list">${factItems}</ul>` : ""}
           ${addFactHtml}
+        </section>
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">${t("card.worldFacts.title")}</h3>
+            </div>
+          </div>${worldFactItems ? `
+          <ul class="da-memory-list">${worldFactItems}</ul>` : ""}
+          ${addWorldFactHtml}
+        </section>
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">${t("card.entities.title")}</h3>
+            </div>
+          </div>${entityItems ? `
+          <ul class="da-memory-list">${entityItems}</ul>` : ""}
+          ${addEntityHtml}
+        </section>
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">${t("card.relations.title")}</h3>
+            </div>
+          </div>${relationItems ? `
+          <ul class="da-memory-list">${relationItems}</ul>` : ""}
+          ${addRelationHtml}
         </section>
       </div>`;
   }
@@ -3567,65 +4025,119 @@
     }
   };
 
-  // src/ui/dashboardState.ts
-  var DASHBOARD_SETTINGS_KEY = "dashboard-settings-v1";
-  var DASHBOARD_PROFILE_MANIFEST_KEY = "dashboard-profile-manifest-v1";
-  var DASHBOARD_LOCALE_KEY = "dashboard-locale-v1";
-  var DASHBOARD_SCHEMA_VERSION = 1;
-  function normalizePersistedSettings(raw) {
-    return { ...DEFAULT_DIRECTOR_SETTINGS, ...raw };
-  }
-  function createDashboardDraft(settings) {
-    return {
-      isDirty: false,
-      settings: { ...settings }
-    };
-  }
-  var BUILTIN_PROFILES = [
-    {
-      id: "builtin-balanced",
-      name: "Balanced",
-      createdAt: 0,
-      updatedAt: 0,
-      basedOn: null,
-      overrides: { assertiveness: "standard" }
-    },
-    {
-      id: "builtin-gentle",
-      name: "Gentle",
-      createdAt: 0,
-      updatedAt: 0,
-      basedOn: null,
-      overrides: { assertiveness: "light" }
-    },
-    {
-      id: "builtin-strict",
-      name: "Strict",
-      createdAt: 0,
-      updatedAt: 0,
-      basedOn: null,
-      overrides: { assertiveness: "firm", postReviewEnabled: true }
+  // src/director/backfill.ts
+  var BACKFILL_WINDOW_MESSAGES = 8;
+  var MAX_BACKFILL_ASSISTANT_TURNS = 50;
+  function normalizeHostRole(role) {
+    const normalized = role.trim().toLowerCase();
+    if (normalized === "assistant" || normalized === "char" || normalized === "bot" || normalized === "model") {
+      return "assistant";
     }
-  ];
-  function createDefaultProfileManifest() {
-    const activeProfileId = BUILTIN_PROFILES[0]?.id ?? "builtin-balanced";
+    if (normalized === "system" || normalized === "developer" || normalized === "note") {
+      return "system";
+    }
+    if (normalized === "function" || normalized === "tool") {
+      return "function";
+    }
+    return "user";
+  }
+  function buildWindowMessages(messages, assistantIndex) {
+    const start = Math.max(0, assistantIndex - BACKFILL_WINDOW_MESSAGES + 1);
+    return messages.slice(start, assistantIndex + 1).map((message) => ({
+      role: normalizeHostRole(message.role),
+      content: message.content
+    }));
+  }
+  function findLatestUserText(messages, assistantIndex) {
+    for (let index = assistantIndex - 1; index >= 0; index -= 1) {
+      if (normalizeHostRole(messages[index].role) === "user") {
+        return messages[index].content;
+      }
+    }
+    return "";
+  }
+  function buildBackfillBrief(state) {
     return {
-      version: DASHBOARD_SCHEMA_VERSION,
-      activeProfileId,
-      profiles: BUILTIN_PROFILES.map((p) => ({ ...p }))
+      confidence: 0.5,
+      pacing: state.director.pacingMode,
+      beats: [],
+      continuityLocks: [],
+      ensembleWeights: {},
+      styleInheritance: {},
+      forbiddenMoves: [],
+      memoryHints: []
     };
   }
-  function createProfileExportPayload(profile) {
+  async function backfillCurrentChat(api, stateStore) {
+    const chat = await tryGetChat(api);
+    if (!chat) {
+      return {
+        totalAssistantTurns: 0,
+        processedTurns: 0,
+        appliedUpdates: 0,
+        warnings: ["Current chat is unavailable for backfill."]
+      };
+    }
+    const assistantIndexes = chat.messages.map(
+      (message, index) => normalizeHostRole(message.role) === "assistant" ? index : -1
+    ).filter((index) => index >= 0).slice(-MAX_BACKFILL_ASSISTANT_TURNS);
+    if (assistantIndexes.length === 0) {
+      return {
+        totalAssistantTurns: 0,
+        processedTurns: 0,
+        appliedUpdates: 0,
+        warnings: ["Current chat has no assistant turns to extract."]
+      };
+    }
+    let state = await stateStore.load();
+    const service = createDirectorService(api, state.settings);
+    const warnings = [];
+    let processedTurns = 0;
+    let appliedUpdates = 0;
+    await api.log(
+      `[director-plugin] Backfill started for ${String(assistantIndexes.length)} assistant turns.`
+    );
+    for (const assistantIndex of assistantIndexes) {
+      await api.log(
+        `[director-plugin] Backfill progress ${String(processedTurns + 1)}/${String(assistantIndexes.length)}.`
+      );
+      const messages = buildWindowMessages(chat.messages, assistantIndex);
+      const responseText = messages[messages.length - 1]?.content ?? "";
+      const brief = buildBackfillBrief(state);
+      const result = await service.postResponse({
+        responseText,
+        brief,
+        messages,
+        directorState: state.director,
+        memory: state.memory,
+        assertiveness: state.settings.assertiveness,
+        promptPreset: resolvePromptPreset(state.settings)
+      });
+      processedTurns += 1;
+      if (!result.ok) {
+        warnings.push(result.error);
+        continue;
+      }
+      const applied = applyMemoryUpdate(state, result.update, {
+        turnId: `backfill-turn-${assistantIndex}`,
+        userText: findLatestUserText(chat.messages, assistantIndex),
+        actorText: responseText,
+        brief
+      });
+      state = applied.state;
+      state.updatedAt = Date.now();
+      state.metrics.totalDirectorCalls += 1;
+      state.metrics.totalMemoryWrites += 1;
+      state.metrics.lastUpdatedAt = state.updatedAt;
+      warnings.push(...applied.warnings);
+      appliedUpdates += 1;
+      await stateStore.save(state);
+    }
     return {
-      schema: "director-actor-dashboard-profile",
-      version: 1,
-      profile: { ...profile }
-    };
-  }
-  function mergeDashboardSettingsIntoPluginState(state, dashboardSettings) {
-    return {
-      ...state,
-      settings: { ...state.settings, ...dashboardSettings }
+      totalAssistantTurns: assistantIndexes.length,
+      processedTurns,
+      appliedUpdates,
+      warnings
     };
   }
 
@@ -3657,7 +4169,12 @@
     }
     const key = store.stateStorageKey ?? DIRECTOR_STATE_STORAGE_KEY;
     const raw = await store.storage.getItem(key);
-    return raw ? structuredClone(raw) : createEmptyState();
+    if (!raw) {
+      return createEmptyState();
+    }
+    const state = structuredClone(raw);
+    patchLegacyMemory(state);
+    return state;
   }
   var DashboardInstance = class {
     api;
@@ -3671,6 +4188,8 @@
     connectionStatus;
     root = null;
     canonicalState;
+    selectedMemoryKeys = /* @__PURE__ */ new Set();
+    editingMemory = null;
     constructor(api, store, doc, draft, profiles, modelOptions, canonicalState) {
       this.api = api;
       this.store = store;
@@ -3720,7 +4239,9 @@
         profiles: this.profiles,
         activeTab: this.activeTab,
         modelOptions: this.modelOptions,
-        connectionStatus: this.connectionStatus
+        connectionStatus: this.connectionStatus,
+        selectedMemoryKeys: Array.from(this.selectedMemoryKeys),
+        editingMemory: this.editingMemory
       };
     }
     renderRoot() {
@@ -3811,7 +4332,7 @@
       );
       if (!sel) return;
       sel.innerHTML = this.modelOptions.map(
-        (m) => `<option value="${m}"${m === this.draft.settings.directorModel ? " selected" : ""}>${m}</option>`
+        (m) => `<option value="${escapeXml(m)}"${m === this.draft.settings.directorModel ? " selected" : ""}>${escapeXml(m)}</option>`
       ).join("");
     }
     updateDirtyIndicator() {
@@ -3820,6 +4341,19 @@
       if (indicator) {
         indicator.classList.toggle("da-hidden", !this.draft.isDirty);
       }
+    }
+    getSelectedPromptPreset() {
+      return resolveSelectedPromptPreset(this.draft.settings);
+    }
+    getSelectedCustomPromptPreset() {
+      if (this.draft.settings.promptPresetId === BUILTIN_PROMPT_PRESET_ID) {
+        return null;
+      }
+      return this.draft.settings.promptPresets[this.draft.settings.promptPresetId] ?? null;
+    }
+    markDirty() {
+      this.draft.isDirty = true;
+      this.updateDirtyIndicator();
     }
     // ── Event binding ─────────────────────────────────────────────────────
     bindEvents() {
@@ -3831,12 +4365,25 @@
         this.handleProfileSelect(target);
       });
       this.lifecycle.listen(this.root, "change", (e) => {
-        this.handleFieldChange(e.target);
+        const target = e.target;
+        if (target instanceof HTMLInputElement && target.getAttribute("data-da-role") === "memory-select") {
+          this.handleMemorySelectionChange(target);
+          return;
+        }
+        if (target instanceof HTMLSelectElement && target.getAttribute("data-da-role") === "prompt-preset-select") {
+          this.handlePromptPresetSelect(target.value);
+          return;
+        }
+        this.handleFieldChange(target);
       });
       this.lifecycle.listen(this.root, "input", (e) => {
         const el = e.target;
         if (el instanceof HTMLInputElement && el.getAttribute("data-da-role") === "memory-filter") {
           this.handleMemoryFilter(el.value);
+          return;
+        }
+        if ((el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) && typeof el.getAttribute("data-da-role") === "string" && el.getAttribute("data-da-role")?.startsWith("prompt-")) {
+          this.handlePromptPresetInput(el);
           return;
         }
         if (el instanceof HTMLInputElement && (el.type === "text" || el.type === "password" || el.type === "number")) {
@@ -3882,6 +4429,9 @@
         case "test-connection":
           await this.handleTestConnection();
           break;
+        case "refresh-models":
+          await this.handleRefreshModels();
+          break;
         case "create-profile":
           await this.handleCreateProfile();
           break;
@@ -3890,6 +4440,30 @@
           break;
         case "import-profile":
           await this.handleImportProfile();
+          break;
+        case "create-prompt-preset":
+          this.handleCreatePromptPreset();
+          break;
+        case "delete-prompt-preset":
+          this.handleDeletePromptPreset();
+          break;
+        case "backfill-current-chat":
+          await this.handleBackfillCurrentChat();
+          break;
+        case "regenerate-current-chat":
+          await this.handleRegenerateCurrentChat();
+          break;
+        case "bulk-delete-memory":
+          await this.handleBulkDeleteMemory();
+          break;
+        case "edit-memory-item":
+          this.handleEditMemoryItem(btn);
+          break;
+        case "save-memory-edit":
+          await this.handleSaveMemoryEdit(btn);
+          break;
+        case "cancel-memory-edit":
+          this.handleCancelMemoryEdit();
           break;
         case "switch-lang":
           await this.handleSwitchLang(btn);
@@ -3905,6 +4479,24 @@
           break;
         case "add-continuity-fact":
           await this.handleAddMemoryItem("continuity-fact");
+          break;
+        case "delete-world-fact":
+          await this.handleDeleteMemoryItem(btn, "world-fact");
+          break;
+        case "add-world-fact":
+          await this.handleAddMemoryItem("world-fact");
+          break;
+        case "delete-entity":
+          await this.handleDeleteMemoryItem(btn, "entity");
+          break;
+        case "add-entity":
+          await this.handleAddMemoryItem("entity");
+          break;
+        case "delete-relation":
+          await this.handleDeleteMemoryItem(btn, "relation");
+          break;
+        case "add-relation":
+          await this.handleAddRelation();
           break;
       }
     }
@@ -3939,28 +4531,34 @@
       if (typeof defaults[key] === typeof value) {
         ;
         this.draft.settings[key] = value;
-        this.draft.isDirty = true;
-        this.updateDirtyIndicator();
+        this.markDirty();
       }
       if (key === "directorProvider") {
         const providerDefaults = resolveProviderDefaults(
           value
         );
         this.draft.settings.directorBaseUrl = providerDefaults.baseUrl;
-        this.draft.isDirty = true;
+        this.modelOptions = Array.from(
+          /* @__PURE__ */ new Set([
+            this.draft.settings.directorModel,
+            ...providerDefaults.curatedModels
+          ])
+        );
+        this.markDirty();
         const baseUrlInput = this.root?.querySelector(
           '[data-da-field="directorBaseUrl"]'
         );
         if (baseUrlInput) {
           baseUrlInput.value = providerDefaults.baseUrl;
         }
+        this.updateModelSelectDom();
       }
       if (key === "embeddingProvider") {
         const providerDefaults = resolveEmbeddingDefaults(
           value
         );
         this.draft.settings.embeddingBaseUrl = providerDefaults.baseUrl;
-        this.draft.isDirty = true;
+        this.markDirty();
         const baseUrlInput = this.root?.querySelector(
           '[data-da-field="embeddingBaseUrl"]'
         );
@@ -4032,6 +4630,19 @@
         };
       }
       this.updateConnectionStatusDom();
+    }
+    async handleRefreshModels() {
+      try {
+        const models = await loadProviderModels(this.api, this.draft.settings);
+        this.modelOptions = models.includes(this.draft.settings.directorModel) ? models : [this.draft.settings.directorModel, ...models];
+        this.updateModelSelectDom();
+      } catch (error) {
+        this.connectionStatus = {
+          kind: "error",
+          message: error instanceof Error ? error.message : String(error)
+        };
+        this.updateConnectionStatusDom();
+      }
     }
     // ── Profile flows ─────────────────────────────────────────────────────
     async handleCreateProfile() {
@@ -4112,6 +4723,272 @@
         await this.api.alertError(t("toast.failedParseProfile"));
       }
     }
+    handlePromptPresetSelect(presetId) {
+      this.draft.settings.promptPresetId = presetId === BUILTIN_PROMPT_PRESET_ID || this.draft.settings.promptPresets[presetId] != null ? presetId : BUILTIN_PROMPT_PRESET_ID;
+      this.markDirty();
+      this.fullReRender();
+    }
+    handleCreatePromptPreset() {
+      const preset = createPromptPresetFromSettings(this.draft.settings);
+      this.draft.settings.promptPresets[preset.id] = preset;
+      this.draft.settings.promptPresetId = preset.id;
+      this.markDirty();
+      this.fullReRender();
+    }
+    handleDeletePromptPreset() {
+      const current = this.getSelectedCustomPromptPreset();
+      if (!current) return;
+      delete this.draft.settings.promptPresets[current.id];
+      this.draft.settings.promptPresetId = BUILTIN_PROMPT_PRESET_ID;
+      this.markDirty();
+      this.fullReRender();
+    }
+    handlePromptPresetInput(el) {
+      const current = this.getSelectedCustomPromptPreset();
+      if (!current) return;
+      const role = el.getAttribute("data-da-role");
+      if (!role) return;
+      switch (role) {
+        case "prompt-preset-name":
+          current.name = el.value.trim() || current.name;
+          break;
+        case "prompt-pre-request-system":
+          current.preset.preRequestSystemTemplate = el.value;
+          break;
+        case "prompt-pre-request-user":
+          current.preset.preRequestUserTemplate = el.value;
+          break;
+        case "prompt-post-response-system":
+          current.preset.postResponseSystemTemplate = el.value;
+          break;
+        case "prompt-post-response-user":
+          current.preset.postResponseUserTemplate = el.value;
+          break;
+        case "prompt-max-recent-messages": {
+          const numeric = Number(el.value);
+          current.preset.maxRecentMessages = Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : this.getSelectedPromptPreset().preset.maxRecentMessages;
+          break;
+        }
+        default:
+          return;
+      }
+      current.updatedAt = Date.now();
+      this.markDirty();
+    }
+    async handleBackfillCurrentChat() {
+      const resolution = await resolveScopeStorageKey(this.api);
+      if (resolution.storageKey !== this.resolveStateKey()) {
+        await this.api.alertError(t("error.backfillScopeMismatch"));
+        return;
+      }
+      const result = await backfillCurrentChat(this.api, {
+        load: async () => structuredClone(await readCanonicalState(this.store)),
+        save: async (next) => {
+          if (this.store.writeCanonical) {
+            const persisted = await this.store.writeCanonical(() => structuredClone(next));
+            this.canonicalState = structuredClone(persisted);
+            return;
+          }
+          await this.store.storage.setItem(this.resolveStateKey(), structuredClone(next));
+          this.canonicalState = structuredClone(next);
+        }
+      });
+      if (!this.store.writeCanonical) {
+        this.canonicalState = await readCanonicalState(this.store);
+      }
+      this.fullReRender();
+      if (result.appliedUpdates > 0) {
+        this.showToast(
+          t("toast.backfillCompleted", { count: String(result.appliedUpdates) })
+        );
+        return;
+      }
+      this.showToast(t("toast.backfillSkipped"));
+    }
+    async handleRegenerateCurrentChat() {
+      const resolution = await resolveScopeStorageKey(this.api);
+      if (resolution.storageKey !== this.resolveStateKey()) {
+        await this.api.alertError(t("error.backfillScopeMismatch"));
+        return;
+      }
+      const resetCanonical = async () => {
+        if (this.store.writeCanonical) {
+          const persisted = await this.store.writeCanonical((current2) => {
+            const empty2 = createEmptyState({
+              projectKey: current2.projectKey,
+              characterKey: current2.characterKey,
+              sessionKey: current2.sessionKey
+            });
+            empty2.settings = structuredClone(current2.settings);
+            return empty2;
+          });
+          this.canonicalState = structuredClone(persisted);
+          return;
+        }
+        const current = await readCanonicalState(this.store);
+        const empty = createEmptyState({
+          projectKey: current.projectKey,
+          characterKey: current.characterKey,
+          sessionKey: current.sessionKey
+        });
+        empty.settings = structuredClone(current.settings);
+        await this.store.storage.setItem(this.resolveStateKey(), structuredClone(empty));
+        this.canonicalState = empty;
+      };
+      await resetCanonical();
+      this.selectedMemoryKeys.clear();
+      this.editingMemory = null;
+      await this.handleBackfillCurrentChat();
+    }
+    handleMemorySelectionChange(input) {
+      const itemKey = input.getAttribute("data-da-item-key");
+      if (!itemKey) return;
+      if (input.checked) {
+        this.selectedMemoryKeys.add(itemKey);
+      } else {
+        this.selectedMemoryKeys.delete(itemKey);
+      }
+      const bulkDeleteBtn = this.root?.querySelector(
+        '[data-da-action="bulk-delete-memory"]'
+      );
+      if (bulkDeleteBtn) {
+        bulkDeleteBtn.disabled = this.selectedMemoryKeys.size === 0;
+      }
+    }
+    handleEditMemoryItem(btn) {
+      const itemKey = btn.getAttribute("data-da-item-key");
+      if (!itemKey) return;
+      const [kind, id] = itemKey.split(":", 2);
+      if (!kind || !id) return;
+      this.editingMemory = {
+        kind,
+        id
+      };
+      this.fullReRender();
+    }
+    handleCancelMemoryEdit() {
+      this.editingMemory = null;
+      this.fullReRender();
+    }
+    async handleSaveMemoryEdit(btn) {
+      const itemKey = btn.getAttribute("data-da-item-key");
+      if (!itemKey) return;
+      const [kind, id] = itemKey.split(":", 2);
+      if (!kind || !id) return;
+      const row = btn.closest(".da-memory-item");
+      if (!row) return;
+      const applyEdit = (state) => {
+        switch (kind) {
+          case "summary": {
+            const input = row.querySelector(
+              'input[data-da-role="edit-summary-text"]'
+            );
+            const text = input?.value.trim() ?? "";
+            if (!text) return;
+            upsertSummary(state, { id, text, recencyWeight: 1 });
+            break;
+          }
+          case "continuity-fact": {
+            const input = row.querySelector(
+              'input[data-da-role="edit-continuity-fact-text"]'
+            );
+            const text = input?.value.trim() ?? "";
+            if (!text) return;
+            upsertContinuityFact(state, { id, text, priority: 5 });
+            break;
+          }
+          case "world-fact": {
+            const input = row.querySelector(
+              'input[data-da-role="edit-world-fact-text"]'
+            );
+            const text = input?.value.trim() ?? "";
+            if (!text) return;
+            upsertWorldFact(state, { id, text });
+            break;
+          }
+          case "entity": {
+            const input = row.querySelector(
+              'input[data-da-role="edit-entity-name"]'
+            );
+            const name = input?.value.trim() ?? "";
+            if (!name) return;
+            upsertEntity(state, { id, name });
+            break;
+          }
+          case "relation": {
+            const sourceInput = row.querySelector(
+              'input[data-da-role="edit-relation-source"]'
+            );
+            const labelInput = row.querySelector(
+              'input[data-da-role="edit-relation-label"]'
+            );
+            const targetInput = row.querySelector(
+              'input[data-da-role="edit-relation-target"]'
+            );
+            const sourceId = sourceInput?.value.trim() ?? "";
+            const label = labelInput?.value.trim() ?? "";
+            const targetId = targetInput?.value.trim() ?? "";
+            if (!sourceId || !label || !targetId) return;
+            upsertRelation(state, { id, sourceId, label, targetId });
+            break;
+          }
+        }
+      };
+      if (this.store.writeCanonical) {
+        const nextState = await this.store.writeCanonical((current) => {
+          applyEdit(current);
+          return current;
+        });
+        this.canonicalState = structuredClone(nextState);
+      } else {
+        const state = await readCanonicalState(this.store);
+        applyEdit(state);
+        await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state));
+        this.canonicalState = state;
+      }
+      this.editingMemory = null;
+      this.fullReRender();
+    }
+    async handleBulkDeleteMemory() {
+      if (this.selectedMemoryKeys.size === 0) return;
+      const applyDelete = (state) => {
+        for (const itemKey of Array.from(this.selectedMemoryKeys)) {
+          const [kind, id] = itemKey.split(":", 2);
+          if (!kind || !id) continue;
+          switch (kind) {
+            case "summary":
+              deleteSummary(state, id);
+              break;
+            case "continuity-fact":
+              deleteContinuityFact(state, id);
+              break;
+            case "world-fact":
+              deleteWorldFact(state, id);
+              break;
+            case "entity":
+              deleteEntity(state, id);
+              break;
+            case "relation":
+              deleteRelation(state, id);
+              break;
+          }
+        }
+      };
+      if (this.store.writeCanonical) {
+        const nextState = await this.store.writeCanonical((current) => {
+          applyDelete(current);
+          return current;
+        });
+        this.canonicalState = structuredClone(nextState);
+      } else {
+        const state = await readCanonicalState(this.store);
+        applyDelete(state);
+        await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state));
+        this.canonicalState = state;
+      }
+      this.selectedMemoryKeys.clear();
+      this.fullReRender();
+    }
     // ── Memory filter ──────────────────────────────────────────────────────
     handleMemoryFilter(query) {
       if (!this.root) return;
@@ -4126,13 +5003,28 @@
     async handleDeleteMemoryItem(btn, kind) {
       const itemId = btn.getAttribute("data-da-item-id");
       if (!itemId) return;
+      const applyDelete = (state2) => {
+        switch (kind) {
+          case "summary":
+            deleteSummary(state2, itemId);
+            break;
+          case "continuity-fact":
+            deleteContinuityFact(state2, itemId);
+            break;
+          case "world-fact":
+            deleteWorldFact(state2, itemId);
+            break;
+          case "entity":
+            deleteEntity(state2, itemId);
+            break;
+          case "relation":
+            deleteRelation(state2, itemId);
+            break;
+        }
+      };
       if (this.store.writeCanonical) {
         const nextState = await this.store.writeCanonical((current) => {
-          if (kind === "summary") {
-            deleteSummary(current, itemId);
-          } else {
-            deleteContinuityFact(current, itemId);
-          }
+          applyDelete(current);
           return current;
         });
         this.canonicalState = structuredClone(nextState);
@@ -4140,11 +5032,7 @@
         return;
       }
       const state = await readCanonicalState(this.store);
-      if (kind === "summary") {
-        deleteSummary(state, itemId);
-      } else {
-        deleteContinuityFact(state, itemId);
-      }
+      applyDelete(state);
       await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state));
       this.canonicalState = state;
       this.fullReRender();
@@ -4152,20 +5040,38 @@
     // ── Memory add ──────────────────────────────────────────────────────
     async handleAddMemoryItem(kind) {
       if (!this.root) return;
-      const inputRole = kind === "summary" ? "add-summary-text" : "add-fact-text";
+      const inputRoleMap = {
+        "summary": "add-summary-text",
+        "continuity-fact": "add-fact-text",
+        "world-fact": "add-world-fact-text",
+        "entity": "add-entity-name"
+      };
+      const inputRole = inputRoleMap[kind];
       const inputEl = this.root.querySelector(
         `input[data-da-role="${inputRole}"]`
       );
       if (!inputEl) return;
       const text = inputEl.value.trim();
       if (!text) return;
+      const applyAdd = (state2) => {
+        switch (kind) {
+          case "summary":
+            upsertSummary(state2, { text, recencyWeight: 1 });
+            break;
+          case "continuity-fact":
+            upsertContinuityFact(state2, { text, priority: 5 });
+            break;
+          case "world-fact":
+            upsertWorldFact(state2, { text });
+            break;
+          case "entity":
+            upsertEntity(state2, { name: text });
+            break;
+        }
+      };
       if (this.store.writeCanonical) {
         const nextState = await this.store.writeCanonical((current) => {
-          if (kind === "summary") {
-            upsertSummary(current, { text, recencyWeight: 1 });
-          } else {
-            upsertContinuityFact(current, { text, priority: 5 });
-          }
+          applyAdd(current);
           return current;
         });
         this.canonicalState = structuredClone(nextState);
@@ -4173,11 +5079,33 @@
         return;
       }
       const state = await readCanonicalState(this.store);
-      if (kind === "summary") {
-        upsertSummary(state, { text, recencyWeight: 1 });
-      } else {
-        upsertContinuityFact(state, { text, priority: 5 });
+      applyAdd(state);
+      await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state));
+      this.canonicalState = state;
+      this.fullReRender();
+    }
+    // ── Relation add (multi-field) ─────────────────────────────────────────
+    async handleAddRelation() {
+      if (!this.root) return;
+      const srcEl = this.root.querySelector('input[data-da-role="add-relation-source"]');
+      const labelEl = this.root.querySelector('input[data-da-role="add-relation-label"]');
+      const tgtEl = this.root.querySelector('input[data-da-role="add-relation-target"]');
+      if (!srcEl || !labelEl || !tgtEl) return;
+      const sourceId = srcEl.value.trim();
+      const label = labelEl.value.trim();
+      const targetId = tgtEl.value.trim();
+      if (!sourceId || !label || !targetId) return;
+      if (this.store.writeCanonical) {
+        const nextState = await this.store.writeCanonical((current) => {
+          upsertRelation(current, { sourceId, label, targetId });
+          return current;
+        });
+        this.canonicalState = structuredClone(nextState);
+        this.fullReRender();
+        return;
       }
+      const state = await readCanonicalState(this.store);
+      upsertRelation(state, { sourceId, label, targetId });
       await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state));
       this.canonicalState = state;
       this.fullReRender();
@@ -4231,11 +5159,9 @@
     const profiles = rawManifest ?? createDefaultProfileManifest();
     let modelOptions = [settings.directorModel];
     try {
-      if (settings.directorApiKey) {
-        modelOptions = await loadProviderModels(api, settings);
-        if (!modelOptions.includes(settings.directorModel)) {
-          modelOptions.unshift(settings.directorModel);
-        }
+      modelOptions = await loadProviderModels(api, settings);
+      if (!modelOptions.includes(settings.directorModel)) {
+        modelOptions.unshift(settings.directorModel);
       }
     } catch {
     }
@@ -4502,13 +5428,15 @@
           messages: input.messages
         });
         turnCache.patch(input.turnId, { retrieval: retrieved });
+        const promptPreset = resolvePromptPreset(state.settings);
         const service = createDirectorService(api, state.settings);
         const result = await service.preRequest({
           messages: input.messages,
           directorState: state.director,
           memory: projectRetrievedMemory(state, retrieved),
           assertiveness: state.settings.assertiveness,
-          briefTokenCap: state.settings.briefTokenCap
+          briefTokenCap: state.settings.briefTokenCap,
+          promptPreset
         });
         if (!result.ok) {
           await store.writeFirst((current) => recordDirectorFailure(current, result.error));
@@ -4520,6 +5448,7 @@
       async postResponse(input) {
         const state = await store.load();
         if (!state.settings.postReviewEnabled) return null;
+        const promptPreset = resolvePromptPreset(state.settings);
         const service = createDirectorService(api, state.settings);
         const result = await service.postResponse({
           responseText: input.content,
@@ -4527,7 +5456,8 @@
           messages: input.messages,
           directorState: state.director,
           memory: state.memory,
-          assertiveness: state.settings.assertiveness
+          assertiveness: state.settings.assertiveness,
+          promptPreset
         });
         if (!result.ok) {
           await store.writeFirst((current) => recordDirectorFailure(current, result.error));

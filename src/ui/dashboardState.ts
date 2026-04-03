@@ -1,6 +1,17 @@
 import type { AsyncKeyValueStore } from '../contracts/risuai.js'
-import type { DirectorSettings, DirectorPluginState } from '../contracts/types.js'
+import type {
+  DirectorPromptPreset,
+  DirectorSettings,
+  DirectorPluginState,
+  StoredDirectorPromptPreset,
+} from '../contracts/types.js'
 import { DEFAULT_DIRECTOR_SETTINGS } from '../contracts/types.js'
+import {
+  BUILTIN_PROMPT_PRESET_ID,
+  BUILTIN_PROMPT_PRESET_NAME,
+  DEFAULT_DIRECTOR_PROMPT_PRESET,
+  resolvePromptPreset,
+} from '../director/prompt.js'
 import { t } from './i18n.js'
 
 // ---------------------------------------------------------------------------
@@ -48,6 +59,14 @@ interface PersistedProfileManifestLike {
   profiles?: unknown
 }
 
+interface PersistedPromptPresetLike {
+  id?: unknown
+  name?: unknown
+  createdAt?: unknown
+  updatedAt?: unknown
+  preset?: unknown
+}
+
 // ---------------------------------------------------------------------------
 // Normalization
 // ---------------------------------------------------------------------------
@@ -59,7 +78,15 @@ interface PersistedProfileManifestLike {
 export function normalizePersistedSettings(
   raw: Partial<DirectorSettings>
 ): DirectorSettings {
-  return { ...DEFAULT_DIRECTOR_SETTINGS, ...raw }
+  return {
+    ...DEFAULT_DIRECTOR_SETTINGS,
+    ...raw,
+    promptPresetId:
+      typeof raw.promptPresetId === 'string'
+        ? raw.promptPresetId
+        : DEFAULT_DIRECTOR_SETTINGS.promptPresetId,
+    promptPresets: normalizePromptPresets(raw.promptPresets),
+  }
 }
 
 function parseStoredValue<T>(value: unknown): T | null {
@@ -86,6 +113,97 @@ export function createDashboardDraft(settings: DirectorSettings): DashboardDraft
   return {
     isDirty: false,
     settings: { ...settings },
+  }
+}
+
+function isValidPromptPreset(value: unknown): value is DirectorPromptPreset {
+  if (value == null || typeof value !== 'object') return false
+  const record = value as Record<string, unknown>
+  const directives = record.assertivenessDirectives
+  if (directives == null || typeof directives !== 'object') return false
+  const directiveRecord = directives as Record<string, unknown>
+
+  return (
+    typeof record.preRequestSystemTemplate === 'string' &&
+    typeof record.preRequestUserTemplate === 'string' &&
+    typeof record.postResponseSystemTemplate === 'string' &&
+    typeof record.postResponseUserTemplate === 'string' &&
+    typeof record.sceneBriefSchema === 'string' &&
+    typeof record.memoryUpdateSchema === 'string' &&
+    typeof record.maxRecentMessages === 'number' &&
+    typeof directiveRecord.light === 'string' &&
+    typeof directiveRecord.standard === 'string' &&
+    typeof directiveRecord.firm === 'string'
+  )
+}
+
+function normalizePromptPresets(
+  raw: unknown,
+): Record<string, StoredDirectorPromptPreset> {
+  if (raw == null || typeof raw !== 'object') return {}
+
+  const entries = Object.entries(raw as Record<string, unknown>)
+  const normalized: Record<string, StoredDirectorPromptPreset> = {}
+
+  for (const [key, value] of entries) {
+    if (value == null || typeof value !== 'object') continue
+    const candidate = value as PersistedPromptPresetLike
+    if (
+      typeof candidate.id !== 'string' ||
+      typeof candidate.name !== 'string' ||
+      typeof candidate.createdAt !== 'number' ||
+      typeof candidate.updatedAt !== 'number' ||
+      !isValidPromptPreset(candidate.preset)
+    ) {
+      continue
+    }
+
+    normalized[key] = {
+      id: candidate.id,
+      name: candidate.name,
+      createdAt: candidate.createdAt,
+      updatedAt: candidate.updatedAt,
+      preset: structuredClone(candidate.preset),
+    }
+  }
+
+  return normalized
+}
+
+export function createBuiltinPromptPresetRecord(): StoredDirectorPromptPreset {
+  return {
+    id: BUILTIN_PROMPT_PRESET_ID,
+    name: BUILTIN_PROMPT_PRESET_NAME,
+    createdAt: 0,
+    updatedAt: 0,
+    preset: structuredClone(DEFAULT_DIRECTOR_PROMPT_PRESET),
+  }
+}
+
+export function resolveSelectedPromptPreset(
+  settings: Pick<DirectorSettings, 'promptPresetId' | 'promptPresets'>,
+): StoredDirectorPromptPreset {
+  const stored = settings.promptPresets[settings.promptPresetId]
+  if (stored) {
+    return structuredClone(stored)
+  }
+
+  return createBuiltinPromptPresetRecord()
+}
+
+export function createPromptPresetFromSettings(
+  settings: Pick<DirectorSettings, 'promptPresetId' | 'promptPresets'>,
+  name?: string,
+): StoredDirectorPromptPreset {
+  const now = Date.now()
+  const count = Object.keys(settings.promptPresets).length + 1
+
+  return {
+    id: `prompt-preset-${now}-${Math.random().toString(36).slice(2, 8)}`,
+    name: name?.trim() || t('promptPreset.customName', { n: String(count) }),
+    createdAt: now,
+    updatedAt: now,
+    preset: structuredClone(resolvePromptPreset(settings)),
   }
 }
 

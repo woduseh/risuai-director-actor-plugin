@@ -2,6 +2,8 @@ import type { DirectorSettings, DirectorPluginState } from '../contracts/types.j
 import type { ProfileManifest } from './dashboardState.js'
 import { DASHBOARD_ROOT_CLASS } from './dashboardCss.js'
 import { EMBEDDING_PROVIDER_CATALOG } from './dashboardModel.js'
+import { resolveSelectedPromptPreset } from './dashboardState.js'
+import { BUILTIN_PROMPT_PRESET_ID } from '../director/prompt.js'
 import {
   t,
   tabLabel,
@@ -44,6 +46,11 @@ export interface DashboardMarkupInput {
     kind: string
     message: string
   }
+  selectedMemoryKeys?: string[]
+  editingMemory?: {
+    kind: 'summary' | 'continuity-fact' | 'world-fact' | 'entity' | 'relation'
+    id: string
+  } | null
 }
 
 // ---------------------------------------------------------------------------
@@ -161,6 +168,22 @@ function buildGeneralPage(input: DashboardMarkupInput): string {
 
 function buildPromptTuningPage(input: DashboardMarkupInput): string {
   const { settings } = input
+  const selectedPreset = resolveSelectedPromptPreset(settings)
+  const selectedPresetId = settings.promptPresets[settings.promptPresetId]
+    ? settings.promptPresetId
+    : BUILTIN_PROMPT_PRESET_ID
+  const isBuiltinPreset = selectedPresetId === BUILTIN_PROMPT_PRESET_ID
+  const presetDisabled = isBuiltinPreset ? ' disabled' : ''
+  const promptPresetOptions = [
+    `<option value="${BUILTIN_PROMPT_PRESET_ID}"${selectedPresetId === BUILTIN_PROMPT_PRESET_ID ? ' selected' : ''}>${t('promptPreset.defaultName')}</option>`,
+    ...Object.values(settings.promptPresets)
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map(
+        (preset) =>
+          `<option value="${escapeXml(preset.id)}"${preset.id === selectedPresetId ? ' selected' : ''}>${escapeXml(preset.name)}</option>`,
+      ),
+  ].join('')
+
   return `
       <div class="da-grid">
         <section class="da-card">
@@ -184,6 +207,49 @@ function buildPromptTuningPage(input: DashboardMarkupInput): string {
               <input type="checkbox" data-da-field="embeddingsEnabled"${settings.embeddingsEnabled ? ' checked' : ''} />
               <span class="da-toggle-track"><span class="da-toggle-dot"></span></span>
               <span>${t('label.embeddings')}</span>
+            </label>
+          </div>
+        </section>
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">${t('card.promptPresets.title')}</h3>
+              <p class="da-card-copy">${t('card.promptPresets.copy')}</p>
+            </div>
+          </div>
+          <div class="da-form-grid">
+            <label class="da-label">
+              <span class="da-label-text">${t('label.promptPreset')}</span>
+              <select class="da-select" data-da-role="prompt-preset-select">${promptPresetOptions}</select>
+            </label>
+            <div class="da-inline">
+              <button class="da-btn da-btn--primary" data-da-action="create-prompt-preset">${t('btn.newPromptPreset')}</button>
+              <button class="da-btn da-btn--danger" data-da-action="delete-prompt-preset"${isBuiltinPreset ? ' disabled' : ''}>${t('btn.deletePromptPreset')}</button>
+            </div>
+            ${isBuiltinPreset ? `<p class="da-hint">${t('promptPreset.readOnlyHint')}</p>` : ''}
+            <label class="da-label">
+              <span class="da-label-text">${t('label.promptPresetName')}</span>
+              <input type="text" class="da-input" data-da-role="prompt-preset-name" value="${escapeXml(isBuiltinPreset ? t('promptPreset.defaultName') : selectedPreset.name)}"${presetDisabled} />
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">${t('label.preRequestSystemTemplate')}</span>
+              <textarea class="da-textarea" data-da-role="prompt-pre-request-system"${presetDisabled}>${escapeXml(selectedPreset.preset.preRequestSystemTemplate)}</textarea>
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">${t('label.preRequestUserTemplate')}</span>
+              <textarea class="da-textarea" data-da-role="prompt-pre-request-user"${presetDisabled}>${escapeXml(selectedPreset.preset.preRequestUserTemplate)}</textarea>
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">${t('label.postResponseSystemTemplate')}</span>
+              <textarea class="da-textarea" data-da-role="prompt-post-response-system"${presetDisabled}>${escapeXml(selectedPreset.preset.postResponseSystemTemplate)}</textarea>
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">${t('label.postResponseUserTemplate')}</span>
+              <textarea class="da-textarea" data-da-role="prompt-post-response-user"${presetDisabled}>${escapeXml(selectedPreset.preset.postResponseUserTemplate)}</textarea>
+            </label>
+            <label class="da-label">
+              <span class="da-label-text">${t('label.maxRecentMessages')}</span>
+              <input type="number" class="da-input" data-da-role="prompt-max-recent-messages" value="${selectedPreset.preset.maxRecentMessages}"${presetDisabled} />
             </label>
           </div>
         </section>
@@ -215,7 +281,10 @@ function buildPromptTuningPage(input: DashboardMarkupInput): string {
 function buildModelSettingsPage(input: DashboardMarkupInput): string {
   const { settings, modelOptions } = input
   const modelOptionEls = modelOptions
-    .map((m) => `<option value="${m}"${m === settings.directorModel ? ' selected' : ''}>${m}</option>`)
+    .map(
+      (m) =>
+        `<option value="${escapeXml(m)}"${m === settings.directorModel ? ' selected' : ''}>${escapeXml(m)}</option>`,
+    )
     .join('')
   const embeddingProviderOptionEls = EMBEDDING_PROVIDER_CATALOG
     .map(
@@ -239,15 +308,15 @@ function buildModelSettingsPage(input: DashboardMarkupInput): string {
             </label>
             <label class="da-label">
               <span class="da-label-text">${t('label.embeddingBaseUrl')}</span>
-              <input type="text" class="da-input" data-da-field="embeddingBaseUrl" value="${settings.embeddingBaseUrl}" />
+              <input type="text" class="da-input" data-da-field="embeddingBaseUrl" value="${escapeXml(settings.embeddingBaseUrl)}" />
             </label>
             <label class="da-label">
               <span class="da-label-text">${t('label.embeddingApiKey')}</span>
-              <input type="password" class="da-input" data-da-field="embeddingApiKey" value="${settings.embeddingApiKey}" />
+              <input type="password" class="da-input" data-da-field="embeddingApiKey" value="${escapeXml(settings.embeddingApiKey)}" />
             </label>
             <label class="da-label">
               <span class="da-label-text">${t('label.embeddingModel')}</span>
-              <input type="text" class="da-input" data-da-field="embeddingModel" value="${settings.embeddingModel}" />
+              <input type="text" class="da-input" data-da-field="embeddingModel" value="${escapeXml(settings.embeddingModel)}" />
             </label>
             <label class="da-label">
               <span class="da-label-text">${t('label.embeddingDimensions')}</span>
@@ -280,11 +349,11 @@ function buildModelSettingsPage(input: DashboardMarkupInput): string {
             <div class="da-split">
               <label class="da-label">
                 <span class="da-label-text">${t('label.baseUrl')}</span>
-                <input type="text" class="da-input" data-da-field="directorBaseUrl" value="${settings.directorBaseUrl}" />
+                <input type="text" class="da-input" data-da-field="directorBaseUrl" value="${escapeXml(settings.directorBaseUrl)}" />
               </label>
               <label class="da-label">
                 <span class="da-label-text">${t('label.apiKey')}</span>
-                <input type="password" class="da-input" data-da-field="directorApiKey" value="${settings.directorApiKey}" />
+                <input type="password" class="da-input" data-da-field="directorApiKey" value="${escapeXml(settings.directorApiKey)}" />
               </label>
             </div>
             <label class="da-label">
@@ -293,7 +362,7 @@ function buildModelSettingsPage(input: DashboardMarkupInput): string {
             </label>
             <label class="da-label">
               <span class="da-label-text">${t('label.customModelId')}</span>
-              <input type="text" class="da-input" data-da-field="directorModel" value="${settings.directorModel}" placeholder="${t('placeholder.customModelId')}" />
+              <input type="text" class="da-input" data-da-field="directorModel" value="${escapeXml(settings.directorModel)}" placeholder="${t('placeholder.customModelId')}" />
             </label>
             <div class="da-inline">
               <button class="da-btn da-btn--primary" data-da-action="test-connection">${t('btn.testConnection')}</button>
@@ -308,24 +377,124 @@ function buildMemoryCachePage(input: DashboardMarkupInput): string {
   const { pluginState } = input
   const summaries = pluginState.memory.summaries
   const facts = pluginState.memory.continuityFacts
-  const isEmpty = summaries.length === 0 && facts.length === 0
+  const worldFacts = pluginState.memory.worldFacts
+  const entities = pluginState.memory.entities
+  const relations = pluginState.memory.relations
+  const selectedKeys = new Set(input.selectedMemoryKeys ?? [])
+  const editingMemory = input.editingMemory ?? null
+  const isEmpty = summaries.length === 0 && facts.length === 0 && worldFacts.length === 0 && entities.length === 0 && relations.length === 0
+  const selectedCount = selectedKeys.size
 
+  const backfillHtml = `<div class="da-inline"><button class="da-btn da-btn--primary" data-da-action="backfill-current-chat">${t('btn.backfillCurrentChat')}</button></div>`
+  const regenerateHtml = `<div class="da-inline"><button class="da-btn" data-da-action="regenerate-current-chat">${t('btn.regenerateCurrentChat')}</button></div>`
+  const bulkDeleteHtml = `<div class="da-inline"><button class="da-btn da-btn--danger" data-da-action="bulk-delete-memory"${selectedCount === 0 ? ' disabled' : ''}>${t('btn.deleteSelected')}</button></div>`
   const filterHtml = `<input type="text" class="da-input" data-da-role="memory-filter" placeholder="${t('memory.filterPlaceholder')}" />`
 
   const addSummaryHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-summary-text" placeholder="${t('memory.addSummaryPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-summary">${t('btn.add')}</button></div>`
   const addFactHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-fact-text" placeholder="${t('memory.addFactPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-continuity-fact">${t('btn.add')}</button></div>`
+  const addWorldFactHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-world-fact-text" placeholder="${t('memory.addWorldFactPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-world-fact">${t('btn.add')}</button></div>`
+  const addEntityHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-entity-name" placeholder="${t('memory.addEntityNamePlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-entity">${t('btn.add')}</button></div>`
+  const addRelationHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-relation-source" placeholder="${t('memory.addRelationSourcePlaceholder')}" /><input type="text" class="da-input da-input--add" data-da-role="add-relation-label" placeholder="${t('memory.addRelationLabelPlaceholder')}" /><input type="text" class="da-input da-input--add" data-da-role="add-relation-target" placeholder="${t('memory.addRelationTargetPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-relation">${t('btn.add')}</button></div>`
+
+  function renderMemoryItem(
+    kind: 'summary' | 'continuity-fact' | 'world-fact' | 'entity' | 'relation',
+    id: string,
+    displayText: string,
+    deleteAction: string,
+    editRole: string,
+    editValue: string,
+    extraEditFields = '',
+  ): string {
+    const itemKey = `${kind}:${id}`
+    const checked = selectedKeys.has(itemKey) ? ' checked' : ''
+    const isEditing = editingMemory?.kind === kind && editingMemory.id === id
+
+    if (isEditing) {
+      return `<li class="da-memory-item">
+        <input type="checkbox" data-da-role="memory-select" data-da-item-key="${escapeXml(itemKey)}"${checked} />
+        <div class="da-form-grid" style="flex:1">
+          <input type="text" class="da-input" data-da-role="${editRole}" data-da-item-id="${escapeXml(id)}" value="${escapeXml(editValue)}" />
+          ${extraEditFields}
+        </div>
+        <button class="da-btn da-btn--primary da-btn--sm" data-da-action="save-memory-edit" data-da-item-key="${escapeXml(itemKey)}">${t('btn.save')}</button>
+        <button class="da-btn da-btn--sm" data-da-action="cancel-memory-edit" data-da-item-key="${escapeXml(itemKey)}">${t('btn.cancel')}</button>
+      </li>`
+    }
+
+    return `<li class="da-memory-item">
+      <input type="checkbox" data-da-role="memory-select" data-da-item-key="${escapeXml(itemKey)}"${checked} />
+      <span>${escapeXml(displayText)}</span>
+      <button class="da-btn da-btn--sm" data-da-action="edit-memory-item" data-da-item-key="${escapeXml(itemKey)}">${t('btn.edit')}</button>
+      <button class="da-btn da-btn--danger da-btn--sm" data-da-action="${deleteAction}" data-da-item-id="${escapeXml(id)}">${t('btn.delete')}</button>
+    </li>`
+  }
 
   const summaryItems = summaries
-    .map(
-      (s) =>
-        `<li class="da-memory-item"><span>${escapeXml(s.text)}</span><button class="da-btn da-btn--danger da-btn--sm" data-da-action="delete-summary" data-da-item-id="${escapeXml(s.id)}">${t('btn.delete')}</button></li>`,
+    .map((s) =>
+      renderMemoryItem(
+        'summary',
+        s.id,
+        s.text,
+        'delete-summary',
+        'edit-summary-text',
+        s.text,
+      ),
     )
     .join('')
 
   const factItems = facts
-    .map(
-      (f) =>
-        `<li class="da-memory-item"><span>${escapeXml(f.text)}</span><button class="da-btn da-btn--danger da-btn--sm" data-da-action="delete-continuity-fact" data-da-item-id="${escapeXml(f.id)}">${t('btn.delete')}</button></li>`,
+    .map((f) =>
+      renderMemoryItem(
+        'continuity-fact',
+        f.id,
+        f.text,
+        'delete-continuity-fact',
+        'edit-continuity-fact-text',
+        f.text,
+      ),
+    )
+    .join('')
+
+  const worldFactItems = worldFacts
+    .map((w) =>
+      renderMemoryItem(
+        'world-fact',
+        w.id,
+        w.text,
+        'delete-world-fact',
+        'edit-world-fact-text',
+        w.text,
+      ),
+    )
+    .join('')
+
+  const entityItems = entities
+    .map((e) =>
+      renderMemoryItem(
+        'entity',
+        e.id,
+        e.name,
+        'delete-entity',
+        'edit-entity-name',
+        e.name,
+      ),
+    )
+    .join('')
+
+  const relationItems = relations
+    .map((r) =>
+      renderMemoryItem(
+        'relation',
+        r.id,
+        `${r.sourceId} → ${r.label} → ${r.targetId}`,
+        'delete-relation',
+        'edit-relation-source',
+        r.sourceId,
+        `<div class="da-inline">
+          <input type="text" class="da-input" data-da-role="edit-relation-label" data-da-item-id="${escapeXml(r.id)}" value="${escapeXml(r.label)}" />
+          <input type="text" class="da-input" data-da-role="edit-relation-target" data-da-item-id="${escapeXml(r.id)}" value="${escapeXml(r.targetId)}" />
+        </div>`,
+      ),
     )
     .join('')
 
@@ -334,7 +503,7 @@ function buildMemoryCachePage(input: DashboardMarkupInput): string {
     : ''
 
   return `
-      ${filterHtml}${emptyHintHtml}
+      ${backfillHtml}${regenerateHtml}${bulkDeleteHtml}${filterHtml}${emptyHintHtml}
       <div class="da-grid">
         <section class="da-card">
           <div class="da-card-header">
@@ -351,6 +520,30 @@ function buildMemoryCachePage(input: DashboardMarkupInput): string {
             </div>
           </div>${factItems ? `\n          <ul class="da-memory-list">${factItems}</ul>` : ''}
           ${addFactHtml}
+        </section>
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">${t('card.worldFacts.title')}</h3>
+            </div>
+          </div>${worldFactItems ? `\n          <ul class="da-memory-list">${worldFactItems}</ul>` : ''}
+          ${addWorldFactHtml}
+        </section>
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">${t('card.entities.title')}</h3>
+            </div>
+          </div>${entityItems ? `\n          <ul class="da-memory-list">${entityItems}</ul>` : ''}
+          ${addEntityHtml}
+        </section>
+        <section class="da-card">
+          <div class="da-card-header">
+            <div>
+              <h3 class="da-card-title">${t('card.relations.title')}</h3>
+            </div>
+          </div>${relationItems ? `\n          <ul class="da-memory-list">${relationItems}</ul>` : ''}
+          ${addRelationHtml}
         </section>
       </div>`
 }

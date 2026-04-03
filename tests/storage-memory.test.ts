@@ -29,6 +29,23 @@ describe('CanonicalStore', () => {
     expect(state.memory.continuityFacts).toEqual([])
   })
 
+  test('patches legacy state missing worldFacts, entities, and relations to empty arrays', async () => {
+    const api = createMockRisuaiApi()
+    const legacyState = createEmptyState()
+    const legacyMemory = legacyState.memory as unknown as Record<string, unknown>
+    delete legacyMemory.worldFacts
+    delete legacyMemory.entities
+    delete legacyMemory.relations
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, legacyState)
+
+    const store = new CanonicalStore(api.pluginStorage)
+    const state = await store.load()
+
+    expect(state.memory.worldFacts).toEqual([])
+    expect(state.memory.entities).toEqual([])
+    expect(state.memory.relations).toEqual([])
+  })
+
   test('writeFirst persists before afterPersist callback observes storage', async () => {
     const api = createMockRisuaiApi()
     const store = new CanonicalStore(api.pluginStorage)

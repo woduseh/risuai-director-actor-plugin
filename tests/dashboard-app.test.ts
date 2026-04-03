@@ -6,11 +6,13 @@ import { createMockRisuaiApi } from './helpers/mockRisuai.js'
 import { openDashboard, closeDashboard } from '../src/ui/dashboardApp.js'
 import type { DashboardStore } from '../src/ui/dashboardApp.js'
 import { DASHBOARD_STYLE_ID, DASHBOARD_ROOT_CLASS } from '../src/ui/dashboardCss.js'
+import { resolveScopeStorageKey } from '../src/memory/scopeResolver.js'
 import {
   DASHBOARD_SETTINGS_KEY,
   DASHBOARD_PROFILE_MANIFEST_KEY,
 } from '../src/ui/dashboardState.js'
-import { DEFAULT_DIRECTOR_SETTINGS } from '../src/contracts/types.js'
+import { createEmptyState, DEFAULT_DIRECTOR_SETTINGS } from '../src/contracts/types.js'
+import { BUILTIN_PROMPT_PRESET_ID } from '../src/director/prompt.js'
 
 function createTestStore(api: ReturnType<typeof createMockRisuaiApi>): DashboardStore {
   return { storage: api.pluginStorage }
@@ -214,6 +216,29 @@ describe('openDashboard', () => {
     expect(baseUrlInput.value).toBe('')
   })
 
+  test('opening the dashboard with a copilot provider loads curated model options without an API key', async () => {
+    await api.pluginStorage.setItem(DASHBOARD_SETTINGS_KEY, {
+      ...DEFAULT_DIRECTOR_SETTINGS,
+      directorProvider: 'copilot',
+      directorApiKey: '',
+      directorBaseUrl: 'https://api.githubcopilot.com/v1',
+      directorModel: 'gpt-5.4',
+    })
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const modelBtn = root.querySelector('[data-da-target="model-settings"]') as HTMLElement
+    modelBtn.click()
+
+    const modelSelect = document.querySelector(
+      '[data-da-field="directorModel"]',
+    ) as HTMLSelectElement
+    const values = Array.from(modelSelect.options).map((option) => option.value)
+
+    expect(values).toContain('gpt-5.4')
+  })
+
   test('save persists draft to pluginStorage', async () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
@@ -334,6 +359,68 @@ describe('openDashboard', () => {
     const status = document.querySelector('.da-connection-status')
     expect(status?.getAttribute('data-da-status')).toBe('ok')
     expect(status?.textContent).toContain('2 models')
+  })
+
+  test('refresh-models reloads the provider model list into the selector', async () => {
+    await api.pluginStorage.setItem(DASHBOARD_SETTINGS_KEY, {
+      ...DEFAULT_DIRECTOR_SETTINGS,
+      directorApiKey: 'sk-test',
+      directorBaseUrl: 'https://api.openai.com/v1',
+      directorModel: 'gpt-5.4',
+    })
+    api.enqueueNativeFetchJson({
+      data: [{ id: 'gpt-5.4' }],
+    })
+    api.enqueueNativeFetchJson({
+      data: [{ id: 'gpt-5.4-pro' }, { id: 'gpt-5.4' }],
+    })
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const refreshBtn = root.querySelector('[data-da-action="refresh-models"]') as HTMLElement
+    expect(refreshBtn).not.toBeNull()
+    refreshBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const modelSelect = document.querySelector(
+      '[data-da-field="directorModel"]',
+    ) as HTMLSelectElement
+    const values = Array.from(modelSelect.options).map((option) => option.value)
+    expect(values).toEqual(expect.arrayContaining(['gpt-5.4', 'gpt-5.4-pro']))
+  })
+
+  test('test-connection escapes returned model option ids when updating the select', async () => {
+    const injectedModel = 'gpt-bad" data-evil="1'
+
+    await api.pluginStorage.setItem(DASHBOARD_SETTINGS_KEY, {
+      ...DEFAULT_DIRECTOR_SETTINGS,
+      directorApiKey: 'sk-test',
+      directorBaseUrl: 'https://api.openai.com/v1',
+    })
+    api.enqueueNativeFetchJson({
+      data: [{ id: 'gpt-4.1-mini' }],
+    })
+    api.enqueueNativeFetchJson({
+      data: [{ id: injectedModel }],
+    })
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const testBtn = root.querySelector('[data-da-action="test-connection"]') as HTMLElement
+    testBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const select = document.querySelector(
+      'select[data-da-field="directorModel"]',
+    ) as HTMLSelectElement
+    const injectedOption = Array.from(select.options).find(
+      (option) => option.value === injectedModel,
+    )
+
+    expect(injectedOption).toBeDefined()
+    expect(select.querySelector('[data-evil="1"]')).toBeNull()
   })
 
   // ── Requirement 9: Cleanup on close ─────────────────────────────────
@@ -460,5 +547,150 @@ describe('openDashboard', () => {
 
     const staging = await api.pluginStorage.getItem('dashboard-profile-import-staging')
     expect(staging).toBeNull()
+  })
+
+  test('create-prompt-preset clones the current preset and saves edited templates', async () => {
+    await openDashboard(api, store)
+    let root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const promptTabBtn = root.querySelector('[data-da-target="prompt-tuning"]') as HTMLElement
+    promptTabBtn.click()
+
+    const createBtn = root.querySelector('[data-da-action="create-prompt-preset"]') as HTMLElement
+    expect(createBtn).not.toBeNull()
+    createBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const presetSelect = root.querySelector('[data-da-role="prompt-preset-select"]') as HTMLSelectElement
+    const presetName = root.querySelector('[data-da-role="prompt-preset-name"]') as HTMLInputElement
+    const systemTemplate = root.querySelector('[data-da-role="prompt-pre-request-system"]') as HTMLTextAreaElement
+
+    expect(presetSelect.value).not.toBe(BUILTIN_PROMPT_PRESET_ID)
+    expect(presetName.value).toBeTruthy()
+
+    systemTemplate.value = 'Custom preset system template'
+    systemTemplate.dispatchEvent(new Event('input', { bubbles: true }))
+
+    const saveBtn = root.querySelector('[data-da-action="save"]') as HTMLElement
+    saveBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const stored = await api.pluginStorage.getItem<{
+      promptPresetId: string
+      promptPresets: Record<string, { preset: { preRequestSystemTemplate: string } }>
+    }>(DASHBOARD_SETTINGS_KEY)
+    expect(stored).not.toBeNull()
+    expect(stored?.promptPresetId).not.toBe(BUILTIN_PROMPT_PRESET_ID)
+    expect(
+      Object.values(stored?.promptPresets ?? {}).some(
+        (entry) => entry.preset.preRequestSystemTemplate === 'Custom preset system template',
+      ),
+    ).toBe(true)
+  })
+
+  test('backfill-current-chat extracts memories from the active chat into the dashboard state', async () => {
+    const host = api as unknown as Record<string, unknown>
+    host.getCharacter = async () => ({ chaId: 'cha-1', name: 'Hero' })
+    host.getCurrentCharacterIndex = async () => 0
+    host.getCurrentChatIndex = async () => 0
+    host.getChatFromIndex = async () => ({
+      id: 'chat-1',
+      name: 'Session 1',
+      lastDate: 1,
+      messages: [
+        { role: 'user', content: 'Where is the key?' },
+        { role: 'assistant', content: 'A hides the key under the altar.' },
+      ],
+    })
+
+    api.enqueueLlmResult({
+      type: 'success',
+      result: JSON.stringify({
+        status: 'pass',
+        turnScore: 0.8,
+        violations: [],
+        durableFacts: ['The key is hidden under the altar.'],
+        sceneDelta: { scenePhase: 'turn', activeCharacters: ['A'] },
+        entityUpdates: [],
+        relationUpdates: [],
+        memoryOps: [],
+      }),
+    })
+
+    const scopeKey = (await resolveScopeStorageKey(api)).storageKey
+    store = { storage: api.pluginStorage, stateStorageKey: scopeKey }
+
+    await openDashboard(api, store)
+    let root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    const backfillBtn = root.querySelector('[data-da-action="backfill-current-chat"]') as HTMLElement
+    expect(backfillBtn).not.toBeNull()
+    backfillBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    expect(memoryPage.textContent).toContain('The key is hidden under the altar.')
+  })
+
+  test('regenerate-current-chat replaces existing scoped memory with freshly extracted memory', async () => {
+    const host = api as unknown as Record<string, unknown>
+    host.getCharacter = async () => ({ chaId: 'cha-1', name: 'Hero' })
+    host.getCurrentCharacterIndex = async () => 0
+    host.getCurrentChatIndex = async () => 0
+    host.getChatFromIndex = async () => ({
+      id: 'chat-1',
+      name: 'Session 1',
+      lastDate: 1,
+      messages: [
+        { role: 'user', content: 'Where is the key?' },
+        { role: 'assistant', content: 'A hides the key under the altar.' },
+      ],
+    })
+
+    const seededState = createEmptyState()
+    seededState.memory.summaries.push({
+      id: 'old-summary',
+      text: 'Outdated memory',
+      recencyWeight: 0.2,
+      updatedAt: 1,
+    })
+    const scopeKey = (await resolveScopeStorageKey(api)).storageKey
+    store = { storage: api.pluginStorage, stateStorageKey: scopeKey }
+    await api.pluginStorage.setItem(scopeKey, seededState)
+
+    api.enqueueLlmResult({
+      type: 'success',
+      result: JSON.stringify({
+        status: 'pass',
+        turnScore: 0.8,
+        violations: [],
+        durableFacts: ['The key is hidden under the altar.'],
+        sceneDelta: { scenePhase: 'turn', activeCharacters: ['A'] },
+        entityUpdates: [],
+        relationUpdates: [],
+        memoryOps: [],
+      }),
+    })
+
+    await openDashboard(api, store)
+    let root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    const regenerateBtn = root.querySelector('[data-da-action="regenerate-current-chat"]') as HTMLElement
+    expect(regenerateBtn).not.toBeNull()
+    regenerateBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    expect(memoryPage.textContent).toContain('The key is hidden under the altar.')
+    expect(memoryPage.textContent).not.toContain('Outdated memory')
   })
 })

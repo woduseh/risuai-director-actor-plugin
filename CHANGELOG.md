@@ -2,13 +2,20 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-03
+
 ### Added
 
-- Memory dashboard vertical slice for summaries and continuity facts, including localized filter and empty states
+- Bilingual dashboard localization with persisted `en` / `ko` language switching
 - Scoped canonical storage keys per character/chat with legacy flat-key migration
-- Inline manual add controls for summary and continuity memory items in the dashboard
-- Live dashboard filtering across rendered summary and continuity memory items
-- Prompt preset foundation for director prompt builders with built-in default templates and custom override support
+- Prompt preset persistence and editing for director pre-request and post-response templates
+- Current-chat memory backfill using the Director post-response review pipeline
+- Current-chat memory regeneration that resets the active scoped store before re-extracting
+- Manual memory workbench coverage for summaries, continuity facts, world facts, entities, and relations
+- Inline memory editing plus cross-domain bulk delete actions in the dashboard
+- Expanded provider catalogs for GitHub Copilot and Google Vertex AI
+- Refreshed curated model catalogs including GPT-5.4, Claude 4.6, and Gemini 3.1 variants
+- Embedding provider settings for VoyageAI, OpenAI, Google, Vertex AI, and custom endpoints
 
 ### Fixed
 
@@ -17,6 +24,12 @@
 - Scoped resolver no longer drifts as no-id chats gain opening turns
 - Scoped resolver no longer merges different stable chat IDs that share the same default name/opening messages
 - Prompt template rendering now preserves literal `{{token}}` text inside dynamic conversation, memory, and response content
+- Current-chat extraction now guards against host scope drift before writing into scoped storage
+
+### Changed
+
+- Memory workbench now loads curated model lists on open even for provider-managed catalogs such as Copilot
+- Model refresh actions now repopulate the selector instead of leaving the button inert
 
 ## [0.2.0] - 2026-04-03
 

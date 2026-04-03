@@ -144,6 +144,23 @@ describe('memory-cache page DOM rendering', () => {
     expect(delBtn2).not.toBeNull()
   })
 
+  test('memory-cache page renders selection checkboxes and a disabled bulk delete action', async () => {
+    const state = stateWithFullMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
+    const checkboxes = memoryPage.querySelectorAll('input[data-da-role="memory-select"]')
+    const bulkDeleteBtn = memoryPage.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLButtonElement
+
+    expect(checkboxes.length).toBeGreaterThan(0)
+    expect(bulkDeleteBtn).not.toBeNull()
+    expect(bulkDeleteBtn.disabled).toBe(true)
+  })
+
   test('empty memory renders a specific empty-state hint instead of only the old placeholder copy', async () => {
     // Open dashboard with default empty state (no summaries/continuityFacts)
     await openDashboard(api, store)
@@ -389,6 +406,109 @@ describe('dashboard app memory delete actions', () => {
 
     expect(writeCalls).toBe(1)
     expect(currentState.memory.summaries.some((entry) => entry.id === 'sum-1')).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 4. Dashboard app memory edit + bulk delete actions
+// ---------------------------------------------------------------------------
+
+describe('dashboard app memory edit and bulk delete actions', () => {
+  let api: ReturnType<typeof createMockRisuaiApi>
+  let store: DashboardStore
+
+  beforeEach(() => {
+    api = createMockRisuaiApi()
+    store = createTestStore(api)
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  afterEach(async () => {
+    await closeDashboard()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  test('bulk delete removes selected memory items across domains and re-renders', async () => {
+    let currentState = stateWithFullMemory()
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const summaryCheckbox = root.querySelector(
+      'input[data-da-role="memory-select"][data-da-item-key="summary:sum-1"]',
+    ) as HTMLInputElement
+    const entityCheckbox = root.querySelector(
+      'input[data-da-role="memory-select"][data-da-item-key="entity:ent-1"]',
+    ) as HTMLInputElement
+    summaryCheckbox.checked = true
+    summaryCheckbox.dispatchEvent(new Event('change', { bubbles: true }))
+    entityCheckbox.checked = true
+    entityCheckbox.dispatchEvent(new Event('change', { bubbles: true }))
+
+    const bulkDeleteBtn = root.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLButtonElement
+    expect(bulkDeleteBtn.disabled).toBe(false)
+    bulkDeleteBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    expect(memoryPage.textContent).not.toContain('The hero crossed the river at dawn.')
+    expect(memoryPage.textContent).not.toContain('Aldric')
+    expect(currentState.memory.summaries.some((entry) => entry.id === 'sum-1')).toBe(false)
+    expect(currentState.memory.entities.some((entry) => entry.id === 'ent-1')).toBe(false)
+  })
+
+  test('editing a summary updates its text and re-renders the row', async () => {
+    let currentState = stateWithMemory()
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    let root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const editBtn = root.querySelector(
+      '[data-da-action="edit-memory-item"][data-da-item-key="summary:sum-1"]',
+    ) as HTMLElement
+    expect(editBtn).not.toBeNull()
+    editBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const editInput = root.querySelector(
+      'input[data-da-role="edit-summary-text"][data-da-item-id="sum-1"]',
+    ) as HTMLInputElement
+    expect(editInput).not.toBeNull()
+    editInput.value = 'The hero crossed the desert at noon.'
+    editInput.dispatchEvent(new Event('input', { bubbles: true }))
+
+    const saveBtn = root.querySelector(
+      '[data-da-action="save-memory-edit"][data-da-item-key="summary:sum-1"]',
+    ) as HTMLElement
+    saveBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    expect(memoryPage.textContent).toContain('The hero crossed the desert at noon.')
+    expect(currentState.memory.summaries[0]?.text).toBe('The hero crossed the desert at noon.')
   })
 })
 
@@ -870,5 +990,673 @@ describe('memory-cache page filter', () => {
     expect(visible.length).toBe(1)
     expect(visible[0]).toBeDefined()
     expect(visible[0]?.textContent).toContain('dragon')
+  })
+
+  test('filter applies across world facts, entities, and relations too', async () => {
+    const state = stateWithFullMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const filterInput = memoryPage.querySelector('input[data-da-role="memory-filter"]') as HTMLInputElement
+
+    typeFilter(filterInput, 'Elaria')
+    const visible = Array.from(memoryPage.querySelectorAll('.da-memory-item'))
+      .filter((el) => !el.classList.contains('da-hidden'))
+    expect(visible.length).toBeGreaterThanOrEqual(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Helper — state with all memory types populated
+// ---------------------------------------------------------------------------
+
+function stateWithFullMemory(): DirectorPluginState {
+  const state = stateWithMemory()
+  state.memory.worldFacts = [
+    { id: 'wf-1', text: 'Magic is forbidden in the northern kingdoms.', updatedAt: 1000 },
+    { id: 'wf-2', text: 'The river Elaria splits the continent.', updatedAt: 2000 },
+  ]
+  state.memory.entities = [
+    { id: 'ent-1', name: 'Aldric', facts: ['A wandering knight'], tags: ['protagonist'], updatedAt: 1000 },
+    { id: 'ent-2', name: 'Mira', facts: ['Village healer'], tags: ['npc'], updatedAt: 2000 },
+  ]
+  state.memory.relations = [
+    { id: 'rel-1', sourceId: 'ent-1', targetId: 'ent-2', label: 'protects', updatedAt: 1000 },
+  ]
+  return state
+}
+
+// ---------------------------------------------------------------------------
+// 7. World Facts — render + add + delete
+// ---------------------------------------------------------------------------
+
+describe('memory-cache page world facts', () => {
+  let api: ReturnType<typeof createMockRisuaiApi>
+  let store: DashboardStore
+
+  beforeEach(() => {
+    api = createMockRisuaiApi()
+    store = createTestStore(api)
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  afterEach(async () => {
+    await closeDashboard()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  test('world facts section renders with a heading', async () => {
+    const state = stateWithFullMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+
+    const titles = Array.from(memoryPage.querySelectorAll('.da-card-title')).map((el) => el.textContent)
+    expect(titles).toContain('World Facts')
+  })
+
+  test('world facts render as .da-memory-item with text and delete button', async () => {
+    const state = stateWithFullMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+
+    expect(memoryPage.textContent).toContain('Magic is forbidden in the northern kingdoms.')
+    expect(memoryPage.textContent).toContain('The river Elaria splits the continent.')
+
+    const delBtn1 = memoryPage.querySelector('[data-da-action="delete-world-fact"][data-da-item-id="wf-1"]')
+    const delBtn2 = memoryPage.querySelector('[data-da-action="delete-world-fact"][data-da-item-id="wf-2"]')
+    expect(delBtn1).not.toBeNull()
+    expect(delBtn2).not.toBeNull()
+  })
+
+  test('add-world-fact input and button render', async () => {
+    const state = stateWithFullMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+
+    const addBtn = memoryPage.querySelector('[data-da-action="add-world-fact"]')
+    const addInput = memoryPage.querySelector('input[data-da-role="add-world-fact-text"]') as HTMLInputElement
+    expect(addBtn).not.toBeNull()
+    expect(addInput).not.toBeNull()
+    expect(addInput.type).toBe('text')
+  })
+
+  test('clicking add-world-fact creates a world fact and re-renders', async () => {
+    let currentState = stateWithFullMemory()
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const addInput = root.querySelector('input[data-da-role="add-world-fact-text"]') as HTMLInputElement
+    addInput.value = 'Dragons hibernate in winter.'
+    const addBtn = root.querySelector('[data-da-action="add-world-fact"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    expect(memoryPage.textContent).toContain('Dragons hibernate in winter.')
+    expect(currentState.memory.worldFacts.some((w) => w.text === 'Dragons hibernate in winter.')).toBe(true)
+  })
+
+  test('clicking delete-world-fact removes the fact and re-renders', async () => {
+    let currentState = stateWithFullMemory()
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const delBtn = root.querySelector('[data-da-action="delete-world-fact"][data-da-item-id="wf-1"]') as HTMLElement
+    expect(delBtn).not.toBeNull()
+    delBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    expect(memoryPage.textContent).not.toContain('Magic is forbidden in the northern kingdoms.')
+    expect(memoryPage.textContent).toContain('The river Elaria splits the continent.')
+  })
+
+  test('delete-world-fact uses writeCanonical when provided', async () => {
+    let currentState = stateWithFullMemory()
+    let writeCalls = 0
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        writeCalls += 1
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const delBtn = root.querySelector('[data-da-action="delete-world-fact"][data-da-item-id="wf-1"]') as HTMLElement
+    delBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    expect(writeCalls).toBe(1)
+    expect(currentState.memory.worldFacts.some((w) => w.id === 'wf-1')).toBe(false)
+  })
+
+  test('add-world-fact with empty text does nothing', async () => {
+    let currentState = stateWithFullMemory()
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const countBefore = currentState.memory.worldFacts.length
+    const addInput = root.querySelector('input[data-da-role="add-world-fact-text"]') as HTMLInputElement
+    addInput.value = '   '
+    const addBtn = root.querySelector('[data-da-action="add-world-fact"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    expect(currentState.memory.worldFacts.length).toBe(countBefore)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 8. Entities — render + add + delete
+// ---------------------------------------------------------------------------
+
+describe('memory-cache page entities', () => {
+  let api: ReturnType<typeof createMockRisuaiApi>
+  let store: DashboardStore
+
+  beforeEach(() => {
+    api = createMockRisuaiApi()
+    store = createTestStore(api)
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  afterEach(async () => {
+    await closeDashboard()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  test('entities section renders with a heading', async () => {
+    const state = stateWithFullMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+
+    const titles = Array.from(memoryPage.querySelectorAll('.da-card-title')).map((el) => el.textContent)
+    expect(titles).toContain('Entities')
+  })
+
+  test('entities render as .da-memory-item with name and delete button', async () => {
+    const state = stateWithFullMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+
+    expect(memoryPage.textContent).toContain('Aldric')
+    expect(memoryPage.textContent).toContain('Mira')
+
+    const delBtn1 = memoryPage.querySelector('[data-da-action="delete-entity"][data-da-item-id="ent-1"]')
+    const delBtn2 = memoryPage.querySelector('[data-da-action="delete-entity"][data-da-item-id="ent-2"]')
+    expect(delBtn1).not.toBeNull()
+    expect(delBtn2).not.toBeNull()
+  })
+
+  test('add-entity input and button render', async () => {
+    const state = stateWithFullMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+
+    const addBtn = memoryPage.querySelector('[data-da-action="add-entity"]')
+    const addInput = memoryPage.querySelector('input[data-da-role="add-entity-name"]') as HTMLInputElement
+    expect(addBtn).not.toBeNull()
+    expect(addInput).not.toBeNull()
+    expect(addInput.type).toBe('text')
+  })
+
+  test('clicking add-entity creates an entity and re-renders', async () => {
+    let currentState = stateWithFullMemory()
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const addInput = root.querySelector('input[data-da-role="add-entity-name"]') as HTMLInputElement
+    addInput.value = 'Gorath'
+    const addBtn = root.querySelector('[data-da-action="add-entity"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    expect(memoryPage.textContent).toContain('Gorath')
+    expect(currentState.memory.entities.some((e) => e.name === 'Gorath')).toBe(true)
+  })
+
+  test('clicking delete-entity removes the entity and re-renders', async () => {
+    let currentState = stateWithFullMemory()
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const delBtn = root.querySelector('[data-da-action="delete-entity"][data-da-item-id="ent-1"]') as HTMLElement
+    expect(delBtn).not.toBeNull()
+    delBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    expect(memoryPage.textContent).not.toContain('Aldric')
+    expect(memoryPage.textContent).toContain('Mira')
+  })
+
+  test('delete-entity uses writeCanonical when provided', async () => {
+    let currentState = stateWithFullMemory()
+    let writeCalls = 0
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        writeCalls += 1
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const delBtn = root.querySelector('[data-da-action="delete-entity"][data-da-item-id="ent-1"]') as HTMLElement
+    delBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    expect(writeCalls).toBe(1)
+    expect(currentState.memory.entities.some((e) => e.id === 'ent-1')).toBe(false)
+  })
+
+  test('add-entity with empty name does nothing', async () => {
+    let currentState = stateWithFullMemory()
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const countBefore = currentState.memory.entities.length
+    const addInput = root.querySelector('input[data-da-role="add-entity-name"]') as HTMLInputElement
+    addInput.value = '   '
+    const addBtn = root.querySelector('[data-da-action="add-entity"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    expect(currentState.memory.entities.length).toBe(countBefore)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 9. Relations — render + add + delete
+// ---------------------------------------------------------------------------
+
+describe('memory-cache page relations', () => {
+  let api: ReturnType<typeof createMockRisuaiApi>
+  let store: DashboardStore
+
+  beforeEach(() => {
+    api = createMockRisuaiApi()
+    store = createTestStore(api)
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  afterEach(async () => {
+    await closeDashboard()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  test('relations section renders with a heading', async () => {
+    const state = stateWithFullMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+
+    const titles = Array.from(memoryPage.querySelectorAll('.da-card-title')).map((el) => el.textContent)
+    expect(titles).toContain('Relations')
+  })
+
+  test('relations render as .da-memory-item with readable sourceId → label → targetId', async () => {
+    const state = stateWithFullMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+
+    // The relation row should contain source, label, and target
+    const relationItems = memoryPage.querySelectorAll('[data-da-action="delete-relation"]')
+    expect(relationItems.length).toBe(1)
+
+    // The parent .da-memory-item should have readable text
+    const relItem = relationItems[0]!.closest('.da-memory-item')
+    expect(relItem).not.toBeNull()
+    const text = relItem!.textContent ?? ''
+    expect(text).toContain('ent-1')
+    expect(text).toContain('protects')
+    expect(text).toContain('ent-2')
+  })
+
+  test('relations render delete buttons with item ids', async () => {
+    const state = stateWithFullMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+
+    const delBtn = memoryPage.querySelector('[data-da-action="delete-relation"][data-da-item-id="rel-1"]')
+    expect(delBtn).not.toBeNull()
+  })
+
+  test('add-relation inputs (sourceId, label, targetId) and button render', async () => {
+    const state = stateWithFullMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+
+    const addBtn = memoryPage.querySelector('[data-da-action="add-relation"]')
+    const srcInput = memoryPage.querySelector('input[data-da-role="add-relation-source"]') as HTMLInputElement
+    const labelInput = memoryPage.querySelector('input[data-da-role="add-relation-label"]') as HTMLInputElement
+    const tgtInput = memoryPage.querySelector('input[data-da-role="add-relation-target"]') as HTMLInputElement
+    expect(addBtn).not.toBeNull()
+    expect(srcInput).not.toBeNull()
+    expect(labelInput).not.toBeNull()
+    expect(tgtInput).not.toBeNull()
+  })
+
+  test('clicking add-relation creates a relation and re-renders', async () => {
+    let currentState = stateWithFullMemory()
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const srcInput = root.querySelector('input[data-da-role="add-relation-source"]') as HTMLInputElement
+    const labelInput = root.querySelector('input[data-da-role="add-relation-label"]') as HTMLInputElement
+    const tgtInput = root.querySelector('input[data-da-role="add-relation-target"]') as HTMLInputElement
+    srcInput.value = 'ent-2'
+    labelInput.value = 'heals'
+    tgtInput.value = 'ent-1'
+    const addBtn = root.querySelector('[data-da-action="add-relation"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    expect(memoryPage.textContent).toContain('heals')
+    expect(currentState.memory.relations.some((r) => r.label === 'heals')).toBe(true)
+  })
+
+  test('clicking delete-relation removes the relation and re-renders', async () => {
+    let currentState = stateWithFullMemory()
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const delBtn = root.querySelector('[data-da-action="delete-relation"][data-da-item-id="rel-1"]') as HTMLElement
+    expect(delBtn).not.toBeNull()
+    delBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    expect(memoryPage.textContent).not.toContain('protects')
+    expect(currentState.memory.relations.length).toBe(0)
+  })
+
+  test('delete-relation uses writeCanonical when provided', async () => {
+    let currentState = stateWithFullMemory()
+    let writeCalls = 0
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        writeCalls += 1
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const delBtn = root.querySelector('[data-da-action="delete-relation"][data-da-item-id="rel-1"]') as HTMLElement
+    delBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    expect(writeCalls).toBe(1)
+    expect(currentState.memory.relations.some((r) => r.id === 'rel-1')).toBe(false)
+  })
+
+  test('add-relation with any empty field does nothing', async () => {
+    let currentState = stateWithFullMemory()
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const countBefore = currentState.memory.relations.length
+    const srcInput = root.querySelector('input[data-da-role="add-relation-source"]') as HTMLInputElement
+    const labelInput = root.querySelector('input[data-da-role="add-relation-label"]') as HTMLInputElement
+    const tgtInput = root.querySelector('input[data-da-role="add-relation-target"]') as HTMLInputElement
+    srcInput.value = 'ent-1'
+    labelInput.value = ''
+    tgtInput.value = 'ent-2'
+    const addBtn = root.querySelector('[data-da-action="add-relation"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    expect(currentState.memory.relations.length).toBe(countBefore)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 10. Korean locale for new sections
+// ---------------------------------------------------------------------------
+
+describe('memory-cache page Korean locale for world facts, entities, relations', () => {
+  let api: ReturnType<typeof createMockRisuaiApi>
+  let store: DashboardStore
+
+  beforeEach(() => {
+    api = createMockRisuaiApi()
+    store = createTestStore(api)
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+  })
+
+  afterEach(async () => {
+    await closeDashboard()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  test('Korean locale renders translated section headings for world facts, entities, relations', async () => {
+    setLocale('ko')
+    const state = stateWithFullMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+
+    const titles = Array.from(memoryPage.querySelectorAll('.da-card-title')).map((el) => el.textContent)
+    expect(titles).not.toContain('World Facts')
+    expect(titles).not.toContain('Entities')
+    expect(titles).not.toContain('Relations')
+    // Should have at least 5 section titles (summaries, continuity, world facts, entities, relations)
+    expect(titles.length).toBeGreaterThanOrEqual(5)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 11. Empty-state hint includes new domains
+// ---------------------------------------------------------------------------
+
+describe('memory-cache page empty state with new domains', () => {
+  let api: ReturnType<typeof createMockRisuaiApi>
+  let store: DashboardStore
+
+  beforeEach(() => {
+    api = createMockRisuaiApi()
+    store = createTestStore(api)
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  afterEach(async () => {
+    await closeDashboard()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  test('empty state is hidden when any memory domain has items', async () => {
+    const state = createEmptyState()
+    state.memory.worldFacts = [
+      { id: 'wf-1', text: 'Only a world fact', updatedAt: 1000 },
+    ]
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+
+    const emptyHint = memoryPage.querySelector('[data-da-role="memory-empty"]')
+    expect(emptyHint).toBeNull()
+  })
+
+  test('legacy state missing new memory arrays still renders without crashing', async () => {
+    const legacyState = createEmptyState()
+    const legacyMemory = legacyState.memory as unknown as Record<string, unknown>
+    delete legacyMemory.worldFacts
+    delete legacyMemory.entities
+    delete legacyMemory.relations
+
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, legacyState)
+    await openDashboard(api, store)
+
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
+    const emptyHint = memoryPage.querySelector('[data-da-role="memory-empty"]')
+
+    expect(emptyHint).not.toBeNull()
   })
 })

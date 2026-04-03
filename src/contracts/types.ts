@@ -43,6 +43,25 @@ export type BriefPacing = 'breathe' | 'steady' | 'tight' | 'accelerate'
 export type MemoryOpKind = 'insert' | 'update' | 'merge' | 'archive' | 'drop'
 export type ValidationStatus = 'pass' | 'soft-fail' | 'hard-fail'
 
+export interface DirectorPromptPreset {
+  preRequestSystemTemplate: string
+  preRequestUserTemplate: string
+  postResponseSystemTemplate: string
+  postResponseUserTemplate: string
+  assertivenessDirectives: Record<DirectorAssertiveness, string>
+  sceneBriefSchema: string
+  memoryUpdateSchema: string
+  maxRecentMessages: number
+}
+
+export interface StoredDirectorPromptPreset {
+  id: string
+  name: string
+  createdAt: number
+  updatedAt: number
+  preset: DirectorPromptPreset
+}
+
 export interface DirectorSettings {
   enabled: boolean
   assertiveness: DirectorAssertiveness
@@ -64,6 +83,8 @@ export interface DirectorSettings {
   embeddingApiKey: string
   embeddingModel: string
   embeddingDimensions: number
+  promptPresetId: string
+  promptPresets: Record<string, StoredDirectorPromptPreset>
 }
 
 export interface ContinuityFact {
@@ -310,7 +331,9 @@ export const DEFAULT_DIRECTOR_SETTINGS: DirectorSettings = {
   embeddingBaseUrl: 'https://api.openai.com/v1',
   embeddingApiKey: '',
   embeddingModel: 'text-embedding-3-small',
-  embeddingDimensions: 1536
+  embeddingDimensions: 1536,
+  promptPresetId: 'builtin-default',
+  promptPresets: {}
 }
 
 export function createEmptyState(seed?: Partial<Pick<DirectorPluginState, 'projectKey' | 'characterKey' | 'sessionKey'>>): DirectorPluginState {

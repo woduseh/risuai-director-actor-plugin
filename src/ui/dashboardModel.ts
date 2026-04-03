@@ -33,7 +33,15 @@ export const DIRECTOR_PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     baseUrl: 'https://api.openai.com/v1',
     manualModelOnly: false,
     authMode: 'api-key',
-    curatedModels: ['gpt-4.1-mini', 'gpt-4.1', 'gpt-5.4-mini', 'gpt-5.4']
+    curatedModels: [
+      'gpt-4.1-mini',
+      'gpt-4.1',
+      'gpt-5.3-codex',
+      'gpt-5.4-nano',
+      'gpt-5.4-mini',
+      'gpt-5.4',
+      'gpt-5.4-pro',
+    ]
   },
   {
     id: 'anthropic',
@@ -45,8 +53,9 @@ export const DIRECTOR_PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
       'claude-3-5-haiku-latest',
       'claude-3-5-sonnet-latest',
       'claude-3-7-sonnet-latest',
-      'claude-sonnet-4-20250514',
-      'claude-opus-4-6'
+      'claude-sonnet-4-6',
+      'claude-opus-4-6',
+      'claude-opus-4-6-fast',
     ]
   },
   {
@@ -59,7 +68,10 @@ export const DIRECTOR_PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
       'gemini-2.0-flash',
       'gemini-2.5-flash-preview-04-17',
       'gemini-2.5-pro-preview-05-06',
-      'gemini-3.1-pro-preview'
+      'gemini-3.1-pro-preview',
+      'gemini-3.1-pro-preview-customtools',
+      'gemini-3.1-flash-lite-preview',
+      'gemini-3.1-flash-live-preview',
     ]
   },
   {
@@ -68,7 +80,7 @@ export const DIRECTOR_PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     baseUrl: 'https://api.githubcopilot.com/v1',
     manualModelOnly: true,
     authMode: 'oauth-device-flow',
-    curatedModels: ['gpt-4.1', 'claude-sonnet-4-20250514']
+    curatedModels: ['gpt-4.1', 'gpt-5.4', 'claude-sonnet-4-6', 'claude-opus-4-6']
   },
   {
     id: 'vertex',
@@ -78,7 +90,11 @@ export const DIRECTOR_PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     authMode: 'manual-advanced',
     curatedModels: [
       'gemini-2.5-pro-preview-05-06',
-      'gemini-3.1-pro-preview'
+      'gemini-3.1-pro-preview',
+      'gemini-3.1-pro-preview-customtools',
+      'gemini-3.1-flash-lite-preview',
+      'claude-sonnet-4-6',
+      'claude-opus-4-6',
     ]
   },
   {

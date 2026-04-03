@@ -1,25 +1,12 @@
 import type {
   CanonicalMemory,
+  DirectorPromptPreset,
   DirectorAssertiveness,
+  DirectorSettings,
   DirectorState,
   OpenAIChat,
   SceneBrief,
 } from '../contracts/types.js'
-
-// ---------------------------------------------------------------------------
-// Prompt preset type
-// ---------------------------------------------------------------------------
-
-export interface DirectorPromptPreset {
-  preRequestSystemTemplate: string
-  preRequestUserTemplate: string
-  postResponseSystemTemplate: string
-  postResponseUserTemplate: string
-  assertivenessDirectives: Record<DirectorAssertiveness, string>
-  sceneBriefSchema: string
-  memoryUpdateSchema: string
-  maxRecentMessages: number
-}
 
 // ---------------------------------------------------------------------------
 // Input context types
@@ -84,6 +71,9 @@ const MEMORY_UPDATE_SCHEMA = `{
   "memoryOps": [{"op":"insert"|"update"|"merge"|"archive"|"drop","target":"…","payload":{}}],
   "correction?": "…"
 }`
+
+export const BUILTIN_PROMPT_PRESET_ID = 'builtin-default'
+export const BUILTIN_PROMPT_PRESET_NAME = 'Default'
 
 // ---------------------------------------------------------------------------
 // Default preset — reproduces the original hardcoded prompts byte-for-byte
@@ -162,6 +152,13 @@ export const DEFAULT_DIRECTOR_PROMPT_PRESET: DirectorPromptPreset = {
   sceneBriefSchema: SCENE_BRIEF_SCHEMA,
   memoryUpdateSchema: MEMORY_UPDATE_SCHEMA,
   maxRecentMessages: MAX_RECENT_MESSAGES,
+}
+
+export function resolvePromptPreset(
+  settings: Pick<DirectorSettings, 'promptPresetId' | 'promptPresets'>,
+): DirectorPromptPreset {
+  const selected = settings.promptPresets[settings.promptPresetId]
+  return selected?.preset ?? DEFAULT_DIRECTOR_PROMPT_PRESET
 }
 
 // ---------------------------------------------------------------------------

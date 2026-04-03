@@ -24,7 +24,7 @@ const STORAGE_NAMESPACE = 'director-plugin-state'
  * Attempt to retrieve the current character snapshot from the host API.
  * Returns `null` when the method is unavailable or throws.
  */
-async function tryGetCharacter(
+export async function tryGetCharacter(
   api: RisuaiApi,
 ): Promise<{ chaId: string; name: string } | null> {
   try {
@@ -53,7 +53,7 @@ async function tryGetCharacter(
  * Attempt to retrieve the current chat snapshot from the host API.
  * Returns `null` when any required method is unavailable or throws.
  */
-async function tryGetChat(
+export async function tryGetChat(
   api: RisuaiApi,
 ): Promise<{
   chatId?: string

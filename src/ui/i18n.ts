@@ -54,6 +54,7 @@ const EN_CATALOG = {
   'btn.save': 'Save',
   'btn.saveChanges': 'Save Changes',
   'btn.discard': 'Discard',
+  'btn.cancel': 'Cancel',
   'btn.close': 'Close',
   'btn.closeIcon': '✕ Close',
   'btn.reset': 'Reset',
@@ -61,6 +62,12 @@ const EN_CATALOG = {
   'btn.testConnection': 'Test Connection',
   'btn.refreshModels': 'Refresh Models',
   'btn.newProfile': 'New Profile',
+  'btn.newPromptPreset': 'New Prompt Preset',
+  'btn.deletePromptPreset': 'Delete Preset',
+  'btn.backfillCurrentChat': 'Extract Current Chat',
+  'btn.regenerateCurrentChat': 'Regenerate from Current Chat',
+  'btn.deleteSelected': 'Delete Selected',
+  'btn.edit': 'Edit',
   'btn.export': 'Export',
   'btn.import': 'Import',
 
@@ -97,9 +104,18 @@ const EN_CATALOG = {
   // Card: Prompt Tuning
   'card.promptTuning.title': 'Prompt Tuning',
   'card.promptTuning.copy': 'Tune how strongly the Director pushes, how large the brief is, and whether post-review stays active.',
+  'card.promptPresets.title': 'Prompt Presets',
+  'card.promptPresets.copy': 'Choose the active preset, clone it into a custom preset, and edit the prompt templates used by the Director.',
   'label.briefTokenCap': 'Brief Token Cap',
   'label.postReview': 'Enable Post-review',
   'label.embeddings': 'Enable Embeddings',
+  'label.promptPreset': 'Active Prompt Preset',
+  'label.promptPresetName': 'Preset Name',
+  'label.preRequestSystemTemplate': 'Pre-request System Template',
+  'label.preRequestUserTemplate': 'Pre-request User Template',
+  'label.postResponseSystemTemplate': 'Post-response System Template',
+  'label.postResponseUserTemplate': 'Post-response User Template',
+  'label.maxRecentMessages': 'Recent Message Cap',
 
   // Card: Timing & Limits
   'card.timingLimits.title': 'Timing & Limits',
@@ -147,8 +163,16 @@ const EN_CATALOG = {
   'btn.add': 'Add',
   'memory.addSummaryPlaceholder': 'New summary text\u2026',
   'memory.addFactPlaceholder': 'New continuity fact\u2026',
+  'memory.addWorldFactPlaceholder': 'New world fact\u2026',
+  'memory.addEntityNamePlaceholder': 'New entity name\u2026',
+  'memory.addRelationSourcePlaceholder': 'Source ID',
+  'memory.addRelationLabelPlaceholder': 'Label',
+  'memory.addRelationTargetPlaceholder': 'Target ID',
   'memory.filterPlaceholder': 'Filter memory\u2026',
   'memory.emptyHint': 'No memory items yet. Summaries and continuity facts will appear here as the story progresses.',
+  'card.worldFacts.title': 'World Facts',
+  'card.entities.title': 'Entities',
+  'card.relations.title': 'Relations',
 
   // Card: Settings Profiles
   'card.settingsProfiles.title': 'Settings Profiles',
@@ -168,6 +192,9 @@ const EN_CATALOG = {
   'toast.noProfileSelected': 'No profile selected',
   'toast.invalidProfileFormat': 'Invalid profile format',
   'toast.failedParseProfile': 'Failed to parse profile JSON',
+  'toast.backfillCompleted': 'Chat extraction completed ({{count}} updates)',
+  'toast.backfillSkipped': 'No chat memories were extracted',
+  'error.backfillScopeMismatch': 'The active chat changed while the dashboard was open. Return to the original chat and try again.',
 
   // Import alert
   'alert.importInstructions': 'To import a profile, save the JSON to plugin storage key "{{key}}" and click Import again.',
@@ -180,6 +207,9 @@ const EN_CATALOG = {
   'profile.balanced': 'Balanced',
   'profile.gentle': 'Gentle',
   'profile.strict': 'Strict',
+  'promptPreset.defaultName': 'Default Preset',
+  'promptPreset.customName': 'Custom Preset {{n}}',
+  'promptPreset.readOnlyHint': 'Built-in presets are read-only. Clone the current preset to customize it.',
 
   // Fallback summary (settings.ts non-DOM path)
   'fallback.header': '── Director Plugin Settings ──',
@@ -229,6 +259,7 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'btn.save': '저장',
   'btn.saveChanges': '변경사항 저장',
   'btn.discard': '되돌리기',
+  'btn.cancel': '취소',
   'btn.close': '닫기',
   'btn.closeIcon': '✕ 닫기',
   'btn.reset': '초기화',
@@ -236,6 +267,12 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'btn.testConnection': '연결 테스트',
   'btn.refreshModels': '모델 새로고침',
   'btn.newProfile': '새 프로필',
+  'btn.newPromptPreset': '새 프롬프트 프리셋',
+  'btn.deletePromptPreset': '프리셋 삭제',
+  'btn.backfillCurrentChat': '현재 채팅 추출',
+  'btn.regenerateCurrentChat': '현재 채팅 기준 재생성',
+  'btn.deleteSelected': '선택 삭제',
+  'btn.edit': '편집',
   'btn.export': '내보내기',
   'btn.import': '가져오기',
 
@@ -272,9 +309,18 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   // Card: Prompt Tuning
   'card.promptTuning.title': '프롬프트 튜닝',
   'card.promptTuning.copy': '디렉터가 얼마나 강하게 유도할지, 브리프 크기, 사후 리뷰 활성화 여부를 조절하세요.',
+  'card.promptPresets.title': '프롬프트 프리셋',
+  'card.promptPresets.copy': '활성 프리셋을 선택하고, 현재 프리셋을 복제해 커스텀 프리셋을 만든 뒤 디렉터 프롬프트 템플릿을 편집하세요.',
   'label.briefTokenCap': '브리프 토큰 상한',
   'label.postReview': '사후 리뷰 활성화',
   'label.embeddings': '임베딩 활성화',
+  'label.promptPreset': '활성 프롬프트 프리셋',
+  'label.promptPresetName': '프리셋 이름',
+  'label.preRequestSystemTemplate': '사전 요청 시스템 템플릿',
+  'label.preRequestUserTemplate': '사전 요청 사용자 템플릿',
+  'label.postResponseSystemTemplate': '사후 응답 시스템 템플릿',
+  'label.postResponseUserTemplate': '사후 응답 사용자 템플릿',
+  'label.maxRecentMessages': '최근 메시지 상한',
 
   // Card: Timing & Limits
   'card.timingLimits.title': '타이밍 & 제한',
@@ -322,8 +368,16 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'btn.add': '추가',
   'memory.addSummaryPlaceholder': '새 요약 텍스트\u2026',
   'memory.addFactPlaceholder': '새 연속성 사실\u2026',
+  'memory.addWorldFactPlaceholder': '새 세계 사실\u2026',
+  'memory.addEntityNamePlaceholder': '새 엔티티 이름\u2026',
+  'memory.addRelationSourcePlaceholder': '소스 ID',
+  'memory.addRelationLabelPlaceholder': '라벨',
+  'memory.addRelationTargetPlaceholder': '대상 ID',
   'memory.filterPlaceholder': '메모리 필터\u2026',
   'memory.emptyHint': '아직 메모리 항목이 없습니다. 이야기가 진행됨에 따라 요약 및 연속성 사실이 여기에 표시됩니다.',
+  'card.worldFacts.title': '세계 사실',
+  'card.entities.title': '엔티티',
+  'card.relations.title': '관계',
 
   // Card: Settings Profiles
   'card.settingsProfiles.title': '설정 프로필',
@@ -343,6 +397,9 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'toast.noProfileSelected': '선택된 프로필이 없습니다',
   'toast.invalidProfileFormat': '잘못된 프로필 형식입니다',
   'toast.failedParseProfile': '프로필 JSON 파싱에 실패했습니다',
+  'toast.backfillCompleted': '채팅 추출이 완료되었습니다 ({{count}}개 업데이트)',
+  'toast.backfillSkipped': '추출된 채팅 메모리가 없습니다',
+  'error.backfillScopeMismatch': '대시보드를 연 뒤 활성 채팅이 바뀌었습니다. 원래 채팅으로 돌아간 뒤 다시 시도하세요.',
 
   // Import alert
   'alert.importInstructions': '프로필을 가져오려면 JSON을 플러그인 저장소 키 "{{key}}"에 저장한 후 가져오기를 다시 클릭하세요.',
@@ -355,6 +412,9 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'profile.balanced': '균형',
   'profile.gentle': '부드러움',
   'profile.strict': '엄격',
+  'promptPreset.defaultName': '기본 프리셋',
+  'promptPreset.customName': '커스텀 프리셋 {{n}}',
+  'promptPreset.readOnlyHint': '내장 프리셋은 읽기 전용입니다. 현재 프리셋을 복제해 사용자 정의하세요.',
 
   // Fallback summary
   'fallback.header': '── 디렉터 플러그인 설정 ──',

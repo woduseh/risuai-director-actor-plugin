@@ -1,4 +1,5 @@
 import { createEmptyState, DEFAULT_DIRECTOR_SETTINGS } from '../src/contracts/types.js'
+import { BUILTIN_PROMPT_PRESET_ID } from '../src/director/prompt.js'
 import {
   createDefaultProfileManifest,
   createDashboardDraft,
@@ -25,6 +26,13 @@ describe('dashboardState', () => {
     expect(settings.embeddingApiKey).toBe('')
     expect(settings.embeddingModel).toBe('text-embedding-3-small')
     expect(settings.embeddingDimensions).toBe(1536)
+  })
+
+  test('normalizes prompt preset settings to safe defaults', () => {
+    const settings = normalizePersistedSettings({}) as unknown as Record<string, unknown>
+
+    expect(settings.promptPresetId).toBe(BUILTIN_PROMPT_PRESET_ID)
+    expect(settings.promptPresets).toEqual({})
   })
 
   test('creates a draft wrapper with dirty state disabled by default', () => {
