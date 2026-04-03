@@ -104,3 +104,27 @@ export interface PostReviewArtifacts {
   raw: string
 }
 
+// ── Host-snapshot contracts for scoped resolution ─────────────────
+
+/** Minimal character snapshot as provided by the RisuAI host runtime. */
+export interface RisuCharacterSnapshot {
+  /** Host character ID (chaId) */
+  chaId: string
+  /** Character display name */
+  name: string
+  /** Character description, if available */
+  description?: string
+}
+
+/** Minimal chat snapshot as provided by the RisuAI host runtime. */
+export interface RisuChatSnapshot {
+  /** Host chat ID, when the host provides one */
+  chatId?: string
+  /** Chat display name */
+  name: string
+  /** Last-activity timestamp (epoch ms) */
+  lastDate: number
+  /** First N messages in the chat for fingerprinting */
+  messages: ReadonlyArray<{ role: string; content: string }>
+}
+

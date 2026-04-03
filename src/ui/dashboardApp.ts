@@ -105,6 +105,7 @@ function createShellPluginState(settings: DirectorSettings): DirectorPluginState
     memory: {
       summaries: [], entities: [], relations: [],
       worldFacts: [], sceneLedger: [], turnArchive: [],
+      continuityFacts: [],
     },
     metrics: {
       totalDirectorCalls: 0, totalDirectorFailures: 0,

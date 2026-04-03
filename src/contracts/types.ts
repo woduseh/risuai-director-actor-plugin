@@ -160,6 +160,7 @@ export interface CanonicalMemory {
   worldFacts: WorldFact[]
   sceneLedger: SceneLedgerEntry[]
   turnArchive: TurnArchiveEntry[]
+  continuityFacts: ContinuityFact[]
 }
 
 export interface RuntimeMetrics {
@@ -331,7 +332,8 @@ export function createEmptyState(seed?: Partial<Pick<DirectorPluginState, 'proje
       relations: [],
       worldFacts: [],
       sceneLedger: [],
-      turnArchive: []
+      turnArchive: [],
+      continuityFacts: []
     },
     metrics: {
       totalDirectorCalls: 0,
