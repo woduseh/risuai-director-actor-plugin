@@ -3,6 +3,7 @@ import type { DirectorSettings } from '../contracts/types.js'
 import { DEFAULT_DIRECTOR_SETTINGS } from '../contracts/types.js'
 import { openDashboard, closeDashboard } from './dashboardApp.js'
 import type { DashboardStore } from './dashboardApp.js'
+import { t } from './i18n.js'
 
 export interface PluginUiOptions {
   onOpen: () => Promise<void> | void
@@ -16,14 +17,14 @@ const BUTTON_ID = 'director-dashboard-button'
 
 function buildFallbackSummary(settings: DirectorSettings): string {
   return [
-    `── Director Plugin Settings ──`,
-    `Enabled: ${String(settings.enabled)}`,
-    `Assertiveness: ${settings.assertiveness}`,
-    `Provider: ${settings.directorProvider}`,
-    `Model: ${settings.directorModel}`,
-    `Injection: ${settings.injectionMode}`,
-    `Post-review: ${String(settings.postReviewEnabled)}`,
-    `Brief cap: ${String(settings.briefTokenCap)} tokens`
+    t('fallback.header'),
+    `${t('fallback.enabled')}: ${String(settings.enabled)}`,
+    `${t('fallback.assertiveness')}: ${settings.assertiveness}`,
+    `${t('fallback.provider')}: ${settings.directorProvider}`,
+    `${t('fallback.model')}: ${settings.directorModel}`,
+    `${t('fallback.injection')}: ${settings.injectionMode}`,
+    `${t('fallback.postReview')}: ${String(settings.postReviewEnabled)}`,
+    `${t('fallback.briefCap')}: ${String(settings.briefTokenCap)} ${t('fallback.briefCapUnit')}`
   ].join('\n')
 }
 

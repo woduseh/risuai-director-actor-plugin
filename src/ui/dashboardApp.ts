@@ -8,6 +8,7 @@ import { DashboardLifecycle } from './dashboardLifecycle.js'
 import {
   DASHBOARD_SETTINGS_KEY,
   DASHBOARD_PROFILE_MANIFEST_KEY,
+  DASHBOARD_LOCALE_KEY,
   createDashboardDraft,
   createDefaultProfileManifest,
   normalizePersistedSettings,
@@ -26,6 +27,8 @@ import {
   loadProviderModels,
 } from './dashboardModel.js'
 import type { ConnectionTestResult } from './dashboardModel.js'
+import { t, setLocale, getLocale } from './i18n.js'
+import type { DashboardLocale } from './i18n.js'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -146,7 +149,7 @@ class DashboardInstance {
     this.profiles = profiles
     this.activeTab = DASHBOARD_TABS[0]?.id ?? 'general'
     this.modelOptions = modelOptions
-    this.connectionStatus = { kind: 'idle', message: 'Not tested' }
+    this.connectionStatus = { kind: 'idle', message: t('connection.notTested') }
   }
 
   // ── public ────────────────────────────────────────────────────────────
@@ -214,7 +217,7 @@ class DashboardInstance {
       const closeBtn = this.doc.createElement('button')
       closeBtn.className = 'da-btn da-close-btn'
       closeBtn.setAttribute('data-da-action', 'close')
-      closeBtn.textContent = '✕ Close'
+      closeBtn.textContent = t('btn.closeIcon')
       sidebar.appendChild(closeBtn)
     }
 
@@ -238,10 +241,10 @@ class DashboardInstance {
   private buildFooterHtml(): string {
     const dirtyClass = this.draft.isDirty ? '' : ' da-hidden'
     return [
-      `<span class="da-dirty-indicator${dirtyClass}" data-da-role="dirty">Unsaved changes</span>`,
+      `<span class="da-dirty-indicator${dirtyClass}" data-da-role="dirty">${t('dirty.unsavedChanges')}</span>`,
       `<div style="display:flex;gap:8px;margin-left:auto">`,
-      `  <button class="da-btn" data-da-action="discard">Discard</button>`,
-      `  <button class="da-btn da-btn--primary" data-da-action="save">Save</button>`,
+      `  <button class="da-btn" data-da-action="discard">${t('btn.discard')}</button>`,
+      `  <button class="da-btn da-btn--primary" data-da-action="save">${t('btn.save')}</button>`,
       `</div>`,
     ].join('\n')
   }
@@ -272,7 +275,7 @@ class DashboardInstance {
       const closeBtn = this.doc.createElement('button')
       closeBtn.className = 'da-btn da-close-btn'
       closeBtn.setAttribute('data-da-action', 'close')
-      closeBtn.textContent = '✕ Close'
+      closeBtn.textContent = t('btn.closeIcon')
       sidebar.appendChild(closeBtn)
     }
 
@@ -400,6 +403,9 @@ class DashboardInstance {
       case 'import-profile':
         await this.handleImportProfile()
         break
+      case 'switch-lang':
+        await this.handleSwitchLang(btn)
+        break
     }
   }
 
@@ -479,7 +485,7 @@ class DashboardInstance {
 
     this.draft.isDirty = false
     this.updateDirtyIndicator()
-    this.showToast('Settings saved')
+    this.showToast(t('toast.settingsSaved'))
   }
 
   private async handleDiscard(): Promise<void> {
@@ -490,13 +496,13 @@ class DashboardInstance {
       normalizePersistedSettings(raw ?? {}),
     )
     this.fullReRender()
-    this.showToast('Changes discarded')
+    this.showToast(t('toast.changesDiscarded'))
   }
 
   // ── Connection test ───────────────────────────────────────────────────
 
   private async handleTestConnection(): Promise<void> {
-    this.connectionStatus = { kind: 'testing', message: 'Testing…' }
+    this.connectionStatus = { kind: 'testing', message: t('connection.testing') }
     this.updateConnectionStatusDom()
 
     const result: ConnectionTestResult = await testDirectorConnection(
@@ -507,7 +513,7 @@ class DashboardInstance {
     if (result.ok) {
       this.connectionStatus = {
         kind: 'ok',
-        message: `Connected (${String(result.models.length)} models)`,
+        message: t('connection.connected', { count: String(result.models.length) }),
       }
       this.modelOptions = result.models
       this.updateModelSelectDom()
@@ -543,7 +549,7 @@ class DashboardInstance {
     )
 
     this.fullReRender()
-    this.showToast('Profile created')
+    this.showToast(t('toast.profileCreated'))
   }
 
   private selectProfile(profileId: string): void {
@@ -566,13 +572,13 @@ class DashboardInstance {
       (p) => p.id === this.profiles.activeProfileId,
     )
     if (!activeProfile) {
-      this.showToast('No profile selected')
+      this.showToast(t('toast.noProfileSelected'))
       return
     }
     const payload = createProfileExportPayload(activeProfile)
     const json = JSON.stringify(payload, null, 2)
     await this.api.alert(json)
-    this.showToast('Profile exported')
+    this.showToast(t('toast.profileExported'))
   }
 
   private async handleImportProfile(): Promise<void> {
@@ -580,8 +586,7 @@ class DashboardInstance {
 
     if (!raw) {
       await this.api.alert(
-        'To import a profile, save the JSON to plugin storage key ' +
-          `"${IMPORT_STAGING_KEY}" and click Import again.`,
+        t('alert.importInstructions', { key: IMPORT_STAGING_KEY }),
       )
       return
     }
@@ -591,7 +596,7 @@ class DashboardInstance {
       const parsed = JSON.parse(text) as unknown
 
       if (!isValidExportPayload(parsed)) {
-        await this.api.alertError('Invalid profile format')
+        await this.api.alertError(t('toast.invalidProfileFormat'))
         return
       }
 
@@ -613,10 +618,20 @@ class DashboardInstance {
       await this.store.storage.removeItem(IMPORT_STAGING_KEY)
 
       this.fullReRender()
-      this.showToast('Profile imported')
+      this.showToast(t('toast.profileImported'))
     } catch {
-      await this.api.alertError('Failed to parse profile JSON')
+      await this.api.alertError(t('toast.failedParseProfile'))
     }
+  }
+
+  // ── Language switch ──────────────────────────────────────────────────
+
+  private async handleSwitchLang(btn: HTMLElement): Promise<void> {
+    const nextLocale = (btn.getAttribute('data-da-lang') ?? 'en') as DashboardLocale
+    setLocale(nextLocale)
+    await this.store.storage.setItem(DASHBOARD_LOCALE_KEY, nextLocale)
+    this.connectionStatus = { kind: this.connectionStatus.kind, message: this.connectionStatus.message }
+    this.fullReRender()
   }
 
   // ── Toast ─────────────────────────────────────────────────────────────
@@ -684,6 +699,11 @@ export async function openDashboard(
   }
 
   // Load persisted state
+  const rawLocale = await store.storage.getItem<string>(DASHBOARD_LOCALE_KEY)
+  if (rawLocale === 'en' || rawLocale === 'ko') {
+    setLocale(rawLocale as DashboardLocale)
+  }
+
   const rawSettings = await store.storage.getItem<Partial<DirectorSettings>>(
     DASHBOARD_SETTINGS_KEY,
   )

@@ -441,7 +441,8 @@ ${MEMORY_UPDATE_SCHEMA}`
         relations: [],
         worldFacts: [],
         sceneLedger: [],
-        turnArchive: []
+        turnArchive: [],
+        continuityFacts: []
       },
       metrics: {
         totalDirectorCalls: 0,
@@ -454,6 +455,11 @@ ${MEMORY_UPDATE_SCHEMA}`
 
   // src/memory/canonicalStore.ts
   var DIRECTOR_STATE_STORAGE_KEY = "director-plugin-state";
+  function patchLegacyMemory(state) {
+    if (!Array.isArray(state.memory.continuityFacts)) {
+      state.memory.continuityFacts = [];
+    }
+  }
   function isValidState(value) {
     if (value == null || typeof value !== "object") return false;
     const v = value;
@@ -469,6 +475,7 @@ ${MEMORY_UPDATE_SCHEMA}`
       const raw = await this.storage.getItem(DIRECTOR_STATE_STORAGE_KEY);
       if (isValidState(raw)) {
         this.current = structuredClone(raw);
+        patchLegacyMemory(this.current);
       } else {
         this.current = createEmptyState();
       }
@@ -1055,7 +1062,7 @@ ${MEMORY_UPDATE_SCHEMA}`
       entityOverlap = matched / item.entityIds.length * ENTITY_OVERLAP_WEIGHT;
     }
     const itemTokens = tokenize(item.text);
-    const textOverlap = itemTokens.length > 0 ? itemTokens.filter((t) => messageTokens.has(t)).length / itemTokens.length * TEXT_OVERLAP_WEIGHT : 0;
+    const textOverlap = itemTokens.length > 0 ? itemTokens.filter((t2) => messageTokens.has(t2)).length / itemTokens.length * TEXT_OVERLAP_WEIGHT : 0;
     return sceneMatch + recency + entityOverlap + textOverlap;
   }
   function retrieveMemory({ state, messages }) {
@@ -2241,39 +2248,335 @@ ${MEMORY_UPDATE_SCHEMA}`
     );
   }
 
+  // src/ui/i18n.ts
+  var activeLocale = "en";
+  function getLocale() {
+    return activeLocale;
+  }
+  function setLocale(locale) {
+    activeLocale = locale;
+  }
+  var EN_CATALOG = {
+    // Sidebar
+    "sidebar.kicker": "Director Actor",
+    "sidebar.title": "Director Dashboard",
+    "sidebar.subtitle": "Fullscreen control center for settings, models, prompts, memory, and profiles.",
+    // Sidebar group labels
+    "sidebar.group.general": "General",
+    "sidebar.group.tuning": "Prompt Tuning",
+    "sidebar.group.memory": "Memory",
+    "sidebar.group.profiles": "Profiles",
+    // Tab labels
+    "tab.general": "General",
+    "tab.promptTuning": "Prompt Tuning",
+    "tab.modelSettings": "Model Settings",
+    "tab.memoryCache": "Memory & Cache",
+    "tab.settingsProfiles": "Settings Profiles",
+    // Toolbar
+    "toolbar.kicker": "Cupcake-style dashboard",
+    "toolbar.tagline": "Modern control surface for Director behavior, models, and memory.",
+    // Buttons
+    "btn.save": "Save",
+    "btn.saveChanges": "Save Changes",
+    "btn.discard": "Discard",
+    "btn.close": "Close",
+    "btn.closeIcon": "\u2715 Close",
+    "btn.reset": "Reset",
+    "btn.exportSettings": "Export Settings",
+    "btn.testConnection": "Test Connection",
+    "btn.refreshModels": "Refresh Models",
+    "btn.newProfile": "New Profile",
+    "btn.export": "Export",
+    "btn.import": "Import",
+    // Dirty indicator
+    "dirty.unsavedChanges": "Unsaved changes",
+    "dirty.unsavedHint": "Unsaved changes stay local until you save.",
+    // Card: Plugin Status
+    "card.pluginStatus.title": "Plugin Status",
+    "card.pluginStatus.copy": "Enable the director, tune tone strictness, and keep a quick view of connection health.",
+    "label.enabled": "Enabled",
+    "label.assertiveness": "Assertiveness",
+    "label.mode": "Mode",
+    "label.injectionMode": "Injection Mode",
+    "option.light": "Light",
+    "option.standard": "Standard",
+    "option.firm": "Firm",
+    "option.risuAux": "Risu Aux Model",
+    "option.independentProvider": "Independent Provider",
+    "option.auto": "Auto",
+    "option.authorNote": "Author Note",
+    "option.adjacentUser": "Adjacent User",
+    "option.postConstraint": "Post Constraint",
+    "option.bottom": "Bottom",
+    // Card: Metrics Snapshot
+    "card.metricsSnapshot.title": "Metrics Snapshot",
+    "card.metricsSnapshot.copy": "Quick read-only visibility into runtime behavior before you dive deeper.",
+    "metric.totalDirectorCalls": "Total Director Calls",
+    "metric.totalFailures": "Total Failures",
+    "metric.memoryWrites": "Memory Writes",
+    "metric.scenePhase": "Scene Phase",
+    // Card: Prompt Tuning
+    "card.promptTuning.title": "Prompt Tuning",
+    "card.promptTuning.copy": "Tune how strongly the Director pushes, how large the brief is, and whether post-review stays active.",
+    "label.briefTokenCap": "Brief Token Cap",
+    "label.postReview": "Enable Post-review",
+    "label.embeddings": "Enable Embeddings",
+    // Card: Timing & Limits
+    "card.timingLimits.title": "Timing & Limits",
+    "card.timingLimits.copy": "Cooldown and debounce controls keep the Director stable under streaming and bad responses.",
+    "label.cooldownFailures": "Cooldown Failures",
+    "label.cooldownMs": "Cooldown (ms)",
+    "label.outputDebounceMs": "Output Debounce (ms)",
+    // Card: Director Model Settings
+    "card.directorModel.title": "Director Model Settings",
+    "card.directorModel.copy": "Keep the Director on its own provider, base URL, key, and model without touching the main RP model.",
+    "label.provider": "Provider",
+    "label.baseUrl": "Base URL",
+    "label.apiKey": "API Key",
+    "label.model": "Model",
+    "label.customModelId": "Custom Model ID",
+    "option.openai": "OpenAI",
+    "option.anthropic": "Anthropic",
+    "option.google": "Google",
+    "option.custom": "Custom",
+    // Card: Memory & Cache
+    "card.memoryCache.title": "Memory & Cache",
+    "card.memoryCache.copy": "Inspect the long-memory substrate and keep an eye on the cache/memory write behavior.",
+    "card.memoryCache.hint": "Memory summaries, entity graphs, and cache controls will appear here.",
+    // Card: Settings Profiles
+    "card.settingsProfiles.title": "Settings Profiles",
+    "card.settingsProfiles.copy": "Save reusable presets, swap them in one click, and move them between saves with JSON import/export.",
+    // Connection status
+    "connection.notTested": "Not tested",
+    "connection.testing": "Testing\u2026",
+    "connection.connected": "Connected ({{count}} models)",
+    // Toast messages
+    "toast.settingsSaved": "Settings saved",
+    "toast.changesDiscarded": "Changes discarded",
+    "toast.profileCreated": "Profile created",
+    "toast.profileExported": "Profile exported",
+    "toast.profileImported": "Profile imported",
+    "toast.noProfileSelected": "No profile selected",
+    "toast.invalidProfileFormat": "Invalid profile format",
+    "toast.failedParseProfile": "Failed to parse profile JSON",
+    // Import alert
+    "alert.importInstructions": 'To import a profile, save the JSON to plugin storage key "{{key}}" and click Import again.',
+    // Built-in profile names
+    "profile.balanced": "Balanced",
+    "profile.gentle": "Gentle",
+    "profile.strict": "Strict",
+    // Fallback summary (settings.ts non-DOM path)
+    "fallback.header": "\u2500\u2500 Director Plugin Settings \u2500\u2500",
+    "fallback.enabled": "Enabled",
+    "fallback.assertiveness": "Assertiveness",
+    "fallback.provider": "Provider",
+    "fallback.model": "Model",
+    "fallback.injection": "Injection",
+    "fallback.postReview": "Post-review",
+    "fallback.briefCap": "Brief cap",
+    "fallback.briefCapUnit": "tokens",
+    // Language selector
+    "lang.label": "Language",
+    "lang.en": "English",
+    "lang.ko": "\uD55C\uAD6D\uC5B4"
+  };
+  var KO_CATALOG = {
+    // Sidebar
+    "sidebar.kicker": "Director Actor",
+    "sidebar.title": "\uB514\uB809\uD130 \uB300\uC2DC\uBCF4\uB4DC",
+    "sidebar.subtitle": "\uC124\uC815, \uBAA8\uB378, \uD504\uB86C\uD504\uD2B8, \uBA54\uBAA8\uB9AC, \uD504\uB85C\uD544\uC744 \uC704\uD55C \uC804\uCCB4\uD654\uBA74 \uCEE8\uD2B8\uB864 \uC13C\uD130.",
+    // Sidebar group labels
+    "sidebar.group.general": "\uC77C\uBC18",
+    "sidebar.group.tuning": "\uD504\uB86C\uD504\uD2B8 \uD29C\uB2DD",
+    "sidebar.group.memory": "\uBA54\uBAA8\uB9AC",
+    "sidebar.group.profiles": "\uD504\uB85C\uD544",
+    // Tab labels
+    "tab.general": "\uC77C\uBC18",
+    "tab.promptTuning": "\uD504\uB86C\uD504\uD2B8 \uD29C\uB2DD",
+    "tab.modelSettings": "\uBAA8\uB378 \uC124\uC815",
+    "tab.memoryCache": "\uBA54\uBAA8\uB9AC & \uCE90\uC2DC",
+    "tab.settingsProfiles": "\uC124\uC815 \uD504\uB85C\uD544",
+    // Toolbar
+    "toolbar.kicker": "\uCEF5\uCF00\uC774\uD06C \uC2A4\uD0C0\uC77C \uB300\uC2DC\uBCF4\uB4DC",
+    "toolbar.tagline": "\uB514\uB809\uD130 \uD589\uB3D9, \uBAA8\uB378, \uBA54\uBAA8\uB9AC\uB97C \uC704\uD55C \uBAA8\uB358 \uCEE8\uD2B8\uB864 \uC11C\uD53C\uC2A4.",
+    // Buttons
+    "btn.save": "\uC800\uC7A5",
+    "btn.saveChanges": "\uBCC0\uACBD\uC0AC\uD56D \uC800\uC7A5",
+    "btn.discard": "\uB418\uB3CC\uB9AC\uAE30",
+    "btn.close": "\uB2EB\uAE30",
+    "btn.closeIcon": "\u2715 \uB2EB\uAE30",
+    "btn.reset": "\uCD08\uAE30\uD654",
+    "btn.exportSettings": "\uC124\uC815 \uB0B4\uBCF4\uB0B4\uAE30",
+    "btn.testConnection": "\uC5F0\uACB0 \uD14C\uC2A4\uD2B8",
+    "btn.refreshModels": "\uBAA8\uB378 \uC0C8\uB85C\uACE0\uCE68",
+    "btn.newProfile": "\uC0C8 \uD504\uB85C\uD544",
+    "btn.export": "\uB0B4\uBCF4\uB0B4\uAE30",
+    "btn.import": "\uAC00\uC838\uC624\uAE30",
+    // Dirty indicator
+    "dirty.unsavedChanges": "\uC800\uC7A5\uB418\uC9C0 \uC54A\uC740 \uBCC0\uACBD\uC0AC\uD56D",
+    "dirty.unsavedHint": "\uC800\uC7A5\uD558\uAE30 \uC804\uAE4C\uC9C0 \uBCC0\uACBD\uC0AC\uD56D\uC740 \uB85C\uCEEC\uC5D0 \uC720\uC9C0\uB429\uB2C8\uB2E4.",
+    // Card: Plugin Status
+    "card.pluginStatus.title": "\uD50C\uB7EC\uADF8\uC778 \uC0C1\uD0DC",
+    "card.pluginStatus.copy": "\uB514\uB809\uD130\uB97C \uD65C\uC131\uD654\uD558\uACE0, \uD1A4 \uC5C4\uACA9\uB3C4\uB97C \uC870\uC808\uD558\uBA70, \uC5F0\uACB0 \uC0C1\uD0DC\uB97C \uBE60\uB974\uAC8C \uD655\uC778\uD558\uC138\uC694.",
+    "label.enabled": "\uD65C\uC131\uD654",
+    "label.assertiveness": "\uC801\uADF9\uC131",
+    "label.mode": "\uBAA8\uB4DC",
+    "label.injectionMode": "\uC8FC\uC785 \uBAA8\uB4DC",
+    "option.light": "\uAC00\uBCBC\uC6C0",
+    "option.standard": "\uD45C\uC900",
+    "option.firm": "\uC5C4\uACA9",
+    "option.risuAux": "Risu \uBCF4\uC870 \uBAA8\uB378",
+    "option.independentProvider": "\uB3C5\uB9BD \uD504\uB85C\uBC14\uC774\uB354",
+    "option.auto": "\uC790\uB3D9",
+    "option.authorNote": "\uC791\uC131\uC790 \uB178\uD2B8",
+    "option.adjacentUser": "\uC778\uC811 \uC0AC\uC6A9\uC790",
+    "option.postConstraint": "\uD6C4\uC18D \uC81C\uC57D",
+    "option.bottom": "\uD558\uB2E8",
+    // Card: Metrics Snapshot
+    "card.metricsSnapshot.title": "\uBA54\uD2B8\uB9AD \uC2A4\uB0C5\uC0F7",
+    "card.metricsSnapshot.copy": "\uB354 \uAE4A\uC774 \uB4E4\uC5B4\uAC00\uAE30 \uC804\uC5D0 \uB7F0\uD0C0\uC784 \uB3D9\uC791\uC744 \uBE60\uB974\uAC8C \uC77D\uAE30 \uC804\uC6A9\uC73C\uB85C \uD655\uC778\uD558\uC138\uC694.",
+    "metric.totalDirectorCalls": "\uCD1D \uB514\uB809\uD130 \uD638\uCD9C \uC218",
+    "metric.totalFailures": "\uCD1D \uC2E4\uD328 \uC218",
+    "metric.memoryWrites": "\uBA54\uBAA8\uB9AC \uC4F0\uAE30 \uC218",
+    "metric.scenePhase": "\uC7A5\uBA74 \uB2E8\uACC4",
+    // Card: Prompt Tuning
+    "card.promptTuning.title": "\uD504\uB86C\uD504\uD2B8 \uD29C\uB2DD",
+    "card.promptTuning.copy": "\uB514\uB809\uD130\uAC00 \uC5BC\uB9C8\uB098 \uAC15\uD558\uAC8C \uC720\uB3C4\uD560\uC9C0, \uBE0C\uB9AC\uD504 \uD06C\uAE30, \uC0AC\uD6C4 \uB9AC\uBDF0 \uD65C\uC131\uD654 \uC5EC\uBD80\uB97C \uC870\uC808\uD558\uC138\uC694.",
+    "label.briefTokenCap": "\uBE0C\uB9AC\uD504 \uD1A0\uD070 \uC0C1\uD55C",
+    "label.postReview": "\uC0AC\uD6C4 \uB9AC\uBDF0 \uD65C\uC131\uD654",
+    "label.embeddings": "\uC784\uBCA0\uB529 \uD65C\uC131\uD654",
+    // Card: Timing & Limits
+    "card.timingLimits.title": "\uD0C0\uC774\uBC0D & \uC81C\uD55C",
+    "card.timingLimits.copy": "\uCFE8\uB2E4\uC6B4\uACFC \uB514\uBC14\uC6B4\uC2A4 \uC81C\uC5B4\uB85C \uC2A4\uD2B8\uB9AC\uBC0D \uBC0F \uC798\uBABB\uB41C \uC751\uB2F5\uC5D0\uC11C \uB514\uB809\uD130\uB97C \uC548\uC815\uC801\uC73C\uB85C \uC720\uC9C0\uD569\uB2C8\uB2E4.",
+    "label.cooldownFailures": "\uCFE8\uB2E4\uC6B4 \uC2E4\uD328 \uD69F\uC218",
+    "label.cooldownMs": "\uCFE8\uB2E4\uC6B4 (ms)",
+    "label.outputDebounceMs": "\uCD9C\uB825 \uB514\uBC14\uC6B4\uC2A4 (ms)",
+    // Card: Director Model Settings
+    "card.directorModel.title": "\uB514\uB809\uD130 \uBAA8\uB378 \uC124\uC815",
+    "card.directorModel.copy": "\uBA54\uC778 RP \uBAA8\uB378\uC744 \uAC74\uB4DC\uB9AC\uC9C0 \uC54A\uACE0 \uB514\uB809\uD130 \uC804\uC6A9 \uD504\uB85C\uBC14\uC774\uB354, Base URL, \uD0A4, \uBAA8\uB378\uC744 \uC720\uC9C0\uD558\uC138\uC694.",
+    "label.provider": "\uD504\uB85C\uBC14\uC774\uB354",
+    "label.baseUrl": "Base URL",
+    "label.apiKey": "API \uD0A4",
+    "label.model": "\uBAA8\uB378",
+    "label.customModelId": "\uCEE4\uC2A4\uD140 \uBAA8\uB378 ID",
+    "option.openai": "OpenAI",
+    "option.anthropic": "Anthropic",
+    "option.google": "Google",
+    "option.custom": "\uCEE4\uC2A4\uD140",
+    // Card: Memory & Cache
+    "card.memoryCache.title": "\uBA54\uBAA8\uB9AC & \uCE90\uC2DC",
+    "card.memoryCache.copy": "\uC7A5\uAE30 \uBA54\uBAA8\uB9AC \uAE30\uBC18\uACFC \uCE90\uC2DC/\uBA54\uBAA8\uB9AC \uC4F0\uAE30 \uB3D9\uC791\uC744 \uC810\uAC80\uD558\uC138\uC694.",
+    "card.memoryCache.hint": "\uBA54\uBAA8\uB9AC \uC694\uC57D, \uC5D4\uD2F0\uD2F0 \uADF8\uB798\uD504, \uCE90\uC2DC \uC81C\uC5B4\uAC00 \uC5EC\uAE30\uC5D0 \uD45C\uC2DC\uB429\uB2C8\uB2E4.",
+    // Card: Settings Profiles
+    "card.settingsProfiles.title": "\uC124\uC815 \uD504\uB85C\uD544",
+    "card.settingsProfiles.copy": "\uC7AC\uC0AC\uC6A9 \uAC00\uB2A5\uD55C \uD504\uB9AC\uC14B\uC744 \uC800\uC7A5\uD558\uACE0, \uD55C \uBC88\uC758 \uD074\uB9AD\uC73C\uB85C \uAD50\uCCB4\uD558\uBA70, JSON \uAC00\uC838\uC624\uAE30/\uB0B4\uBCF4\uB0B4\uAE30\uB85C \uC774\uB3D9\uD558\uC138\uC694.",
+    // Connection status
+    "connection.notTested": "\uD14C\uC2A4\uD2B8\uB418\uC9C0 \uC54A\uC74C",
+    "connection.testing": "\uD14C\uC2A4\uD2B8 \uC911\u2026",
+    "connection.connected": "\uC5F0\uACB0\uB428 ({{count}}\uAC1C \uBAA8\uB378)",
+    // Toast messages
+    "toast.settingsSaved": "\uC124\uC815\uC774 \uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4",
+    "toast.changesDiscarded": "\uBCC0\uACBD\uC0AC\uD56D\uC774 \uCDE8\uC18C\uB418\uC5C8\uC2B5\uB2C8\uB2E4",
+    "toast.profileCreated": "\uD504\uB85C\uD544\uC774 \uC0DD\uC131\uB418\uC5C8\uC2B5\uB2C8\uB2E4",
+    "toast.profileExported": "\uD504\uB85C\uD544\uC774 \uB0B4\uBCF4\uB0B4\uC84C\uC2B5\uB2C8\uB2E4",
+    "toast.profileImported": "\uD504\uB85C\uD544\uC744 \uAC00\uC838\uC654\uC2B5\uB2C8\uB2E4",
+    "toast.noProfileSelected": "\uC120\uD0DD\uB41C \uD504\uB85C\uD544\uC774 \uC5C6\uC2B5\uB2C8\uB2E4",
+    "toast.invalidProfileFormat": "\uC798\uBABB\uB41C \uD504\uB85C\uD544 \uD615\uC2DD\uC785\uB2C8\uB2E4",
+    "toast.failedParseProfile": "\uD504\uB85C\uD544 JSON \uD30C\uC2F1\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4",
+    // Import alert
+    "alert.importInstructions": '\uD504\uB85C\uD544\uC744 \uAC00\uC838\uC624\uB824\uBA74 JSON\uC744 \uD50C\uB7EC\uADF8\uC778 \uC800\uC7A5\uC18C \uD0A4 "{{key}}"\uC5D0 \uC800\uC7A5\uD55C \uD6C4 \uAC00\uC838\uC624\uAE30\uB97C \uB2E4\uC2DC \uD074\uB9AD\uD558\uC138\uC694.',
+    // Built-in profile names
+    "profile.balanced": "\uADE0\uD615",
+    "profile.gentle": "\uBD80\uB4DC\uB7EC\uC6C0",
+    "profile.strict": "\uC5C4\uACA9",
+    // Fallback summary
+    "fallback.header": "\u2500\u2500 \uB514\uB809\uD130 \uD50C\uB7EC\uADF8\uC778 \uC124\uC815 \u2500\u2500",
+    "fallback.enabled": "\uD65C\uC131\uD654",
+    "fallback.assertiveness": "\uC801\uADF9\uC131",
+    "fallback.provider": "\uD504\uB85C\uBC14\uC774\uB354",
+    "fallback.model": "\uBAA8\uB378",
+    "fallback.injection": "\uC8FC\uC785",
+    "fallback.postReview": "\uC0AC\uD6C4 \uB9AC\uBDF0",
+    "fallback.briefCap": "\uBE0C\uB9AC\uD504 \uC0C1\uD55C",
+    "fallback.briefCapUnit": "\uD1A0\uD070",
+    // Language selector
+    "lang.label": "\uC5B8\uC5B4",
+    "lang.en": "English",
+    "lang.ko": "\uD55C\uAD6D\uC5B4"
+  };
+  var CATALOGS = {
+    en: EN_CATALOG,
+    ko: KO_CATALOG
+  };
+  function t(key, params) {
+    const catalog = CATALOGS[activeLocale];
+    let value = catalog[key] ?? CATALOGS.en[key] ?? key;
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        value = value.replaceAll(`{{${k}}}`, v);
+      }
+    }
+    return value;
+  }
+  var TAB_KEY_MAP = {
+    "general": "tab.general",
+    "prompt-tuning": "tab.promptTuning",
+    "model-settings": "tab.modelSettings",
+    "memory-cache": "tab.memoryCache",
+    "settings-profiles": "tab.settingsProfiles"
+  };
+  function tabLabel(tabId) {
+    const key = TAB_KEY_MAP[tabId];
+    return key ? t(key) : tabId;
+  }
+  var SIDEBAR_GROUP_KEY_MAP = {
+    "general": "sidebar.group.general",
+    "tuning": "sidebar.group.tuning",
+    "memory": "sidebar.group.memory",
+    "profiles": "sidebar.group.profiles"
+  };
+  function sidebarGroupLabel(groupId) {
+    const key = SIDEBAR_GROUP_KEY_MAP[groupId];
+    return key ? t(key) : groupId;
+  }
+
   // src/ui/dashboardDom.ts
   var DASHBOARD_TABS = [
-    { id: "general", label: "General", group: "general" },
-    { id: "prompt-tuning", label: "Prompt Tuning", group: "tuning" },
-    { id: "model-settings", label: "Model Settings", group: "tuning" },
-    { id: "memory-cache", label: "Memory & Cache", group: "memory" },
-    { id: "settings-profiles", label: "Settings Profiles", group: "profiles" }
+    { id: "general", labelKey: "general", group: "general" },
+    { id: "prompt-tuning", labelKey: "prompt-tuning", group: "tuning" },
+    { id: "model-settings", labelKey: "model-settings", group: "tuning" },
+    { id: "memory-cache", labelKey: "memory-cache", group: "memory" },
+    { id: "settings-profiles", labelKey: "settings-profiles", group: "profiles" }
   ];
   function buildSidebar(activeTab) {
     const groups = [
-      { id: "general", label: "General" },
-      { id: "tuning", label: "Prompt Tuning" },
-      { id: "memory", label: "Memory" },
-      { id: "profiles", label: "Profiles" }
+      { id: "general", labelId: "general" },
+      { id: "tuning", labelId: "tuning" },
+      { id: "memory", labelId: "memory" },
+      { id: "profiles", labelId: "profiles" }
     ];
     const sections = groups.map((group) => {
       const buttons = DASHBOARD_TABS.filter((tab) => tab.group === group.id).map((tab) => {
         const activeClass = tab.id === activeTab ? " da-sidebar-btn--active" : "";
-        return `<button class="da-sidebar-btn${activeClass}" data-da-target="${tab.id}"><span>${tab.label}</span><span aria-hidden="true">\u203A</span></button>`;
+        return `<button class="da-sidebar-btn${activeClass}" data-da-target="${tab.id}"><span>${tabLabel(tab.id)}</span><span aria-hidden="true">\u203A</span></button>`;
       }).join("\n");
-      return `<section class="da-nav-group"><div class="da-nav-group-label">${group.label}</div>${buttons}</section>`;
+      return `<section class="da-nav-group"><div class="da-nav-group-label">${sidebarGroupLabel(group.id)}</div>${buttons}</section>`;
     }).join("\n");
+    const currentLocale = getLocale();
+    const nextLocale = currentLocale === "en" ? "ko" : "en";
+    const nextLabel = currentLocale === "en" ? t("lang.ko") : t("lang.en");
     return `
     <aside class="da-sidebar">
       <div class="da-sidebar-header">
-        <div class="da-kicker">Director Actor</div>
-        <h1 class="da-title">Director Dashboard</h1>
-        <p class="da-subtitle">Fullscreen control center for settings, models, prompts, memory, and profiles.</p>
+        <div class="da-kicker">${t("sidebar.kicker")}</div>
+        <h1 class="da-title">${t("sidebar.title")}</h1>
+        <p class="da-subtitle">${t("sidebar.subtitle")}</p>
       </div>
       <nav class="da-sidebar-nav">${sections}</nav>
       <div class="da-sidebar-footer da-footer">
-        <button class="da-btn da-btn--ghost" data-da-action="export-settings">Export Settings</button>
-        <button class="da-btn da-btn--danger da-close-btn" data-da-action="close-dashboard">Close</button>
+        <button class="da-btn" data-da-action="switch-lang" data-da-lang="${nextLocale}">${nextLabel}</button>
+        <button class="da-btn da-btn--ghost" data-da-action="export-settings">${t("btn.exportSettings")}</button>
+        <button class="da-btn da-btn--danger da-close-btn" data-da-action="close-dashboard">${t("btn.close")}</button>
       </div>
     </aside>`;
   }
@@ -2284,40 +2587,40 @@ ${MEMORY_UPDATE_SCHEMA}`
         <section class="da-card">
           <div class="da-card-header">
             <div>
-              <h3 class="da-card-title">Plugin Status</h3>
-              <p class="da-card-copy">Enable the director, tune tone strictness, and keep a quick view of connection health.</p>
+              <h3 class="da-card-title">${t("card.pluginStatus.title")}</h3>
+              <p class="da-card-copy">${t("card.pluginStatus.copy")}</p>
             </div>
             <span class="da-badge" data-kind="${connectionStatus.kind === "error" ? "error" : connectionStatus.kind === "success" ? "success" : "neutral"}">${connectionStatus.kind}</span>
           </div>
           <label class="da-toggle">
             <input type="checkbox" data-da-field="enabled"${settings.enabled ? " checked" : ""} />
             <span class="da-toggle-track"><span class="da-toggle-dot"></span></span>
-            <span>Enabled</span>
+            <span>${t("label.enabled")}</span>
           </label>
           <label class="da-label">
-            <span class="da-label-text">Assertiveness</span>
+            <span class="da-label-text">${t("label.assertiveness")}</span>
             <select class="da-select" data-da-field="assertiveness">
-            <option value="light"${settings.assertiveness === "light" ? " selected" : ""}>Light</option>
-            <option value="standard"${settings.assertiveness === "standard" ? " selected" : ""}>Standard</option>
-            <option value="firm"${settings.assertiveness === "firm" ? " selected" : ""}>Firm</option>
+            <option value="light"${settings.assertiveness === "light" ? " selected" : ""}>${t("option.light")}</option>
+            <option value="standard"${settings.assertiveness === "standard" ? " selected" : ""}>${t("option.standard")}</option>
+            <option value="firm"${settings.assertiveness === "firm" ? " selected" : ""}>${t("option.firm")}</option>
             </select>
           </label>
           <div class="da-inline">
             <label class="da-label">
-              <span class="da-label-text">Mode</span>
+              <span class="da-label-text">${t("label.mode")}</span>
               <select class="da-select" data-da-field="directorMode">
-                <option value="otherAx"${settings.directorMode === "otherAx" ? " selected" : ""}>Risu Aux Model</option>
-                <option value="model"${settings.directorMode === "model" ? " selected" : ""}>Independent Provider</option>
+                <option value="otherAx"${settings.directorMode === "otherAx" ? " selected" : ""}>${t("option.risuAux")}</option>
+                <option value="model"${settings.directorMode === "model" ? " selected" : ""}>${t("option.independentProvider")}</option>
               </select>
             </label>
             <label class="da-label">
-              <span class="da-label-text">Injection Mode</span>
+              <span class="da-label-text">${t("label.injectionMode")}</span>
               <select class="da-select" data-da-field="injectionMode">
-                <option value="auto"${settings.injectionMode === "auto" ? " selected" : ""}>Auto</option>
-                <option value="author-note"${settings.injectionMode === "author-note" ? " selected" : ""}>Author Note</option>
-                <option value="adjacent-user"${settings.injectionMode === "adjacent-user" ? " selected" : ""}>Adjacent User</option>
-                <option value="post-constraint"${settings.injectionMode === "post-constraint" ? " selected" : ""}>Post Constraint</option>
-                <option value="bottom"${settings.injectionMode === "bottom" ? " selected" : ""}>Bottom</option>
+                <option value="auto"${settings.injectionMode === "auto" ? " selected" : ""}>${t("option.auto")}</option>
+                <option value="author-note"${settings.injectionMode === "author-note" ? " selected" : ""}>${t("option.authorNote")}</option>
+                <option value="adjacent-user"${settings.injectionMode === "adjacent-user" ? " selected" : ""}>${t("option.adjacentUser")}</option>
+                <option value="post-constraint"${settings.injectionMode === "post-constraint" ? " selected" : ""}>${t("option.postConstraint")}</option>
+                <option value="bottom"${settings.injectionMode === "bottom" ? " selected" : ""}>${t("option.bottom")}</option>
               </select>
             </label>
           </div>
@@ -2326,15 +2629,15 @@ ${MEMORY_UPDATE_SCHEMA}`
         <section class="da-card">
           <div class="da-card-header">
             <div>
-              <h3 class="da-card-title">Metrics Snapshot</h3>
-              <p class="da-card-copy">Quick read-only visibility into runtime behavior before you dive deeper.</p>
+              <h3 class="da-card-title">${t("card.metricsSnapshot.title")}</h3>
+              <p class="da-card-copy">${t("card.metricsSnapshot.copy")}</p>
             </div>
           </div>
           <ul class="da-metric-list">
-            <li class="da-metric-item"><span>Total Director Calls</span><strong>${input.pluginState.metrics.totalDirectorCalls}</strong></li>
-            <li class="da-metric-item"><span>Total Failures</span><strong>${input.pluginState.metrics.totalDirectorFailures}</strong></li>
-            <li class="da-metric-item"><span>Memory Writes</span><strong>${input.pluginState.metrics.totalMemoryWrites}</strong></li>
-            <li class="da-metric-item"><span>Scene Phase</span><strong>${input.pluginState.director.scenePhase}</strong></li>
+            <li class="da-metric-item"><span>${t("metric.totalDirectorCalls")}</span><strong>${input.pluginState.metrics.totalDirectorCalls}</strong></li>
+            <li class="da-metric-item"><span>${t("metric.totalFailures")}</span><strong>${input.pluginState.metrics.totalDirectorFailures}</strong></li>
+            <li class="da-metric-item"><span>${t("metric.memoryWrites")}</span><strong>${input.pluginState.metrics.totalMemoryWrites}</strong></li>
+            <li class="da-metric-item"><span>${t("metric.scenePhase")}</span><strong>${input.pluginState.director.scenePhase}</strong></li>
           </ul>
         </section>
       </div>`;
@@ -2346,45 +2649,45 @@ ${MEMORY_UPDATE_SCHEMA}`
         <section class="da-card">
           <div class="da-card-header">
             <div>
-              <h3 class="da-card-title">Prompt Tuning</h3>
-              <p class="da-card-copy">Tune how strongly the Director pushes, how large the brief is, and whether post-review stays active.</p>
+              <h3 class="da-card-title">${t("card.promptTuning.title")}</h3>
+              <p class="da-card-copy">${t("card.promptTuning.copy")}</p>
             </div>
           </div>
           <div class="da-form-grid">
             <label class="da-label">
-              <span class="da-label-text">Brief Token Cap</span>
+              <span class="da-label-text">${t("label.briefTokenCap")}</span>
               <input type="number" class="da-input" data-da-field="briefTokenCap" value="${settings.briefTokenCap}" />
             </label>
             <label class="da-toggle">
               <input type="checkbox" data-da-field="postReviewEnabled"${settings.postReviewEnabled ? " checked" : ""} />
               <span class="da-toggle-track"><span class="da-toggle-dot"></span></span>
-              <span>Enable Post-review</span>
+              <span>${t("label.postReview")}</span>
             </label>
             <label class="da-toggle">
               <input type="checkbox" data-da-field="embeddingsEnabled"${settings.embeddingsEnabled ? " checked" : ""} />
               <span class="da-toggle-track"><span class="da-toggle-dot"></span></span>
-              <span>Enable Embeddings</span>
+              <span>${t("label.embeddings")}</span>
             </label>
           </div>
         </section>
         <section class="da-card">
           <div class="da-card-header">
             <div>
-              <h3 class="da-card-title">Timing & Limits</h3>
-              <p class="da-card-copy">Cooldown and debounce controls keep the Director stable under streaming and bad responses.</p>
+              <h3 class="da-card-title">${t("card.timingLimits.title")}</h3>
+              <p class="da-card-copy">${t("card.timingLimits.copy")}</p>
             </div>
           </div>
           <div class="da-form-grid">
             <label class="da-label">
-              <span class="da-label-text">Cooldown Failures</span>
+              <span class="da-label-text">${t("label.cooldownFailures")}</span>
               <input type="number" class="da-input" data-da-field="cooldownFailureThreshold" value="${settings.cooldownFailureThreshold}" />
             </label>
             <label class="da-label">
-              <span class="da-label-text">Cooldown (ms)</span>
+              <span class="da-label-text">${t("label.cooldownMs")}</span>
               <input type="number" class="da-input" data-da-field="cooldownMs" value="${settings.cooldownMs}" />
             </label>
             <label class="da-label">
-              <span class="da-label-text">Output Debounce (ms)</span>
+              <span class="da-label-text">${t("label.outputDebounceMs")}</span>
               <input type="number" class="da-input" data-da-field="outputDebounceMs" value="${settings.outputDebounceMs}" />
             </label>
           </div>
@@ -2399,41 +2702,41 @@ ${MEMORY_UPDATE_SCHEMA}`
         <section class="da-card">
           <div class="da-card-header">
             <div>
-              <h3 class="da-card-title">Director Model Settings</h3>
-              <p class="da-card-copy">Keep the Director on its own provider, base URL, key, and model without touching the main RP model.</p>
+              <h3 class="da-card-title">${t("card.directorModel.title")}</h3>
+              <p class="da-card-copy">${t("card.directorModel.copy")}</p>
             </div>
           </div>
           <div class="da-form-grid">
             <label class="da-label">
-              <span class="da-label-text">Provider</span>
+              <span class="da-label-text">${t("label.provider")}</span>
               <select class="da-select" data-da-field="directorProvider">
-                <option value="openai"${settings.directorProvider === "openai" ? " selected" : ""}>OpenAI</option>
-                <option value="anthropic"${settings.directorProvider === "anthropic" ? " selected" : ""}>Anthropic</option>
-                <option value="google"${settings.directorProvider === "google" ? " selected" : ""}>Google</option>
-                <option value="custom"${settings.directorProvider === "custom" ? " selected" : ""}>Custom</option>
+                <option value="openai"${settings.directorProvider === "openai" ? " selected" : ""}>${t("option.openai")}</option>
+                <option value="anthropic"${settings.directorProvider === "anthropic" ? " selected" : ""}>${t("option.anthropic")}</option>
+                <option value="google"${settings.directorProvider === "google" ? " selected" : ""}>${t("option.google")}</option>
+                <option value="custom"${settings.directorProvider === "custom" ? " selected" : ""}>${t("option.custom")}</option>
               </select>
             </label>
             <div class="da-split">
               <label class="da-label">
-                <span class="da-label-text">Base URL</span>
+                <span class="da-label-text">${t("label.baseUrl")}</span>
                 <input type="text" class="da-input" data-da-field="directorBaseUrl" value="${settings.directorBaseUrl}" />
               </label>
               <label class="da-label">
-                <span class="da-label-text">API Key</span>
+                <span class="da-label-text">${t("label.apiKey")}</span>
                 <input type="password" class="da-input" data-da-field="directorApiKey" value="${settings.directorApiKey}" />
               </label>
             </div>
             <label class="da-label">
-              <span class="da-label-text">Model</span>
+              <span class="da-label-text">${t("label.model")}</span>
               <select class="da-select" data-da-field="directorModel">${modelOptionEls}</select>
             </label>
             <label class="da-label">
-              <span class="da-label-text">Custom Model ID</span>
+              <span class="da-label-text">${t("label.customModelId")}</span>
               <input type="text" class="da-input" data-da-field="directorModel" value="${settings.directorModel}" placeholder="type a model ID directly" />
             </label>
             <div class="da-inline">
-              <button class="da-btn da-btn--primary" data-da-action="test-connection">Test Connection</button>
-              <button class="da-btn" data-da-action="refresh-models">Refresh Models</button>
+              <button class="da-btn da-btn--primary" data-da-action="test-connection">${t("btn.testConnection")}</button>
+              <button class="da-btn" data-da-action="refresh-models">${t("btn.refreshModels")}</button>
             </div>
           </div>
         </section>
@@ -2445,11 +2748,11 @@ ${MEMORY_UPDATE_SCHEMA}`
         <section class="da-card">
           <div class="da-card-header">
             <div>
-              <h3 class="da-card-title">Memory & Cache</h3>
-              <p class="da-card-copy">Inspect the long-memory substrate and keep an eye on the cache/memory write behavior.</p>
+              <h3 class="da-card-title">${t("card.memoryCache.title")}</h3>
+              <p class="da-card-copy">${t("card.memoryCache.copy")}</p>
             </div>
           </div>
-          <p class="da-hint">Memory summaries, entity graphs, and cache controls will appear here.</p>
+          <p class="da-hint">${t("card.memoryCache.hint")}</p>
         </section>
       </div>`;
   }
@@ -2464,15 +2767,15 @@ ${MEMORY_UPDATE_SCHEMA}`
         <section class="da-card">
           <div class="da-card-header">
             <div>
-              <h3 class="da-card-title">Settings Profiles</h3>
-              <p class="da-card-copy">Save reusable presets, swap them in one click, and move them between saves with JSON import/export.</p>
+              <h3 class="da-card-title">${t("card.settingsProfiles.title")}</h3>
+              <p class="da-card-copy">${t("card.settingsProfiles.copy")}</p>
             </div>
           </div>
           <ul class="da-profile-list">${profileItems}</ul>
           <div class="da-inline">
-            <button class="da-btn da-btn--primary" data-da-action="create-profile">New Profile</button>
-            <button class="da-btn" data-da-action="export-profile">Export</button>
-            <button class="da-btn" data-da-action="import-profile">Import</button>
+            <button class="da-btn da-btn--primary" data-da-action="create-profile">${t("btn.newProfile")}</button>
+            <button class="da-btn" data-da-action="export-profile">${t("btn.export")}</button>
+            <button class="da-btn" data-da-action="import-profile">${t("btn.import")}</button>
           </div>
         </section>
       </div>`;
@@ -2491,20 +2794,20 @@ ${MEMORY_UPDATE_SCHEMA}`
       const inner = builder ? builder(input) : "";
       return `
     <div class="da-page${hidden}" id="da-page-${tab.id}">
-      <h2 class="da-page-title">${tab.label}</h2>${inner}
+      <h2 class="da-page-title">${tabLabel(tab.id)}</h2>${inner}
     </div>`;
     }).join("");
     return `
     <main class="da-content">
       <section class="da-toolbar">
         <div class="da-toolbar-meta">
-          <div class="da-kicker">Cupcake-style dashboard</div>
-          <strong>Modern control surface for Director behavior, models, and memory.</strong>
+          <div class="da-kicker">${t("toolbar.kicker")}</div>
+          <strong>${t("toolbar.tagline")}</strong>
         </div>
         <div class="da-toolbar-actions">
-          <span class="da-dirty-indicator">Unsaved changes stay local until you save.</span>
-          <button class="da-btn da-btn--primary" data-da-action="save-settings">Save Changes</button>
-          <button class="da-btn" data-da-action="reset-settings">Reset</button>
+          <span class="da-dirty-indicator">${t("dirty.unsavedHint")}</span>
+          <button class="da-btn da-btn--primary" data-da-action="save-settings">${t("btn.saveChanges")}</button>
+          <button class="da-btn" data-da-action="reset-settings">${t("btn.reset")}</button>
         </div>
       </section>${pages}
     </main>`;
@@ -2544,6 +2847,7 @@ ${MEMORY_UPDATE_SCHEMA}`
   // src/ui/dashboardState.ts
   var DASHBOARD_SETTINGS_KEY = "dashboard-settings-v1";
   var DASHBOARD_PROFILE_MANIFEST_KEY = "dashboard-profile-manifest-v1";
+  var DASHBOARD_LOCALE_KEY = "dashboard-locale-v1";
   var DASHBOARD_SCHEMA_VERSION = 1;
   function normalizePersistedSettings(raw) {
     return { ...DEFAULT_DIRECTOR_SETTINGS, ...raw };
@@ -2762,7 +3066,8 @@ ${MEMORY_UPDATE_SCHEMA}`
         relations: [],
         worldFacts: [],
         sceneLedger: [],
-        turnArchive: []
+        turnArchive: [],
+        continuityFacts: []
       },
       metrics: {
         totalDirectorCalls: 0,
@@ -2791,7 +3096,7 @@ ${MEMORY_UPDATE_SCHEMA}`
       this.profiles = profiles;
       this.activeTab = DASHBOARD_TABS[0]?.id ?? "general";
       this.modelOptions = modelOptions;
-      this.connectionStatus = { kind: "idle", message: "Not tested" };
+      this.connectionStatus = { kind: "idle", message: t("connection.notTested") };
     }
     // ── public ────────────────────────────────────────────────────────────
     async mount() {
@@ -2843,7 +3148,7 @@ ${MEMORY_UPDATE_SCHEMA}`
         const closeBtn = this.doc.createElement("button");
         closeBtn.className = "da-btn da-close-btn";
         closeBtn.setAttribute("data-da-action", "close");
-        closeBtn.textContent = "\u2715 Close";
+        closeBtn.textContent = t("btn.closeIcon");
         sidebar.appendChild(closeBtn);
       }
       const content = wrapper.querySelector(".da-content");
@@ -2862,10 +3167,10 @@ ${MEMORY_UPDATE_SCHEMA}`
     buildFooterHtml() {
       const dirtyClass = this.draft.isDirty ? "" : " da-hidden";
       return [
-        `<span class="da-dirty-indicator${dirtyClass}" data-da-role="dirty">Unsaved changes</span>`,
+        `<span class="da-dirty-indicator${dirtyClass}" data-da-role="dirty">${t("dirty.unsavedChanges")}</span>`,
         `<div style="display:flex;gap:8px;margin-left:auto">`,
-        `  <button class="da-btn" data-da-action="discard">Discard</button>`,
-        `  <button class="da-btn da-btn--primary" data-da-action="save">Save</button>`,
+        `  <button class="da-btn" data-da-action="discard">${t("btn.discard")}</button>`,
+        `  <button class="da-btn da-btn--primary" data-da-action="save">${t("btn.save")}</button>`,
         `</div>`
       ].join("\n");
     }
@@ -2890,7 +3195,7 @@ ${MEMORY_UPDATE_SCHEMA}`
         const closeBtn = this.doc.createElement("button");
         closeBtn.className = "da-btn da-close-btn";
         closeBtn.setAttribute("data-da-action", "close");
-        closeBtn.textContent = "\u2715 Close";
+        closeBtn.textContent = t("btn.closeIcon");
         sidebar.appendChild(closeBtn);
       }
       const content = wrapper.querySelector(".da-content");
@@ -2994,6 +3299,9 @@ ${MEMORY_UPDATE_SCHEMA}`
         case "import-profile":
           await this.handleImportProfile();
           break;
+        case "switch-lang":
+          await this.handleSwitchLang(btn);
+          break;
       }
     }
     handleProfileSelect(target) {
@@ -3059,7 +3367,7 @@ ${MEMORY_UPDATE_SCHEMA}`
       }
       this.draft.isDirty = false;
       this.updateDirtyIndicator();
-      this.showToast("Settings saved");
+      this.showToast(t("toast.settingsSaved"));
     }
     async handleDiscard() {
       const raw = await this.store.storage.getItem(
@@ -3069,11 +3377,11 @@ ${MEMORY_UPDATE_SCHEMA}`
         normalizePersistedSettings(raw ?? {})
       );
       this.fullReRender();
-      this.showToast("Changes discarded");
+      this.showToast(t("toast.changesDiscarded"));
     }
     // ── Connection test ───────────────────────────────────────────────────
     async handleTestConnection() {
-      this.connectionStatus = { kind: "testing", message: "Testing\u2026" };
+      this.connectionStatus = { kind: "testing", message: t("connection.testing") };
       this.updateConnectionStatusDom();
       const result = await testDirectorConnection(
         this.api,
@@ -3082,7 +3390,7 @@ ${MEMORY_UPDATE_SCHEMA}`
       if (result.ok) {
         this.connectionStatus = {
           kind: "ok",
-          message: `Connected (${String(result.models.length)} models)`
+          message: t("connection.connected", { count: String(result.models.length) })
         };
         this.modelOptions = result.models;
         this.updateModelSelectDom();
@@ -3114,7 +3422,7 @@ ${MEMORY_UPDATE_SCHEMA}`
         structuredClone(this.profiles)
       );
       this.fullReRender();
-      this.showToast("Profile created");
+      this.showToast(t("toast.profileCreated"));
     }
     selectProfile(profileId) {
       const profile = this.profiles.profiles.find((p) => p.id === profileId);
@@ -3131,19 +3439,19 @@ ${MEMORY_UPDATE_SCHEMA}`
         (p) => p.id === this.profiles.activeProfileId
       );
       if (!activeProfile) {
-        this.showToast("No profile selected");
+        this.showToast(t("toast.noProfileSelected"));
         return;
       }
       const payload = createProfileExportPayload(activeProfile);
       const json = JSON.stringify(payload, null, 2);
       await this.api.alert(json);
-      this.showToast("Profile exported");
+      this.showToast(t("toast.profileExported"));
     }
     async handleImportProfile() {
       const raw = await this.store.storage.getItem(IMPORT_STAGING_KEY);
       if (!raw) {
         await this.api.alert(
-          `To import a profile, save the JSON to plugin storage key "${IMPORT_STAGING_KEY}" and click Import again.`
+          t("alert.importInstructions", { key: IMPORT_STAGING_KEY })
         );
         return;
       }
@@ -3151,7 +3459,7 @@ ${MEMORY_UPDATE_SCHEMA}`
         const text = typeof raw === "string" ? raw : JSON.stringify(raw);
         const parsed = JSON.parse(text);
         if (!isValidExportPayload(parsed)) {
-          await this.api.alertError("Invalid profile format");
+          await this.api.alertError(t("toast.invalidProfileFormat"));
           return;
         }
         const payload = parsed;
@@ -3168,10 +3476,18 @@ ${MEMORY_UPDATE_SCHEMA}`
         );
         await this.store.storage.removeItem(IMPORT_STAGING_KEY);
         this.fullReRender();
-        this.showToast("Profile imported");
+        this.showToast(t("toast.profileImported"));
       } catch {
-        await this.api.alertError("Failed to parse profile JSON");
+        await this.api.alertError(t("toast.failedParseProfile"));
       }
+    }
+    // ── Language switch ──────────────────────────────────────────────────
+    async handleSwitchLang(btn) {
+      const nextLocale = btn.getAttribute("data-da-lang") ?? "en";
+      setLocale(nextLocale);
+      await this.store.storage.setItem(DASHBOARD_LOCALE_KEY, nextLocale);
+      this.connectionStatus = { kind: this.connectionStatus.kind, message: this.connectionStatus.message };
+      this.fullReRender();
     }
     // ── Toast ─────────────────────────────────────────────────────────────
     showToast(message) {
@@ -3198,6 +3514,10 @@ ${MEMORY_UPDATE_SCHEMA}`
     const targetDoc = doc ?? globalThis.document;
     for (const el of Array.from(targetDoc.querySelectorAll(`.${DASHBOARD_ROOT_CLASS}`))) {
       el.remove();
+    }
+    const rawLocale = await store.storage.getItem(DASHBOARD_LOCALE_KEY);
+    if (rawLocale === "en" || rawLocale === "ko") {
+      setLocale(rawLocale);
     }
     const rawSettings = await store.storage.getItem(
       DASHBOARD_SETTINGS_KEY
@@ -3243,14 +3563,14 @@ ${MEMORY_UPDATE_SCHEMA}`
   var BUTTON_ID = "director-dashboard-button";
   function buildFallbackSummary(settings) {
     return [
-      `\u2500\u2500 Director Plugin Settings \u2500\u2500`,
-      `Enabled: ${String(settings.enabled)}`,
-      `Assertiveness: ${settings.assertiveness}`,
-      `Provider: ${settings.directorProvider}`,
-      `Model: ${settings.directorModel}`,
-      `Injection: ${settings.injectionMode}`,
-      `Post-review: ${String(settings.postReviewEnabled)}`,
-      `Brief cap: ${String(settings.briefTokenCap)} tokens`
+      t("fallback.header"),
+      `${t("fallback.enabled")}: ${String(settings.enabled)}`,
+      `${t("fallback.assertiveness")}: ${settings.assertiveness}`,
+      `${t("fallback.provider")}: ${settings.directorProvider}`,
+      `${t("fallback.model")}: ${settings.directorModel}`,
+      `${t("fallback.injection")}: ${settings.injectionMode}`,
+      `${t("fallback.postReview")}: ${String(settings.postReviewEnabled)}`,
+      `${t("fallback.briefCap")}: ${String(settings.briefTokenCap)} ${t("fallback.briefCapUnit")}`
     ].join("\n");
   }
   async function showSettingsOverlay(api, settings = DEFAULT_DIRECTOR_SETTINGS, dashboardStore) {
