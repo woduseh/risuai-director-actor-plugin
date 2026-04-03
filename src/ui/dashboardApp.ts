@@ -31,7 +31,7 @@ import type { ConnectionTestResult } from './dashboardModel.js'
 import { t, setLocale, getLocale } from './i18n.js'
 import type { DashboardLocale } from './i18n.js'
 import { DIRECTOR_STATE_STORAGE_KEY } from '../memory/canonicalStore.js'
-import { deleteSummary, deleteContinuityFact } from '../memory/memoryMutations.js'
+import { deleteSummary, deleteContinuityFact, upsertSummary, upsertContinuityFact } from '../memory/memoryMutations.js'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -435,6 +435,12 @@ class DashboardInstance {
       case 'delete-continuity-fact':
         await this.handleDeleteMemoryItem(btn, 'continuity-fact')
         break
+      case 'add-summary':
+        await this.handleAddMemoryItem('summary')
+        break
+      case 'add-continuity-fact':
+        await this.handleAddMemoryItem('continuity-fact')
+        break
     }
   }
 
@@ -708,6 +714,46 @@ class DashboardInstance {
       deleteSummary(state, itemId)
     } else {
       deleteContinuityFact(state, itemId)
+    }
+    await this.store.storage.setItem(DIRECTOR_STATE_STORAGE_KEY, structuredClone(state))
+    this.canonicalState = state
+    this.fullReRender()
+  }
+
+  // ── Memory add ──────────────────────────────────────────────────────
+
+  private async handleAddMemoryItem(
+    kind: 'summary' | 'continuity-fact',
+  ): Promise<void> {
+    if (!this.root) return
+    const inputRole = kind === 'summary' ? 'add-summary-text' : 'add-fact-text'
+    const inputEl = this.root.querySelector(
+      `input[data-da-role="${inputRole}"]`,
+    ) as HTMLInputElement | null
+    if (!inputEl) return
+
+    const text = inputEl.value.trim()
+    if (!text) return
+
+    if (this.store.writeCanonical) {
+      const nextState = await this.store.writeCanonical((current) => {
+        if (kind === 'summary') {
+          upsertSummary(current, { text, recencyWeight: 1 })
+        } else {
+          upsertContinuityFact(current, { text, priority: 5 })
+        }
+        return current
+      })
+      this.canonicalState = structuredClone(nextState)
+      this.fullReRender()
+      return
+    }
+
+    const state = await readCanonicalState(this.store)
+    if (kind === 'summary') {
+      upsertSummary(state, { text, recencyWeight: 1 })
+    } else {
+      upsertContinuityFact(state, { text, priority: 5 })
     }
     await this.store.storage.setItem(DIRECTOR_STATE_STORAGE_KEY, structuredClone(state))
     this.canonicalState = state

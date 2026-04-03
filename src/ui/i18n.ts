@@ -144,6 +144,9 @@ const EN_CATALOG = {
   'card.memorySummaries.title': 'Summaries',
   'card.continuityFacts.title': 'Continuity Facts',
   'btn.delete': 'Delete',
+  'btn.add': 'Add',
+  'memory.addSummaryPlaceholder': 'New summary text\u2026',
+  'memory.addFactPlaceholder': 'New continuity fact\u2026',
   'memory.filterPlaceholder': 'Filter memory\u2026',
   'memory.emptyHint': 'No memory items yet. Summaries and continuity facts will appear here as the story progresses.',
 
@@ -316,6 +319,9 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'card.memorySummaries.title': '요약',
   'card.continuityFacts.title': '연속성 사실',
   'btn.delete': '삭제',
+  'btn.add': '추가',
+  'memory.addSummaryPlaceholder': '새 요약 텍스트\u2026',
+  'memory.addFactPlaceholder': '새 연속성 사실\u2026',
   'memory.filterPlaceholder': '메모리 필터\u2026',
   'memory.emptyHint': '아직 메모리 항목이 없습니다. 이야기가 진행됨에 따라 요약 및 연속성 사실이 여기에 표시됩니다.',
 

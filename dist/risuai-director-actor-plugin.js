@@ -521,6 +521,31 @@ ${MEMORY_UPDATE_SCHEMA}`
   function uniqueStrings(values) {
     return [...new Set(values.map((v) => v.trim()).filter(Boolean))];
   }
+  function upsertSummary(state, input) {
+    const now = Date.now();
+    const { id, text, recencyWeight, sceneId, entityIds } = input;
+    const summaries = state.memory.summaries;
+    const existing = id ? summaries.find((s) => s.id === id) : void 0;
+    if (existing) {
+      existing.text = text;
+      existing.recencyWeight = recencyWeight;
+      if (sceneId !== void 0) existing.sceneId = sceneId;
+      if (entityIds) {
+        existing.entityIds = uniqueStrings([...existing.entityIds ?? [], ...entityIds]);
+      }
+      existing.updatedAt = now;
+      return;
+    }
+    const entry = {
+      id: id ?? createId("summary"),
+      text,
+      recencyWeight,
+      updatedAt: now
+    };
+    if (sceneId !== void 0) entry.sceneId = sceneId;
+    if (entityIds && entityIds.length > 0) entry.entityIds = entityIds;
+    summaries.push(entry);
+  }
   function deleteSummary(state, id) {
     const idx = state.memory.summaries.findIndex((s) => s.id === id);
     if (idx === -1) return false;
@@ -597,7 +622,7 @@ ${MEMORY_UPDATE_SCHEMA}`
   function uniqueStrings2(values) {
     return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
   }
-  function upsertSummary(summaries, text, now, partial) {
+  function upsertSummary2(summaries, text, now, partial) {
     const existing = summaries.find((entry) => entry.text === text || entry.id === partial?.id);
     if (existing) {
       existing.text = text;
@@ -792,7 +817,7 @@ ${MEMORY_UPDATE_SCHEMA}`
         if (summaryEntityIds.length > 0) {
           summaryPartial.entityIds = summaryEntityIds;
         }
-        upsertSummary(state.memory.summaries, text, now, {
+        upsertSummary2(state.memory.summaries, text, now, {
           ...summaryPartial
         });
         return;
@@ -923,7 +948,7 @@ ${MEMORY_UPDATE_SCHEMA}`
       next.director.scenePhase = update.sceneDelta.scenePhase;
     }
     for (const durableFact of uniqueStrings2(update.durableFacts)) {
-      upsertSummary(next.memory.summaries, durableFact, now, {
+      upsertSummary2(next.memory.summaries, durableFact, now, {
         sceneId: next.director.currentSceneId,
         recencyWeight: 1
       });
@@ -2146,6 +2171,17 @@ ${MEMORY_UPDATE_SCHEMA}`
   flex-shrink: 0;
 }
 
+.da-add-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.da-add-row .da-input--add {
+  flex: 1;
+  min-height: 36px;
+}
+
 @media (max-width: 960px) {
   .${DASHBOARD_ROOT_CLASS},
   .da-dashboard {
@@ -2633,6 +2669,9 @@ ${MEMORY_UPDATE_SCHEMA}`
     "card.memorySummaries.title": "Summaries",
     "card.continuityFacts.title": "Continuity Facts",
     "btn.delete": "Delete",
+    "btn.add": "Add",
+    "memory.addSummaryPlaceholder": "New summary text\u2026",
+    "memory.addFactPlaceholder": "New continuity fact\u2026",
     "memory.filterPlaceholder": "Filter memory\u2026",
     "memory.emptyHint": "No memory items yet. Summaries and continuity facts will appear here as the story progresses.",
     // Card: Settings Profiles
@@ -2780,6 +2819,9 @@ ${MEMORY_UPDATE_SCHEMA}`
     "card.memorySummaries.title": "\uC694\uC57D",
     "card.continuityFacts.title": "\uC5F0\uC18D\uC131 \uC0AC\uC2E4",
     "btn.delete": "\uC0AD\uC81C",
+    "btn.add": "\uCD94\uAC00",
+    "memory.addSummaryPlaceholder": "\uC0C8 \uC694\uC57D \uD14D\uC2A4\uD2B8\u2026",
+    "memory.addFactPlaceholder": "\uC0C8 \uC5F0\uC18D\uC131 \uC0AC\uC2E4\u2026",
     "memory.filterPlaceholder": "\uBA54\uBAA8\uB9AC \uD544\uD130\u2026",
     "memory.emptyHint": "\uC544\uC9C1 \uBA54\uBAA8\uB9AC \uD56D\uBAA9\uC774 \uC5C6\uC2B5\uB2C8\uB2E4. \uC774\uC57C\uAE30\uAC00 \uC9C4\uD589\uB428\uC5D0 \uB530\uB77C \uC694\uC57D \uBC0F \uC5F0\uC18D\uC131 \uC0AC\uC2E4\uC774 \uC5EC\uAE30\uC5D0 \uD45C\uC2DC\uB429\uB2C8\uB2E4.",
     // Card: Settings Profiles
@@ -3121,45 +3163,35 @@ ${MEMORY_UPDATE_SCHEMA}`
     const facts = pluginState.memory.continuityFacts;
     const isEmpty = summaries.length === 0 && facts.length === 0;
     const filterHtml = `<input type="text" class="da-input" data-da-role="memory-filter" placeholder="${t("memory.filterPlaceholder")}" />`;
-    if (isEmpty) {
-      return `
-      <div class="da-grid">
-        <section class="da-card">
-          <div class="da-card-header">
-            <div>
-              <h3 class="da-card-title">${t("card.memoryCache.title")}</h3>
-              <p class="da-card-copy">${t("card.memoryCache.copy")}</p>
-            </div>
-          </div>
-          ${filterHtml}
-          <p class="da-empty" data-da-role="memory-empty">${t("memory.emptyHint")}</p>
-        </section>
-      </div>`;
-    }
+    const addSummaryHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-summary-text" placeholder="${t("memory.addSummaryPlaceholder")}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-summary">${t("btn.add")}</button></div>`;
+    const addFactHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-fact-text" placeholder="${t("memory.addFactPlaceholder")}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-continuity-fact">${t("btn.add")}</button></div>`;
     const summaryItems = summaries.map(
       (s) => `<li class="da-memory-item"><span>${escapeXml(s.text)}</span><button class="da-btn da-btn--danger da-btn--sm" data-da-action="delete-summary" data-da-item-id="${escapeXml(s.id)}">${t("btn.delete")}</button></li>`
     ).join("");
     const factItems = facts.map(
       (f) => `<li class="da-memory-item"><span>${escapeXml(f.text)}</span><button class="da-btn da-btn--danger da-btn--sm" data-da-action="delete-continuity-fact" data-da-item-id="${escapeXml(f.id)}">${t("btn.delete")}</button></li>`
     ).join("");
+    const emptyHintHtml = isEmpty ? `<p class="da-empty" data-da-role="memory-empty">${t("memory.emptyHint")}</p>` : "";
     return `
-      ${filterHtml}
+      ${filterHtml}${emptyHintHtml}
       <div class="da-grid">
         <section class="da-card">
           <div class="da-card-header">
             <div>
               <h3 class="da-card-title">${t("card.memorySummaries.title")}</h3>
             </div>
-          </div>
-          <ul class="da-memory-list">${summaryItems}</ul>
+          </div>${summaryItems ? `
+          <ul class="da-memory-list">${summaryItems}</ul>` : ""}
+          ${addSummaryHtml}
         </section>
         <section class="da-card">
           <div class="da-card-header">
             <div>
               <h3 class="da-card-title">${t("card.continuityFacts.title")}</h3>
             </div>
-          </div>
-          <ul class="da-memory-list">${factItems}</ul>
+          </div>${factItems ? `
+          <ul class="da-memory-list">${factItems}</ul>` : ""}
+          ${addFactHtml}
         </section>
       </div>`;
   }
@@ -3572,6 +3604,12 @@ ${MEMORY_UPDATE_SCHEMA}`
         case "delete-continuity-fact":
           await this.handleDeleteMemoryItem(btn, "continuity-fact");
           break;
+        case "add-summary":
+          await this.handleAddMemoryItem("summary");
+          break;
+        case "add-continuity-fact":
+          await this.handleAddMemoryItem("continuity-fact");
+          break;
       }
     }
     handleProfileSelect(target) {
@@ -3800,6 +3838,39 @@ ${MEMORY_UPDATE_SCHEMA}`
         deleteSummary(state, itemId);
       } else {
         deleteContinuityFact(state, itemId);
+      }
+      await this.store.storage.setItem(DIRECTOR_STATE_STORAGE_KEY, structuredClone(state));
+      this.canonicalState = state;
+      this.fullReRender();
+    }
+    // ── Memory add ──────────────────────────────────────────────────────
+    async handleAddMemoryItem(kind) {
+      if (!this.root) return;
+      const inputRole = kind === "summary" ? "add-summary-text" : "add-fact-text";
+      const inputEl = this.root.querySelector(
+        `input[data-da-role="${inputRole}"]`
+      );
+      if (!inputEl) return;
+      const text = inputEl.value.trim();
+      if (!text) return;
+      if (this.store.writeCanonical) {
+        const nextState = await this.store.writeCanonical((current) => {
+          if (kind === "summary") {
+            upsertSummary(current, { text, recencyWeight: 1 });
+          } else {
+            upsertContinuityFact(current, { text, priority: 5 });
+          }
+          return current;
+        });
+        this.canonicalState = structuredClone(nextState);
+        this.fullReRender();
+        return;
+      }
+      const state = await readCanonicalState(this.store);
+      if (kind === "summary") {
+        upsertSummary(state, { text, recencyWeight: 1 });
+      } else {
+        upsertContinuityFact(state, { text, priority: 5 });
       }
       await this.store.storage.setItem(DIRECTOR_STATE_STORAGE_KEY, structuredClone(state));
       this.canonicalState = state;

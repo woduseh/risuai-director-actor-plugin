@@ -393,7 +393,240 @@ describe('dashboard app memory delete actions', () => {
 })
 
 // ---------------------------------------------------------------------------
-// 4. Localization — Korean locale for memory page surface
+// 4. Dashboard app memory add actions
+// ---------------------------------------------------------------------------
+
+describe('dashboard app memory add actions', () => {
+  let api: ReturnType<typeof createMockRisuaiApi>
+  let store: DashboardStore
+
+  beforeEach(() => {
+    api = createMockRisuaiApi()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  afterEach(async () => {
+    await closeDashboard()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  test('add-summary button and input render in the summaries card', async () => {
+    const state = stateWithMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store = createTestStore(api))
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    const addBtn = memoryPage.querySelector('[data-da-action="add-summary"]')
+    const addInput = memoryPage.querySelector('input[data-da-role="add-summary-text"]') as HTMLInputElement
+    expect(addBtn).not.toBeNull()
+    expect(addInput).not.toBeNull()
+    expect(addInput.type).toBe('text')
+  })
+
+  test('add-continuity-fact button and input render in the continuity facts card', async () => {
+    const state = stateWithMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store = createTestStore(api))
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    const addBtn = memoryPage.querySelector('[data-da-action="add-continuity-fact"]')
+    const addInput = memoryPage.querySelector('input[data-da-role="add-fact-text"]') as HTMLInputElement
+    expect(addBtn).not.toBeNull()
+    expect(addInput).not.toBeNull()
+    expect(addInput.type).toBe('text')
+  })
+
+  test('add controls render even when memory is empty', async () => {
+    await openDashboard(api, store = createTestStore(api))
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    const addSummaryBtn = memoryPage.querySelector('[data-da-action="add-summary"]')
+    const addFactBtn = memoryPage.querySelector('[data-da-action="add-continuity-fact"]')
+    const addSummaryInput = memoryPage.querySelector('input[data-da-role="add-summary-text"]')
+    const addFactInput = memoryPage.querySelector('input[data-da-role="add-fact-text"]')
+    expect(addSummaryBtn).not.toBeNull()
+    expect(addFactBtn).not.toBeNull()
+    expect(addSummaryInput).not.toBeNull()
+    expect(addFactInput).not.toBeNull()
+  })
+
+  test('add-summary creates a new summary and re-renders it', async () => {
+    const state = stateWithMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => {
+        const raw = await api.pluginStorage.getItem<DirectorPluginState>(DIRECTOR_STATE_STORAGE_KEY)
+        return raw ?? createEmptyState()
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const addInput = root.querySelector('input[data-da-role="add-summary-text"]') as HTMLInputElement
+    addInput.value = 'Newly added summary text'
+    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    expect(memoryPage.textContent).toContain('Newly added summary text')
+  })
+
+  test('add-continuity-fact creates a new fact and re-renders it', async () => {
+    const state = stateWithMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => {
+        const raw = await api.pluginStorage.getItem<DirectorPluginState>(DIRECTOR_STATE_STORAGE_KEY)
+        return raw ?? createEmptyState()
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const addInput = root.querySelector('input[data-da-role="add-fact-text"]') as HTMLInputElement
+    addInput.value = 'Newly added continuity fact'
+    const addBtn = root.querySelector('[data-da-action="add-continuity-fact"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    expect(memoryPage.textContent).toContain('Newly added continuity fact')
+  })
+
+  test('add-summary with empty text does nothing', async () => {
+    const state = stateWithMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => {
+        const raw = await api.pluginStorage.getItem<DirectorPluginState>(DIRECTOR_STATE_STORAGE_KEY)
+        return raw ?? createEmptyState()
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const summaryCountBefore = root.querySelectorAll('[data-da-action="delete-summary"]').length
+    const addInput = root.querySelector('input[data-da-role="add-summary-text"]') as HTMLInputElement
+    addInput.value = '   '
+    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const summaryCountAfter = document.querySelectorAll('[data-da-action="delete-summary"]').length
+    expect(summaryCountAfter).toBe(summaryCountBefore)
+  })
+
+  test('add-summary uses writeCanonical when provided', async () => {
+    let currentState = stateWithMemory()
+    let writeCalls = 0
+
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        writeCalls += 1
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const addInput = root.querySelector('input[data-da-role="add-summary-text"]') as HTMLInputElement
+    addInput.value = 'Written via writeCanonical'
+    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    expect(writeCalls).toBe(1)
+    expect(currentState.memory.summaries.some((s) => s.text === 'Written via writeCanonical')).toBe(true)
+  })
+
+  test('created summary gets sensible defaults (truthy id, recencyWeight 1, recent updatedAt)', async () => {
+    let currentState = createEmptyState()
+
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const addInput = root.querySelector('input[data-da-role="add-summary-text"]') as HTMLInputElement
+    addInput.value = 'Default check summary'
+    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const created = currentState.memory.summaries.find((s) => s.text === 'Default check summary')
+    expect(created).toBeDefined()
+    expect(created!.id).toBeTruthy()
+    expect(created!.recencyWeight).toBe(1)
+    expect(created!.updatedAt).toBeGreaterThan(Date.now() - 5000)
+  })
+
+  test('created continuity fact gets sensible defaults and syncs to director.continuityFacts', async () => {
+    let currentState = createEmptyState()
+
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const addInput = root.querySelector('input[data-da-role="add-fact-text"]') as HTMLInputElement
+    addInput.value = 'Default check fact'
+    const addBtn = root.querySelector('[data-da-action="add-continuity-fact"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const inMemory = currentState.memory.continuityFacts.find((f) => f.text === 'Default check fact')
+    const inDirector = currentState.director.continuityFacts.find((f) => f.text === 'Default check fact')
+    expect(inMemory).toBeDefined()
+    expect(inDirector).toBeDefined()
+    expect(inMemory!.id).toBeTruthy()
+    expect(inMemory!.priority).toBe(5)
+    expect(inMemory!.id).toBe(inDirector!.id)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 5. Localization — Korean locale for memory page surface
 // ---------------------------------------------------------------------------
 
 describe('memory-cache page Korean localization', () => {
@@ -479,6 +712,34 @@ describe('memory-cache page Korean localization', () => {
     // Placeholder should be in Korean, not English
     expect(filterInput.placeholder).toBeTruthy()
     expect(filterInput.placeholder).not.toBe('Filter memory…')
+  })
+
+  test('Korean locale renders translated add button labels and placeholders', async () => {
+    setLocale('ko')
+    const state = stateWithMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store)
+
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
+
+    const addSummaryBtn = memoryPage.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    const addFactBtn = memoryPage.querySelector('[data-da-action="add-continuity-fact"]') as HTMLElement
+    expect(addSummaryBtn).not.toBeNull()
+    expect(addFactBtn).not.toBeNull()
+    // Should not be English
+    expect(addSummaryBtn.textContent).not.toBe('Add')
+    expect(addFactBtn.textContent).not.toBe('Add')
+
+    const summaryInput = memoryPage.querySelector('input[data-da-role="add-summary-text"]') as HTMLInputElement
+    const factInput = memoryPage.querySelector('input[data-da-role="add-fact-text"]') as HTMLInputElement
+    expect(summaryInput.placeholder).toBeTruthy()
+    expect(summaryInput.placeholder).not.toBe('New summary text\u2026')
+    expect(factInput.placeholder).toBeTruthy()
+    expect(factInput.placeholder).not.toBe('New continuity fact\u2026')
   })
 
   test('Korean locale renders translated empty-state hint', async () => {

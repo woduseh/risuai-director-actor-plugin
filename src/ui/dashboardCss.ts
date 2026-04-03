@@ -525,6 +525,17 @@ export function buildDashboardCss(): string {
   flex-shrink: 0;
 }
 
+.da-add-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.da-add-row .da-input--add {
+  flex: 1;
+  min-height: 36px;
+}
+
 @media (max-width: 960px) {
   .${DASHBOARD_ROOT_CLASS},
   .da-dashboard {

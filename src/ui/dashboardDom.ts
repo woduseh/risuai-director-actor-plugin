@@ -312,21 +312,8 @@ function buildMemoryCachePage(input: DashboardMarkupInput): string {
 
   const filterHtml = `<input type="text" class="da-input" data-da-role="memory-filter" placeholder="${t('memory.filterPlaceholder')}" />`
 
-  if (isEmpty) {
-    return `
-      <div class="da-grid">
-        <section class="da-card">
-          <div class="da-card-header">
-            <div>
-              <h3 class="da-card-title">${t('card.memoryCache.title')}</h3>
-              <p class="da-card-copy">${t('card.memoryCache.copy')}</p>
-            </div>
-          </div>
-          ${filterHtml}
-          <p class="da-empty" data-da-role="memory-empty">${t('memory.emptyHint')}</p>
-        </section>
-      </div>`
-  }
+  const addSummaryHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-summary-text" placeholder="${t('memory.addSummaryPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-summary">${t('btn.add')}</button></div>`
+  const addFactHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-fact-text" placeholder="${t('memory.addFactPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-continuity-fact">${t('btn.add')}</button></div>`
 
   const summaryItems = summaries
     .map(
@@ -342,24 +329,28 @@ function buildMemoryCachePage(input: DashboardMarkupInput): string {
     )
     .join('')
 
+  const emptyHintHtml = isEmpty
+    ? `<p class="da-empty" data-da-role="memory-empty">${t('memory.emptyHint')}</p>`
+    : ''
+
   return `
-      ${filterHtml}
+      ${filterHtml}${emptyHintHtml}
       <div class="da-grid">
         <section class="da-card">
           <div class="da-card-header">
             <div>
               <h3 class="da-card-title">${t('card.memorySummaries.title')}</h3>
             </div>
-          </div>
-          <ul class="da-memory-list">${summaryItems}</ul>
+          </div>${summaryItems ? `\n          <ul class="da-memory-list">${summaryItems}</ul>` : ''}
+          ${addSummaryHtml}
         </section>
         <section class="da-card">
           <div class="da-card-header">
             <div>
               <h3 class="da-card-title">${t('card.continuityFacts.title')}</h3>
             </div>
-          </div>
-          <ul class="da-memory-list">${factItems}</ul>
+          </div>${factItems ? `\n          <ul class="da-memory-list">${factItems}</ul>` : ''}
+          ${addFactHtml}
         </section>
       </div>`
 }
