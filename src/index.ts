@@ -6,6 +6,7 @@ import type {
 } from './contracts/types.js'
 import { createDirectorService } from './director/service.js'
 import { CanonicalStore } from './memory/canonicalStore.js'
+import { resolveScopeStorageKey } from './memory/scopeResolver.js'
 import { applyMemoryUpdate } from './memory/applyUpdate.js'
 import { retrieveMemory } from './memory/retrieval.js'
 import { TurnCache } from './memory/turnCache.js'
@@ -85,7 +86,11 @@ function recordDirectorSuccess(
 }
 
 export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void> {
-  const store = new CanonicalStore(api.pluginStorage)
+  const scopeResolution = await resolveScopeStorageKey(api)
+  const store = new CanonicalStore(api.pluginStorage, {
+    storageKey: scopeResolution.storageKey,
+    migrateFromFlatKey: !scopeResolution.isFallback,
+  })
   const turnCache = new TurnCache()
   const initialState = await store.load()
   const circuitBreaker = new CircuitBreaker(
@@ -170,7 +175,11 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
     circuitBreaker,
     turnCache,
     openSettings: async () => {
-      const dashboardStore = createDashboardStore(api, (mutator) => store.writeFirst(mutator))
+      const dashboardStore = createDashboardStore(
+        api,
+        (mutator) => store.writeFirst(mutator),
+        store.stateStorageKey,
+      )
       await openDashboard(api, dashboardStore)
     }
   })

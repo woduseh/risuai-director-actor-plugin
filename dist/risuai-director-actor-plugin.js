@@ -476,9 +476,17 @@ ${MEMORY_UPDATE_SCHEMA}`
   }
   var CanonicalStore = class {
     storage;
+    storageKey;
+    migrateFromFlatKey;
     current = null;
-    constructor(storage) {
+    constructor(storage, options) {
       this.storage = storage;
+      this.storageKey = options?.storageKey ?? DIRECTOR_STATE_STORAGE_KEY;
+      this.migrateFromFlatKey = options?.migrateFromFlatKey === true && this.storageKey !== DIRECTOR_STATE_STORAGE_KEY;
+    }
+    /** The storage key this store reads/writes. */
+    get stateStorageKey() {
+      return this.storageKey;
     }
     snapshot() {
       if (this.current == null) {
@@ -487,13 +495,27 @@ ${MEMORY_UPDATE_SCHEMA}`
       return structuredClone(this.current);
     }
     async load() {
-      const raw = await this.storage.getItem(DIRECTOR_STATE_STORAGE_KEY);
+      const raw = await this.storage.getItem(this.storageKey);
       if (isValidState(raw)) {
         this.current = structuredClone(raw);
         patchLegacyMemory(this.current);
-      } else {
-        this.current = createEmptyState();
+        return structuredClone(this.current);
       }
+      if (this.migrateFromFlatKey) {
+        const legacy = await this.storage.getItem(
+          DIRECTOR_STATE_STORAGE_KEY
+        );
+        if (isValidState(legacy)) {
+          this.current = structuredClone(legacy);
+          patchLegacyMemory(this.current);
+          await this.storage.setItem(
+            this.storageKey,
+            structuredClone(this.current)
+          );
+          return structuredClone(this.current);
+        }
+      }
+      this.current = createEmptyState();
       return structuredClone(this.current);
     }
     async writeFirst(mutator, onAfterPersist) {
@@ -505,7 +527,7 @@ ${MEMORY_UPDATE_SCHEMA}`
       next.metrics.totalMemoryWrites += 1;
       next.metrics.lastUpdatedAt = next.updatedAt;
       const toStore = structuredClone(next);
-      await this.storage.setItem(DIRECTOR_STATE_STORAGE_KEY, toStore);
+      await this.storage.setItem(this.storageKey, toStore);
       this.current = structuredClone(next);
       if (onAfterPersist) {
         await onAfterPersist();
@@ -513,6 +535,163 @@ ${MEMORY_UPDATE_SCHEMA}`
       return structuredClone(this.current);
     }
   };
+
+  // src/contracts/memorySchema.ts
+  function createScopeRegistry() {
+    return { entries: [] };
+  }
+  function generateScopeId() {
+    const ts = Date.now().toString(36);
+    const rand = Math.random().toString(36).slice(2, 8);
+    return `sc-${ts}-${rand}`;
+  }
+  function registerFingerprint(registry, fingerprint, label, options) {
+    const existing = registry.entries.find(
+      (e) => e.fingerprints.includes(fingerprint)
+    );
+    if (existing) return existing.scopeId;
+    const idFn = options?.generateId ?? generateScopeId;
+    const now = Date.now();
+    const entry = {
+      scopeId: idFn(),
+      fingerprints: [fingerprint],
+      createdAt: now,
+      updatedAt: now
+    };
+    if (label !== void 0) {
+      entry.label = label;
+    }
+    registry.entries.push(entry);
+    return entry.scopeId;
+  }
+
+  // src/memory/scopeKeys.ts
+  var MAX_CHAT_FINGERPRINT_MESSAGES = 3;
+  function fnv1a(input) {
+    let hash = 2166136261;
+    for (let i = 0; i < input.length; i++) {
+      hash ^= input.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16).padStart(8, "0");
+  }
+  function normalizeTextForFingerprint(text) {
+    return text.replace(/\s+/g, " ").trim().toLowerCase();
+  }
+  function characterScopeIdentity(chaId, name) {
+    const normalizedName = normalizeTextForFingerprint(name);
+    const fingerprint = fnv1a(`char\0${chaId}\0${normalizedName}`);
+    return { chaId, name, fingerprint };
+  }
+  function chatFingerprint(chaId, chatName, lastDate, messages) {
+    const nonEmpty = messages.map((m) => normalizeTextForFingerprint(m)).filter((m) => m.length > 0).slice(0, MAX_CHAT_FINGERPRINT_MESSAGES);
+    const normalizedName = normalizeTextForFingerprint(chatName);
+    const payload = [
+      "chat",
+      chaId,
+      normalizedName,
+      String(lastDate),
+      ...nonEmpty
+    ].join("\0");
+    return fnv1a(payload);
+  }
+  function composeScopeKey(characterFingerprint, chatFp) {
+    return `scope:${characterFingerprint}:${chatFp}`;
+  }
+  function composeStorageKey(namespace, scopeKey) {
+    return `${namespace}::${scopeKey}`;
+  }
+
+  // src/memory/scopeResolver.ts
+  var SCOPE_REGISTRY_KEY = "director-scope-registry";
+  var STORAGE_NAMESPACE = "director-plugin-state";
+  async function tryGetCharacter(api) {
+    try {
+      const anyApi = api;
+      const getCharacter = anyApi["getCharacter"];
+      if (typeof getCharacter !== "function") return null;
+      const char = await getCharacter.call(api);
+      if (char != null && typeof char === "object" && typeof char.chaId === "string" && typeof char.name === "string") {
+        return {
+          chaId: char.chaId,
+          name: char.name
+        };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+  async function tryGetChat(api) {
+    try {
+      const anyApi = api;
+      const getCurrentCharacterIndex = anyApi["getCurrentCharacterIndex"];
+      const getCurrentChatIndex = anyApi["getCurrentChatIndex"];
+      const getChatFromIndex = anyApi["getChatFromIndex"];
+      if (typeof getCurrentCharacterIndex !== "function" || typeof getCurrentChatIndex !== "function" || typeof getChatFromIndex !== "function") {
+        return null;
+      }
+      const charIndex = await getCurrentCharacterIndex.call(api);
+      const chatIndex = await getCurrentChatIndex.call(api);
+      const chat = await getChatFromIndex.call(api, charIndex, chatIndex);
+      if (chat == null || typeof chat !== "object") return null;
+      const c = chat;
+      const name = typeof c.name === "string" ? c.name : "";
+      const lastDate = typeof c.lastDate === "number" ? c.lastDate : 0;
+      const messages = Array.isArray(c.messages) ? c.messages : [];
+      const chatId = typeof c.id === "string" ? c.id : typeof c.id === "number" ? String(c.id) : void 0;
+      const result = { name, lastDate, messages };
+      if (chatId !== void 0) {
+        result.chatId = chatId;
+      }
+      return result;
+    } catch {
+      return null;
+    }
+  }
+  async function loadRegistry(storage) {
+    const raw = await storage.getItem(SCOPE_REGISTRY_KEY);
+    if (raw != null && typeof raw === "object" && Array.isArray(raw.entries)) {
+      return raw;
+    }
+    return createScopeRegistry();
+  }
+  async function saveRegistry(storage, registry) {
+    await storage.setItem(SCOPE_REGISTRY_KEY, structuredClone(registry));
+  }
+  async function resolveScopeStorageKey(api) {
+    const character = await tryGetCharacter(api);
+    if (!character) {
+      return { storageKey: DIRECTOR_STATE_STORAGE_KEY, isFallback: true };
+    }
+    const chat = await tryGetChat(api);
+    if (!chat) {
+      return { storageKey: DIRECTOR_STATE_STORAGE_KEY, isFallback: true };
+    }
+    const charIdentity = characterScopeIdentity(character.chaId, character.name);
+    let chatFp;
+    if (chat.chatId != null && chat.chatId.length > 0) {
+      chatFp = chatFingerprint(
+        character.chaId,
+        chat.chatId,
+        0,
+        []
+      );
+    } else {
+      chatFp = chatFingerprint(
+        character.chaId,
+        chat.name,
+        chat.lastDate,
+        chat.messages.map((m) => m.content)
+      );
+    }
+    const registry = await loadRegistry(api.pluginStorage);
+    const scopeKey = composeScopeKey(charIdentity.fingerprint, chatFp);
+    registerFingerprint(registry, scopeKey, `${character.name}`);
+    await saveRegistry(api.pluginStorage, registry);
+    const storageKey = composeStorageKey(STORAGE_NAMESPACE, scopeKey);
+    return { storageKey, isFallback: false };
+  }
 
   // src/memory/memoryMutations.ts
   function createId(prefix) {
@@ -3350,10 +3529,13 @@ ${MEMORY_UPDATE_SCHEMA}`
   var PROFILE_ID_PREFIX = "user-profile-";
   var IMPORT_STAGING_KEY = "dashboard-profile-import-staging";
   var activeInstance = null;
-  function createDashboardStore(api, canonicalWriteFirst) {
+  function createDashboardStore(api, canonicalWriteFirst, stateStorageKey) {
     const store = {
       storage: api.pluginStorage
     };
+    if (stateStorageKey !== void 0) {
+      store.stateStorageKey = stateStorageKey;
+    }
     if (canonicalWriteFirst) {
       store.mirrorToCanonical = async (settings) => {
         await canonicalWriteFirst(
@@ -3368,7 +3550,8 @@ ${MEMORY_UPDATE_SCHEMA}`
     if (store.readCanonical) {
       return structuredClone(await store.readCanonical());
     }
-    const raw = await store.storage.getItem(DIRECTOR_STATE_STORAGE_KEY);
+    const key = store.stateStorageKey ?? DIRECTOR_STATE_STORAGE_KEY;
+    const raw = await store.storage.getItem(key);
     return raw ? structuredClone(raw) : createEmptyState();
   }
   var DashboardInstance = class {
@@ -3406,6 +3589,10 @@ ${MEMORY_UPDATE_SCHEMA}`
       this.removeDom();
       await this.api.hideContainer();
       if (activeInstance === this) activeInstance = null;
+    }
+    /** Return the storage key that canonical state is persisted under. */
+    resolveStateKey() {
+      return this.store.stateStorageKey ?? DIRECTOR_STATE_STORAGE_KEY;
     }
     // ── CSS ───────────────────────────────────────────────────────────────
     injectCss() {
@@ -3839,7 +4026,7 @@ ${MEMORY_UPDATE_SCHEMA}`
       } else {
         deleteContinuityFact(state, itemId);
       }
-      await this.store.storage.setItem(DIRECTOR_STATE_STORAGE_KEY, structuredClone(state));
+      await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state));
       this.canonicalState = state;
       this.fullReRender();
     }
@@ -3872,7 +4059,7 @@ ${MEMORY_UPDATE_SCHEMA}`
       } else {
         upsertContinuityFact(state, { text, priority: 5 });
       }
-      await this.store.storage.setItem(DIRECTOR_STATE_STORAGE_KEY, structuredClone(state));
+      await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state));
       this.canonicalState = state;
       this.fullReRender();
     }
@@ -4176,7 +4363,11 @@ ${MEMORY_UPDATE_SCHEMA}`
     return next;
   }
   async function registerDirectorActorPlugin(api) {
-    const store = new CanonicalStore(api.pluginStorage);
+    const scopeResolution = await resolveScopeStorageKey(api);
+    const store = new CanonicalStore(api.pluginStorage, {
+      storageKey: scopeResolution.storageKey,
+      migrateFromFlatKey: !scopeResolution.isFallback
+    });
     const turnCache = new TurnCache();
     const initialState = await store.load();
     const circuitBreaker = new CircuitBreaker(
@@ -4249,7 +4440,11 @@ ${MEMORY_UPDATE_SCHEMA}`
       circuitBreaker,
       turnCache,
       openSettings: async () => {
-        const dashboardStore = createDashboardStore(api, (mutator) => store.writeFirst(mutator));
+        const dashboardStore = createDashboardStore(
+          api,
+          (mutator) => store.writeFirst(mutator),
+          store.stateStorageKey
+        );
         await openDashboard(api, dashboardStore);
       }
     });

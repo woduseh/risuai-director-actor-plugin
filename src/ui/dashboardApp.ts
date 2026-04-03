@@ -58,6 +58,8 @@ let activeInstance: DashboardInstance | null = null
  */
 export interface DashboardStore {
   storage: AsyncKeyValueStore
+  /** The storage key used to persist canonical state. */
+  stateStorageKey?: string
   mirrorToCanonical?: (settings: DirectorSettings) => Promise<void>
   readCanonical?: () => Promise<DirectorPluginState>
   writeCanonical?: (
@@ -69,15 +71,22 @@ export interface DashboardStore {
  * Build a `DashboardStore` from the api's pluginStorage.
  * If a CanonicalStore-compatible `writeFirst` is available, mirror saved
  * settings into the canonical plugin state.
+ *
+ * @param stateStorageKey - The scoped key under which canonical state
+ *   is stored. Defaults to {@link DIRECTOR_STATE_STORAGE_KEY}.
  */
 export function createDashboardStore(
   api: RisuaiApi,
   canonicalWriteFirst?: (
     mutator: (s: DirectorPluginState) => DirectorPluginState,
   ) => Promise<DirectorPluginState>,
+  stateStorageKey?: string,
 ): DashboardStore {
   const store: DashboardStore = {
     storage: api.pluginStorage,
+  }
+  if (stateStorageKey !== undefined) {
+    store.stateStorageKey = stateStorageKey
   }
   if (canonicalWriteFirst) {
     store.mirrorToCanonical = async (settings) => {
@@ -133,7 +142,8 @@ async function readCanonicalState(store: DashboardStore): Promise<DirectorPlugin
   if (store.readCanonical) {
     return structuredClone(await store.readCanonical())
   }
-  const raw = await store.storage.getItem<DirectorPluginState>(DIRECTOR_STATE_STORAGE_KEY)
+  const key = store.stateStorageKey ?? DIRECTOR_STATE_STORAGE_KEY
+  const raw = await store.storage.getItem<DirectorPluginState>(key)
   return raw ? structuredClone(raw) : createEmptyState()
 }
 
@@ -189,6 +199,11 @@ class DashboardInstance {
     this.removeDom()
     await this.api.hideContainer()
     if (activeInstance === this) activeInstance = null
+  }
+
+  /** Return the storage key that canonical state is persisted under. */
+  private resolveStateKey(): string {
+    return this.store.stateStorageKey ?? DIRECTOR_STATE_STORAGE_KEY
   }
 
   // ── CSS ───────────────────────────────────────────────────────────────
@@ -715,7 +730,7 @@ class DashboardInstance {
     } else {
       deleteContinuityFact(state, itemId)
     }
-    await this.store.storage.setItem(DIRECTOR_STATE_STORAGE_KEY, structuredClone(state))
+    await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state))
     this.canonicalState = state
     this.fullReRender()
   }
@@ -755,7 +770,7 @@ class DashboardInstance {
     } else {
       upsertContinuityFact(state, { text, priority: 5 })
     }
-    await this.store.storage.setItem(DIRECTOR_STATE_STORAGE_KEY, structuredClone(state))
+    await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state))
     this.canonicalState = state
     this.fullReRender()
   }
