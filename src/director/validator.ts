@@ -7,6 +7,7 @@ import type {
   SceneBrief,
   ValidationStatus,
 } from '../contracts/types.js'
+import { repairParseObject } from '../runtime/jsonRepair.js'
 
 // ── Error class ──────────────────────────────────────────────────────
 
@@ -85,82 +86,26 @@ function requireEnum(obj: Record<string, unknown>, key: string, allowed: readonl
 
 // ── Text pre-processing ─────────────────────────────────────────────
 
-/**
- * Remove markdown code fences (``` or ```json) from around a JSON payload.
- * Also strips any prose lines outside the fenced block.
- */
-export function stripMarkdownCodeFences(text: string): string {
-  // Normalise line endings
-  const normalised = text.replace(/\r\n/g, '\n')
-
-  // Match ```<optional lang>\n…content…\n```
-  const fenceRe = /```[a-zA-Z]*\n([\s\S]*?)\n```/
-  const m = fenceRe.exec(normalised)
-  if (m) return m[1]!.trim()
-
-  return normalised.trim()
-}
+// Re-export for backwards compatibility (existing tests import from here)
+export { stripMarkdownCodeFences } from '../runtime/jsonRepair.js'
 
 /**
  * Parse a JSON object from `text`, tolerating:
  *  - markdown code fences
  *  - surrounding prose (lines before/after the JSON object)
  *  - CRLF line endings
+ *  - smart/curly quotes
+ *  - trailing commas before } or ]
  *
  * Throws `ModelPayloadError` if no valid JSON object can be extracted.
  */
 export function parseJsonObject(text: string): Record<string, unknown> {
   if (!text.trim()) throw new ModelPayloadError('Empty input')
 
-  // 1. Try after stripping fences
-  const stripped = stripMarkdownCodeFences(text)
-  const direct = tryParseObject(stripped)
-  if (direct) return direct
-
-  // 2. Try extracting a JSON object substring from the raw text
-  const extracted = extractJsonSubstring(stripped)
-  if (extracted) return extracted
+  const result = repairParseObject(text)
+  if (result) return result
 
   throw new ModelPayloadError('Could not extract a JSON object from the model output')
-}
-
-function tryParseObject(s: string): Record<string, unknown> | null {
-  try {
-    const parsed: unknown = JSON.parse(s)
-    if (isRecord(parsed)) return parsed
-  } catch { /* intentional – try fallback strategies */ }
-  return null
-}
-
-/**
- * Scan for the first `{` and attempt to find the matching `}` via
- * brace counting, then JSON.parse the substring.
- */
-function extractJsonSubstring(text: string): Record<string, unknown> | null {
-  const start = text.indexOf('{')
-  if (start === -1) return null
-
-  let depth = 0
-  let inString = false
-  let escape = false
-
-  for (let i = start; i < text.length; i++) {
-    const ch = text[i]!
-    if (escape) { escape = false; continue }
-    if (ch === '\\' && inString) { escape = true; continue }
-    if (ch === '"') { inString = !inString; continue }
-    if (inString) continue
-    if (ch === '{') depth++
-    else if (ch === '}') {
-      depth--
-      if (depth === 0) {
-        const candidate = text.slice(start, i + 1)
-        const result = tryParseObject(candidate)
-        if (result) return result
-      }
-    }
-  }
-  return null
 }
 
 // ── SceneBrief parser / validator ────────────────────────────────────

@@ -65,6 +65,28 @@ describe('parseJsonObject', () => {
 })
 
 /* ------------------------------------------------------------------ */
+/*  parseJsonObject — JSON repair integration                         */
+/* ------------------------------------------------------------------ */
+describe('parseJsonObject — JSON repair', () => {
+  test('handles trailing commas', () => {
+    expect(parseJsonObject('{"a":1,"b":2,}')).toEqual({ a: 1, b: 2 })
+  })
+
+  test('handles smart/curly quotes', () => {
+    expect(parseJsonObject('{\u201Ckey\u201D: \u201Cval\u201D}')).toEqual({ key: 'val' })
+  })
+
+  test('handles trailing commas + smart quotes + fences', () => {
+    const input = '```json\n{\u201Ca\u201D: 1,}\n```'
+    expect(parseJsonObject(input)).toEqual({ a: 1 })
+  })
+
+  test('still throws on non-JSON garbage', () => {
+    expect(() => parseJsonObject('totally not json!!!')).toThrow(ModelPayloadError)
+  })
+})
+
+/* ------------------------------------------------------------------ */
 /*  parseSceneBrief                                                   */
 /* ------------------------------------------------------------------ */
 describe('parseSceneBrief', () => {
@@ -196,5 +218,85 @@ describe('parseMemoryUpdate', () => {
       expect(e).toBeInstanceOf(Error)
       expect(e).toBeInstanceOf(ModelPayloadError)
     }
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/*  parseSceneBrief — JSON repair integration                         */
+/* ------------------------------------------------------------------ */
+describe('parseSceneBrief — JSON repair', () => {
+  const validBrief = {
+    confidence: 0.88,
+    pacing: 'tight',
+    beats: [{ goal: 'escalate', reason: 'arc' }],
+    continuityLocks: ['lock'],
+    ensembleWeights: { A: 1 },
+    styleInheritance: { genre: 'mythic' },
+    forbiddenMoves: ['none'],
+    memoryHints: ['hint'],
+  }
+
+  test('parses fenced JSON with trailing commas', () => {
+    const json = JSON.stringify(validBrief).replace(/}$/, ',}')
+    const fenced = `\`\`\`json\n${json}\n\`\`\``
+    const brief = parseSceneBrief(fenced)
+    expect(brief.pacing).toBe('tight')
+  })
+
+  test('parses prose-wrapped JSON with trailing commas', () => {
+    const json = JSON.stringify(validBrief).replace(/}$/, ',}')
+    const input = `Here is your SceneBrief:\n${json}\nEnd.`
+    const brief = parseSceneBrief(input)
+    expect(brief.confidence).toBe(0.88)
+  })
+
+  test('still throws ModelPayloadError for non-JSON garbage', () => {
+    expect(() => parseSceneBrief('completely garbage text')).toThrow(ModelPayloadError)
+  })
+
+  test('still throws ModelPayloadError when structure is missing required fields', () => {
+    const partial = '{"confidence": 0.5, "pacing": "tight",}'
+    expect(() => parseSceneBrief(partial)).toThrow(ModelPayloadError)
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/*  parseMemoryUpdate — JSON repair integration                       */
+/* ------------------------------------------------------------------ */
+describe('parseMemoryUpdate — JSON repair', () => {
+  const validUpdate = {
+    status: 'pass',
+    turnScore: 0.74,
+    violations: [],
+    durableFacts: ['A left.'],
+    sceneDelta: { scenePhase: 'aftermath' },
+    entityUpdates: [],
+    relationUpdates: [],
+    memoryOps: [
+      { op: 'insert', target: 'summaries', payload: { text: 'A left.' } },
+    ],
+  }
+
+  test('parses fenced JSON with trailing commas', () => {
+    const json = JSON.stringify(validUpdate).replace(/}$/, ',}')
+    const fenced = `\`\`\`json\n${json}\n\`\`\``
+    const update = parseMemoryUpdate(fenced)
+    expect(update.status).toBe('pass')
+  })
+
+  test('parses prose-wrapped JSON with trailing commas', () => {
+    const json = JSON.stringify(validUpdate).replace(/}$/, ',}')
+    const input = `Here is the update:\n${json}\nDone.`
+    const update = parseMemoryUpdate(input)
+    expect(update.turnScore).toBe(0.74)
+  })
+
+  test('still throws ModelPayloadError for non-JSON garbage', () => {
+    expect(() => parseMemoryUpdate('completely garbage text')).toThrow(ModelPayloadError)
+  })
+
+  test('still throws ModelPayloadError when structure is invalid', () => {
+    const partial = '{"status": "pass",}'
+    expect(() => parseMemoryUpdate(partial)).toThrow(ModelPayloadError)
   })
 })

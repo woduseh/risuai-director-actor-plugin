@@ -652,4 +652,92 @@ describe('autoDream — consolidation worker', () => {
     expect(removeIdx1).toBeGreaterThan(putIdx)
     expect(removeIdx2).toBeGreaterThan(putIdx)
   })
+
+  // ── JSON repair integration ──────────────────────────────────────────
+
+  it('parses fenced consolidation model response', async () => {
+    const doc1 = makeDoc({ id: 'fence-1', source: 'extraction' })
+    const doc2 = makeDoc({ id: 'fence-2', source: 'extraction' })
+    await memdirStore.putDocument(doc1)
+    await memdirStore.putDocument(doc2)
+
+    const responseJson = JSON.stringify({
+      merges: [],
+      prunes: ['fence-1'],
+      updates: [],
+    })
+
+    const deps = makeDeps(memdirStore, {
+      runConsolidationModel: vi.fn(async () =>
+        `\`\`\`json\n${responseJson}\n\`\`\``
+      ),
+    })
+
+    const worker = createAutoDreamWorker(deps)
+    const result = await worker.run()
+
+    expect(result.pruned).toBe(1)
+    const remaining = await memdirStore.listDocuments()
+    expect(remaining.find((d) => d.id === 'fence-1')).toBeUndefined()
+  })
+
+  it('parses prose-wrapped consolidation response with trailing commas', async () => {
+    const doc1 = makeDoc({ id: 'prose-1', source: 'extraction' })
+    const doc2 = makeDoc({ id: 'prose-2', source: 'extraction' })
+    await memdirStore.putDocument(doc1)
+    await memdirStore.putDocument(doc2)
+
+    const deps = makeDeps(memdirStore, {
+      runConsolidationModel: vi.fn(async () =>
+        'Here is the consolidation:\n{"merges": [], "prunes": ["prose-1",], "updates": [],}\nDone.'
+      ),
+    })
+
+    const worker = createAutoDreamWorker(deps)
+    const result = await worker.run()
+
+    expect(result.pruned).toBe(1)
+  })
+
+  it('handles smart quotes in consolidation response', async () => {
+    const doc1 = makeDoc({ id: 'sq-1', source: 'extraction' })
+    const doc2 = makeDoc({ id: 'sq-2', source: 'extraction' })
+    await memdirStore.putDocument(doc1)
+    await memdirStore.putDocument(doc2)
+
+    const deps = makeDeps(memdirStore, {
+      runConsolidationModel: vi.fn(async () =>
+        '{\u201Cmerges\u201D: [], \u201Cprunes\u201D: [\u201Csq-1\u201D], \u201Cupdates\u201D: []}'
+      ),
+    })
+
+    const worker = createAutoDreamWorker(deps)
+    const result = await worker.run()
+
+    expect(result.pruned).toBe(1)
+  })
+
+  it('still skips on truly non-JSON consolidation response', async () => {
+    const doc1 = makeDoc({ id: 'garbage-1', source: 'extraction' })
+    const doc2 = makeDoc({ id: 'garbage-2', source: 'extraction' })
+    await memdirStore.putDocument(doc1)
+    await memdirStore.putDocument(doc2)
+
+    const deps = makeDeps(memdirStore, {
+      log: vi.fn(),
+      runConsolidationModel: vi.fn(async () =>
+        'I cannot consolidate these memories right now.'
+      ),
+    })
+
+    const worker = createAutoDreamWorker(deps)
+    const result = await worker.run()
+
+    expect(result.merged).toBe(0)
+    expect(result.pruned).toBe(0)
+    expect(result.updated).toBe(0)
+    expect(deps.log).toHaveBeenCalledWith(
+      expect.stringContaining('failed to parse'),
+    )
+  })
 })

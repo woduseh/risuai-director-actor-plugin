@@ -15,6 +15,7 @@ import {
   withRetry,
   type RetryOptions,
 } from '../runtime/network.js'
+import { repairParseArray } from '../runtime/jsonRepair.js'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -131,22 +132,16 @@ function buildFreshnessWarnings(docs: MemdirDocument[]): string[] {
 // ---------------------------------------------------------------------------
 
 function parseRecallResponse(text: string): string[] | null {
-  try {
-    const match = text.match(/\[[\s\S]*?\]/)
-    if (!match) return null
+  const parsed = repairParseArray(text)
+  if (!parsed) return null
 
-    const parsed: unknown = JSON.parse(match[0])
-    if (!Array.isArray(parsed)) return null
+  const ids = parsed.filter(
+    (item): item is string => typeof item === 'string',
+  )
+  // Reject if every element was non-string (model returned wrong types)
+  if (ids.length === 0 && parsed.length > 0) return null
 
-    const ids = parsed.filter(
-      (item): item is string => typeof item === 'string',
-    )
-    if (ids.length === 0 && parsed.length > 0) return null
-
-    return ids
-  } catch {
-    return null
-  }
+  return ids
 }
 
 // ---------------------------------------------------------------------------

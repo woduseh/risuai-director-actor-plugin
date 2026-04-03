@@ -395,6 +395,104 @@ describe('findRelevantMemories', () => {
     expect(result.source).toBe('fallback')
     expect(deps.runRecallModel).toHaveBeenCalledTimes(3) // 1 initial + 2 retries
   })
+
+  // ── JSON repair integration ──────────────────────────────────────────
+
+  test('recall parses fenced JSON array response', async () => {
+    const docs = [
+      makeDoc({ id: 'doc-1', title: 'Alice' }),
+      makeDoc({ id: 'doc-2', title: 'Bob' }),
+    ]
+    const deps = makeDeps({
+      runRecallModel: vi.fn(async () => ({
+        ok: true,
+        text: '```json\n["doc-1","doc-2"]\n```',
+      })),
+    })
+
+    const result = await findRelevantMemories(deps, {
+      docs,
+      recentText: 'Alice and Bob',
+      memoryMdContent: '# MEMORY.md',
+    })
+
+    expect(result.source).toBe('recall')
+    expect(result.selectedDocs).toHaveLength(2)
+  })
+
+  test('recall parses prose-wrapped JSON array with trailing commas', async () => {
+    const docs = [makeDoc({ id: 'doc-1' })]
+    const deps = makeDeps({
+      runRecallModel: vi.fn(async () => ({
+        ok: true,
+        text: 'Here are the relevant IDs:\n["doc-1",]\nDone.',
+      })),
+    })
+
+    const result = await findRelevantMemories(deps, {
+      docs,
+      recentText: 'query',
+      memoryMdContent: '# MEMORY.md',
+    })
+
+    expect(result.source).toBe('recall')
+    expect(result.selectedDocs).toHaveLength(1)
+  })
+
+  test('recall parses array with smart quotes', async () => {
+    const docs = [makeDoc({ id: 'doc-1' })]
+    const deps = makeDeps({
+      runRecallModel: vi.fn(async () => ({
+        ok: true,
+        text: '[\u201Cdoc-1\u201D]',
+      })),
+    })
+
+    const result = await findRelevantMemories(deps, {
+      docs,
+      recentText: 'query',
+      memoryMdContent: '# MEMORY.md',
+    })
+
+    expect(result.source).toBe('recall')
+    expect(result.selectedDocs).toHaveLength(1)
+  })
+
+  test('recall rejects arrays with non-string IDs (falls back)', async () => {
+    const docs = [makeDoc({ id: 'doc-1' })]
+    const deps = makeDeps({
+      runRecallModel: vi.fn(async () => ({
+        ok: true,
+        text: '[123, 456]',
+      })),
+    })
+
+    const result = await findRelevantMemories(deps, {
+      docs,
+      recentText: 'query',
+      memoryMdContent: '# MEMORY.md',
+    })
+
+    expect(result.source).toBe('fallback')
+  })
+
+  test('recall still falls back on non-JSON garbage', async () => {
+    const docs = [makeDoc({ id: 'doc-1' })]
+    const deps = makeDeps({
+      runRecallModel: vi.fn(async () => ({
+        ok: true,
+        text: 'I cannot provide IDs right now, sorry!',
+      })),
+    })
+
+    const result = await findRelevantMemories(deps, {
+      docs,
+      recentText: 'query',
+      memoryMdContent: '# MEMORY.md',
+    })
+
+    expect(result.source).toBe('fallback')
+  })
 })
 
 // ---------------------------------------------------------------------------

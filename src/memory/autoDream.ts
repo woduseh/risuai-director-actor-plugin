@@ -1,5 +1,6 @@
 import type { MemdirDocument, MemdirSource } from '../contracts/types.js'
 import type { MemdirStore } from './memdirStore.js'
+import { repairParseObject } from '../runtime/jsonRepair.js'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -156,10 +157,11 @@ export function createAutoDreamWorker(deps: AutoDreamDeps): AutoDreamWorker {
     // ── Stage 3: Consolidate ────────────────────────────────────────
     deps.log('[dream] consolidate: calling model')
     const rawResponse = await deps.runConsolidationModel(prompt)
+    const parsed = repairParseObject(rawResponse)
     let response: ConsolidationResponse
-    try {
-      response = JSON.parse(rawResponse) as ConsolidationResponse
-    } catch {
+    if (parsed) {
+      response = parsed as unknown as ConsolidationResponse
+    } else {
       deps.log('[dream] consolidate: failed to parse model response')
       return result
     }
