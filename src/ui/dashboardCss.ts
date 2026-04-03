@@ -715,7 +715,7 @@ export function buildDashboardCss(): string {
   padding: 12px 18px;
   border: 1px solid color-mix(in srgb, var(--da-accent) 38%, var(--da-border));
   border-radius: 999px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--da-accent) 76%, white 6%), color-mix(in srgb, var(--da-accent) 62%, black));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--da-accent) 93%, white 7%), color-mix(in srgb, var(--da-accent) 62%, black));
   box-shadow: var(--da-shadow);
   color: #09111f;
   font-size: 14px;
@@ -829,22 +829,22 @@ export function buildDashboardCss(): string {
 
 .da-toast--success {
   border-color: color-mix(in srgb, #25c281 48%, var(--da-border));
-  background: linear-gradient(180deg, color-mix(in srgb, #25c281 76%, white 6%), color-mix(in srgb, #25c281 62%, black));
+  background: linear-gradient(180deg, color-mix(in srgb, #25c281 93%, white 7%), color-mix(in srgb, #25c281 62%, black));
 }
 
 .da-toast--info {
   border-color: color-mix(in srgb, var(--da-accent) 38%, var(--da-border));
-  background: linear-gradient(180deg, color-mix(in srgb, var(--da-accent) 76%, white 6%), color-mix(in srgb, var(--da-accent) 62%, black));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--da-accent) 93%, white 7%), color-mix(in srgb, var(--da-accent) 62%, black));
 }
 
 .da-toast--warning {
   border-color: color-mix(in srgb, #f4c95d 48%, var(--da-border));
-  background: linear-gradient(180deg, color-mix(in srgb, #f4c95d 76%, white 6%), color-mix(in srgb, #f4c95d 62%, black));
+  background: linear-gradient(180deg, color-mix(in srgb, #f4c95d 93%, white 7%), color-mix(in srgb, #f4c95d 62%, black));
 }
 
 .da-toast--error {
   border-color: color-mix(in srgb, var(--da-danger) 48%, var(--da-border));
-  background: linear-gradient(180deg, color-mix(in srgb, var(--da-danger) 76%, white 6%), color-mix(in srgb, var(--da-danger) 62%, black));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--da-danger) 93%, white 7%), color-mix(in srgb, var(--da-danger) 62%, black));
 }
 
 @keyframes da-toast-fade-in {

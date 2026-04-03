@@ -1249,6 +1249,128 @@ describe('openDashboard', () => {
     expect(newDiscardBtn.disabled).toBe(false)
   })
 
+  // ── Aliased busy guard: save-settings / reset-settings ──────────────
+
+  test('save-settings toolbar button is disabled during save (not footer save)', async () => {
+    const resolvers: Array<() => void> = []
+    const slowStore: DashboardStore = {
+      storage: {
+        ...api.pluginStorage,
+        setItem: () => new Promise<void>((r) => { resolvers.push(r) }),
+        getItem: (k: string) => api.pluginStorage.getItem(k),
+        removeItem: (k: string) => api.pluginStorage.removeItem(k),
+        clear: () => api.pluginStorage.clear(),
+        keys: () => api.pluginStorage.keys(),
+        length: () => api.pluginStorage.length(),
+      },
+    }
+
+    await openDashboard(api, slowStore)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const saveSettingsBtn = root.querySelector('[data-da-action="save-settings"]') as HTMLButtonElement
+    const footerSaveBtn = root.querySelector('[data-da-action="save"]') as HTMLButtonElement
+    expect(saveSettingsBtn).not.toBeNull()
+    expect(saveSettingsBtn.disabled).toBe(false)
+
+    saveSettingsBtn.click()
+    await new Promise((r) => { setTimeout(r, 10) })
+
+    // The toolbar button that was clicked should be disabled
+    expect(saveSettingsBtn.disabled).toBe(true)
+    // The footer button should NOT be disabled (it wasn't clicked)
+    if (footerSaveBtn) expect(footerSaveBtn.disabled).toBe(false)
+
+    // Drain resolvers
+    for (let i = 0; i < 5; i++) {
+      while (resolvers.length) resolvers.shift()!()
+      await new Promise((r) => { setTimeout(r, 10) })
+    }
+    expect(saveSettingsBtn.disabled).toBe(false)
+  })
+
+  test('reset-settings toolbar button is disabled during discard (not footer discard)', async () => {
+    let resolveGet!: (v: unknown) => void
+    let interceptGetItem = false
+
+    await openDashboard(api, store)
+
+    const slowStore: DashboardStore = {
+      storage: {
+        ...api.pluginStorage,
+        getItem: (k: string) => {
+          if (interceptGetItem && k === DASHBOARD_SETTINGS_KEY) {
+            return new Promise((r) => { resolveGet = r })
+          }
+          return api.pluginStorage.getItem(k)
+        },
+        setItem: (k: string, v: unknown) => api.pluginStorage.setItem(k, v),
+        removeItem: (k: string) => api.pluginStorage.removeItem(k),
+        clear: () => api.pluginStorage.clear(),
+        keys: () => api.pluginStorage.keys(),
+        length: () => api.pluginStorage.length(),
+      },
+    }
+
+    await closeDashboard()
+    await openDashboard(api, slowStore)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const resetSettingsBtn = root.querySelector('[data-da-action="reset-settings"]') as HTMLButtonElement
+    const footerDiscardBtn = root.querySelector('[data-da-action="discard"]') as HTMLButtonElement
+    expect(resetSettingsBtn).not.toBeNull()
+    expect(resetSettingsBtn.disabled).toBe(false)
+
+    interceptGetItem = true
+    resetSettingsBtn.click()
+    await new Promise((r) => { setTimeout(r, 10) })
+
+    // The toolbar button that was clicked should be disabled
+    expect(resetSettingsBtn.disabled).toBe(true)
+    // The footer button should NOT be disabled
+    if (footerDiscardBtn) expect(footerDiscardBtn.disabled).toBe(false)
+
+    resolveGet(null)
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const newResetBtn = document.querySelector('[data-da-action="reset-settings"]') as HTMLButtonElement
+    expect(newResetBtn.disabled).toBe(false)
+  })
+
+  test('save-settings dedup: second click blocked while save-settings is busy', async () => {
+    let callCount = 0
+    const resolvers: Array<() => void> = []
+    const slowStore: DashboardStore = {
+      storage: {
+        ...api.pluginStorage,
+        setItem: () => {
+          callCount++
+          return new Promise<void>((r) => { resolvers.push(r) })
+        },
+        getItem: (k: string) => api.pluginStorage.getItem(k),
+        removeItem: (k: string) => api.pluginStorage.removeItem(k),
+        clear: () => api.pluginStorage.clear(),
+        keys: () => api.pluginStorage.keys(),
+        length: () => api.pluginStorage.length(),
+      },
+    }
+
+    await openDashboard(api, slowStore)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const saveSettingsBtn = root.querySelector('[data-da-action="save-settings"]') as HTMLButtonElement
+
+    saveSettingsBtn.click()
+    saveSettingsBtn.click()
+    await new Promise((r) => { setTimeout(r, 10) })
+
+    expect(callCount).toBe(1)
+
+    for (let i = 0; i < 5; i++) {
+      while (resolvers.length) resolvers.shift()!()
+      await new Promise((r) => { setTimeout(r, 10) })
+    }
+  })
+
   test('GUARDED_ACTIONS set contains exactly the expected actions', async () => {
     const { GUARDED_ACTIONS } = await import('../src/ui/dashboardApp.js')
     expect(GUARDED_ACTIONS).toBeInstanceOf(Set)

@@ -133,4 +133,23 @@ describe('buildDashboardCss', () => {
     expect(css).toContain('.da-toast--warning')
     expect(css).toContain('.da-toast--error')
   })
+
+  // ── Toast gradient opacity regression ─────────────────────────────
+
+  test('toast gradient color-mix top stops sum to 100% (no unintended transparency)', () => {
+    const css = buildDashboardCss()
+    // Extract all color-mix() calls from toast rules
+    const toastSection = css.slice(css.indexOf('.da-toast'))
+    const colorMixPattern = /color-mix\(in srgb,\s*[^)]+?(\d+)%,\s*(?:white|black)\s+(\d+)%\)/g
+    let match: RegExpExecArray | null
+    const results: Array<{ full: string; sum: number }> = []
+    while ((match = colorMixPattern.exec(toastSection)) !== null) {
+      const sum = Number(match[1]) + Number(match[2])
+      results.push({ full: match[0], sum })
+    }
+    expect(results.length).toBeGreaterThan(0)
+    for (const { full, sum } of results) {
+      expect(sum, `${full} sums to ${sum}%, expected 100%`).toBe(100)
+    }
+  })
 })

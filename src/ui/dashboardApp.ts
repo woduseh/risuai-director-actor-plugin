@@ -322,8 +322,12 @@ class DashboardInstance {
   } | null = null
   private memoryOpsStatus: MemoryOpsStatus
 
-  /** Action names currently in flight (used by async busy guards). */
-  private readonly busyActions = new Set<string>()
+  /**
+   * Action names currently in flight (used by async busy guards).
+   * Key = canonical busy key, value = UI action to disable (may differ
+   * for aliased actions like save-settings → save).
+   */
+  private readonly busyActions = new Map<string, string>()
 
   /**
    * Tracks armed destructive actions.  Key = composite arm key
@@ -566,19 +570,24 @@ class DashboardInstance {
    * first promise settles.  The triggering button is disabled for
    * the duration so the user gets visible feedback via the CSS
    * disabled-state rule from UI-1.
+   *
+   * @param uiAction — the `data-da-action` of the button that was
+   *   actually clicked (may differ from `actionName` for aliased
+   *   actions, e.g. `save-settings` routed through busy key `save`).
    */
   private async withBusyGuard(
     actionName: string,
     fn: () => Promise<void>,
+    uiAction?: string,
   ): Promise<void> {
     if (this.busyActions.has(actionName)) return
-    this.busyActions.add(actionName)
-    this.setBusyDisabled(actionName, true)
+    this.busyActions.set(actionName, uiAction ?? actionName)
+    this.setBusyDisabled(uiAction ?? actionName, true)
     try {
       await fn()
     } finally {
       this.busyActions.delete(actionName)
-      this.setBusyDisabled(actionName, false)
+      this.setBusyDisabled(uiAction ?? actionName, false)
     }
   }
 
@@ -612,8 +621,8 @@ class DashboardInstance {
    * Called after `fullReRender()` replaces the DOM tree.
    */
   private applyAllBusyStates(): void {
-    for (const actionName of this.busyActions) {
-      this.setBusyDisabled(actionName, true)
+    for (const uiAction of this.busyActions.values()) {
+      this.setBusyDisabled(uiAction, true)
     }
   }
 
@@ -803,11 +812,11 @@ class DashboardInstance {
         break
       case 'save':
       case 'save-settings':
-        await this.withBusyGuard('save', () => this.handleSave())
+        await this.withBusyGuard('save', () => this.handleSave(), action)
         break
       case 'discard':
       case 'reset-settings':
-        await this.withBusyGuard('discard', () => this.handleDiscard())
+        await this.withBusyGuard('discard', () => this.handleDiscard(), action)
         break
       case 'export-settings':
         await this.handleExportSettings()
