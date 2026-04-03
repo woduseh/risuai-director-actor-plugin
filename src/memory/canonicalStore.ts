@@ -47,6 +47,9 @@ export function patchLegacyMemory(state: DirectorPluginState): void {
   if (!Array.isArray(state.memory.relations)) {
     state.memory.relations = []
   }
+  if (!Array.isArray(state.memory.summaries)) {
+    state.memory.summaries = []
+  }
 }
 
 /**
@@ -89,6 +92,11 @@ export interface CanonicalStoreOptions {
    * backward-compatible during and after migration.
    */
   memdirStore?: MemdirStore
+  /**
+   * Called when memdir migration fails. Without this callback, migration
+   * errors are silently swallowed (canonical reads remain available).
+   */
+  onMigrationError?: (error: unknown) => void
 }
 
 export class CanonicalStore {
@@ -96,6 +104,7 @@ export class CanonicalStore {
   private readonly storageKey: string
   private readonly migrateFromFlatKey: boolean
   private readonly memdirStore: MemdirStore | null
+  private readonly onMigrationError: ((error: unknown) => void) | null
   private current: DirectorPluginState | null = null
   private migrationMarker: MemdirMigrationMarker | null = null
 
@@ -106,6 +115,7 @@ export class CanonicalStore {
       options?.migrateFromFlatKey === true &&
       this.storageKey !== DIRECTOR_STATE_STORAGE_KEY
     this.memdirStore = options?.memdirStore ?? null
+    this.onMigrationError = options?.onMigrationError ?? null
   }
 
   /** The storage key this store reads/writes. */
@@ -225,9 +235,12 @@ export class CanonicalStore {
         marker,
       )
       this.migrationMarker = marker
-    } catch {
+    } catch (err: unknown) {
       // Migration failure is non-fatal — canonical reads remain available.
       // The marker is not set, so migration will be retried on next load.
+      if (this.onMigrationError) {
+        this.onMigrationError(err)
+      }
     }
   }
 }

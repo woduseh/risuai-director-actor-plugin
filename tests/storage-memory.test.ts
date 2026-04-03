@@ -47,6 +47,42 @@ describe('CanonicalStore', () => {
     expect(state.memory.relations).toEqual([])
   })
 
+  test('patches legacy state missing memory.summaries to empty array', async () => {
+    const api = createMockRisuaiApi()
+    const legacyState = createEmptyState()
+    const legacyMemory = legacyState.memory as unknown as Record<string, unknown>
+    delete legacyMemory.summaries
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, legacyState)
+
+    const store = new CanonicalStore(api.pluginStorage)
+    const state = await store.load()
+
+    expect(state.memory.summaries).toEqual([])
+  })
+
+  test('legacy state missing summaries does not break memdir migration', async () => {
+    const storage = new InMemoryAsyncStore()
+    const scopeKey = 'scope:legacy-sum:test'
+    const storageKey = `director-plugin-state::${scopeKey}`
+
+    const legacyState = createEmptyState()
+    legacyState.memory.entities = [
+      { id: 'e-1', name: 'Alice', facts: ['Brave'], updatedAt: 1000 },
+    ]
+    const legacyMemory = legacyState.memory as unknown as Record<string, unknown>
+    delete legacyMemory.summaries
+    await storage.setItem(storageKey, legacyState)
+
+    const memdirStore = new MemdirStore(storage, scopeKey)
+    const store = new CanonicalStore(storage, { storageKey, memdirStore })
+    const state = await store.load()
+
+    expect(state.memory.summaries).toEqual([])
+    const marker = await store.getMigrationMarker()
+    expect(marker).not.toBeNull()
+    expect(marker!.docCount).toBe(1)
+  })
+
   test('writeFirst persists before afterPersist callback observes storage', async () => {
     const api = createMockRisuaiApi()
     const store = new CanonicalStore(api.pluginStorage)
@@ -346,6 +382,55 @@ describe('CanonicalStore memdir migration', () => {
     const storage = new InMemoryAsyncStore()
     const store = new CanonicalStore(storage)
     expect(await store.getMigrationMarker()).toBeNull()
+  })
+
+  test('onMigrationError callback receives errors from failed migration', async () => {
+    const storage = new InMemoryAsyncStore()
+    const scopeKey = 'scope:err:test'
+    const storageKey = `director-plugin-state::${scopeKey}`
+
+    await storage.setItem(storageKey, makePopulatedState())
+
+    // Create a MemdirStore that throws on putDocument
+    const memdirStore = new MemdirStore(storage, scopeKey)
+    const originalPut = memdirStore.putDocument.bind(memdirStore)
+    memdirStore.putDocument = async () => { throw new Error('disk full') }
+
+    const errors: unknown[] = []
+    const store = new CanonicalStore(storage, {
+      storageKey,
+      memdirStore,
+      onMigrationError: (err) => errors.push(err),
+    })
+
+    // load() should succeed despite migration failure
+    const state = await store.load()
+    expect(state.memory.entities).toHaveLength(2)
+
+    // The callback must have been invoked with the error
+    expect(errors).toHaveLength(1)
+    expect((errors[0] as Error).message).toBe('disk full')
+
+    // No marker set — migration will be retried
+    const marker = await store.getMigrationMarker()
+    expect(marker).toBeNull()
+  })
+
+  test('migration failure without onMigrationError does not throw', async () => {
+    const storage = new InMemoryAsyncStore()
+    const scopeKey = 'scope:silent:test'
+    const storageKey = `director-plugin-state::${scopeKey}`
+
+    await storage.setItem(storageKey, makePopulatedState())
+
+    const memdirStore = new MemdirStore(storage, scopeKey)
+    memdirStore.putDocument = async () => { throw new Error('boom') }
+
+    const store = new CanonicalStore(storage, { storageKey, memdirStore })
+
+    // Must not throw — backward compat
+    const state = await store.load()
+    expect(state.memory.entities).toHaveLength(2)
   })
 })
 
