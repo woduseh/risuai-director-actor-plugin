@@ -1,4 +1,4 @@
-import type { DirectorPluginState, OpenAIChat, RetrievalResult } from '../contracts/types.js'
+import type { DirectorPluginState, MemdirDocument, OpenAIChat, RetrievalResult } from '../contracts/types.js'
 
 const STOP_WORDS = new Set([
   'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
@@ -26,7 +26,7 @@ const TEXT_OVERLAP_WEIGHT = 0.2
 const DEFAULT_WORLD_FACT_RECENCY = 0.1
 
 /** Tokenise text into lowercase significant words. */
-function tokenize(text: string): string[] {
+export function tokenize(text: string): string[] {
   return text
     .toLowerCase()
     .split(/[^a-z0-9]+/)
@@ -118,4 +118,39 @@ export function retrieveMemory({ state, messages }: RetrieveMemoryInput): Retrie
   }
 
   return result
+}
+
+// ---------------------------------------------------------------------------
+// Memdir document keyword ranking (deterministic fallback for recall)
+// ---------------------------------------------------------------------------
+
+const DEFAULT_FALLBACK_MAX = 5
+
+/**
+ * Rank memdir documents by keyword overlap with the query text.
+ * Used as a deterministic fallback when the recall model fails,
+ * times out, or returns malformed output.
+ */
+export function rankDocsByKeywordOverlap(
+  docs: MemdirDocument[],
+  queryText: string,
+  maxResults: number = DEFAULT_FALLBACK_MAX,
+): MemdirDocument[] {
+  if (docs.length === 0) return []
+
+  const queryTokens = new Set(tokenize(queryText))
+
+  // When query has no significant tokens, return newest docs up to limit
+  if (queryTokens.size === 0) return docs.slice(0, maxResults)
+
+  const scored = docs.map((doc) => {
+    const docText = `${doc.title} ${doc.description} ${doc.tags.join(' ')}`
+    const docTokens = tokenize(docText)
+    const overlap = docTokens.filter((t) => queryTokens.has(t)).length
+    const score = docTokens.length > 0 ? overlap / docTokens.length : 0
+    return { doc, score }
+  })
+
+  scored.sort((a, b) => b.score - a.score)
+  return scored.slice(0, maxResults).map((s) => s.doc)
 }

@@ -56,6 +56,8 @@ export interface BootstrapOptions {
   onTurnFinalized?: (ctx: ExtractionContext) => Promise<void> | void
   /** Called during plugin unload to flush pending background work. */
   onShutdown?: () => Promise<void> | void
+  /** Optional session notebook for tracking turn activity thresholds. */
+  sessionNotebook?: { recordTurn(estimatedTokens: number): void }
 }
 
 // ---------------------------------------------------------------------------
@@ -87,6 +89,7 @@ export async function bootstrapPlugin(
     options.openSettings ?? (async () => showSettingsOverlay(api))
   const onTurnFinalized = options.onTurnFinalized ?? null
   const onShutdown = options.onShutdown ?? null
+  const sessionNotebook = options.sessionNotebook ?? null
 
   let currentTurnId: string | null = null
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -110,6 +113,12 @@ export async function bootstrapPlugin(
     if (!activeTurn || activeTurn.finalized) return
 
     turnIndex += 1
+
+    // Record turn activity for session notebook threshold tracking
+    if (sessionNotebook) {
+      const estimatedTokens = Math.ceil((content ?? '').length / 4)
+      sessionNotebook.recordTurn(estimatedTokens)
+    }
 
     try {
       const finalizePatch: { finalized: true; lastOutputText?: string } = {

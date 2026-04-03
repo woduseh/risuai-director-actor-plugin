@@ -3,6 +3,7 @@ import {
   createBackgroundHousekeeping,
   type HousekeepingDeps,
 } from '../src/runtime/backgroundHousekeeping.js'
+import { makeRecallRequest } from '../src/runtime/network.js'
 import type { ExtractionContext } from '../src/memory/extractMemories.js'
 
 // ---------------------------------------------------------------------------
@@ -109,5 +110,80 @@ describe('backgroundHousekeeping', () => {
     expect(deps.log).toHaveBeenCalledWith(
       expect.stringContaining('storage full'),
     )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// makeRecallRequest — host-safe recall model routing
+// ---------------------------------------------------------------------------
+
+describe('makeRecallRequest', () => {
+  test('routes recall through host runLLMModel abstraction', async () => {
+    const mockApi = {
+      runLLMModel: vi.fn(async () => ({
+        type: 'success' as const,
+        result: '["doc-1","doc-2"]',
+      })),
+    }
+
+    const result = await makeRecallRequest(
+      mockApi as any,
+      'ID: doc-1 | Type: character | Title: Alice',
+      'Alice opened the gate',
+    )
+
+    expect(mockApi.runLLMModel).toHaveBeenCalledTimes(1)
+    expect(result.ok).toBe(true)
+    expect(result.text).toBe('["doc-1","doc-2"]')
+  })
+
+  test('sends system + user messages to runLLMModel', async () => {
+    const mockApi = {
+      runLLMModel: vi.fn(async () => ({
+        type: 'success' as const,
+        result: '[]',
+      })),
+    }
+
+    await makeRecallRequest(mockApi as any, 'manifest', 'query')
+
+    const call = (mockApi.runLLMModel.mock.calls as any[][])[0]?.[0] as any
+    expect(call.messages).toHaveLength(2)
+    expect(call.messages[0].role).toBe('system')
+    expect(call.messages[1].role).toBe('user')
+    expect(call.messages[1].content).toContain('manifest')
+    expect(call.messages[1].content).toContain('query')
+  })
+
+  test('passes model and mode options to runLLMModel', async () => {
+    const mockApi = {
+      runLLMModel: vi.fn(async () => ({
+        type: 'success' as const,
+        result: '[]',
+      })),
+    }
+
+    await makeRecallRequest(mockApi as any, 'manifest', 'query', {
+      model: 'gpt-4.1-mini',
+      mode: 'otherAx',
+    })
+
+    const call = (mockApi.runLLMModel.mock.calls as any[][])[0]?.[0] as any
+    expect(call.staticModel).toBe('gpt-4.1-mini')
+    expect(call.mode).toBe('otherAx')
+  })
+
+  test('returns failure when LLM call fails', async () => {
+    const mockApi = {
+      runLLMModel: vi.fn(async () => ({
+        type: 'fail' as const,
+        result: 'rate limited',
+      })),
+    }
+
+    const result = await makeRecallRequest(mockApi as any, 'manifest', 'query')
+
+    expect(result.ok).toBe(false)
+    expect(result.text).toContain('rate limited')
   })
 })

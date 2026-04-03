@@ -21,6 +21,8 @@ export interface DirectorContext {
   promptPreset?: DirectorPromptPreset
   /** Pre-formatted session notebook block (rendered by formatNotebookBlock). */
   notebookBlock?: string
+  /** Pre-formatted recalled memory documents block (always includes MEMORY.md index). */
+  recalledDocsBlock?: string
 }
 
 export interface PostReviewContext {
@@ -112,6 +114,7 @@ export const DEFAULT_DIRECTOR_PROMPT_PRESET: DirectorPromptPreset = {
     '{{continuityFacts}}',
     '',
     '{{notebookBlock}}',
+    '{{recalledDocsBlock}}',
     '## Memory Summaries',
     '{{memorySummaries}}',
     '',
@@ -225,6 +228,7 @@ export function buildPreRequestPrompt(ctx: DirectorContext): OpenAIChat[] {
     activeArcs: formatArcs(ctx.directorState),
     continuityFacts: formatContinuityFacts(ctx.directorState),
     notebookBlock: ctx.notebookBlock ?? '',
+    recalledDocsBlock: ctx.recalledDocsBlock ?? '',
   }
 
   return [

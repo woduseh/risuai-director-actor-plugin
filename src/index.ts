@@ -19,6 +19,15 @@ import {
   type ExtractionResult,
 } from './memory/extractMemories.js'
 import { MemdirStore } from './memory/memdirStore.js'
+import { buildMemoryMd } from './memory/memoryDocuments.js'
+import {
+  findRelevantMemories,
+  formatRecalledDocsBlock,
+  RecallCache,
+  type RecallDeps,
+} from './memory/findRelevantMemories.js'
+import { makeRecallRequest } from './runtime/network.js'
+import { SessionNotebook, formatNotebookBlock } from './memory/sessionMemory.js'
 import { createBackgroundHousekeeping } from './runtime/backgroundHousekeeping.js'
 import { CircuitBreaker } from './runtime/circuitBreaker.js'
 import { hashExtractionContext } from './runtime/network.js'
@@ -36,6 +45,9 @@ function createId(prefix: string): string {
 // safeLocalStorage keys for extraction hot cache
 const LS_LAST_EXTRACTION_TS = 'director:extraction:lastTs'
 const LS_LAST_PROCESSED_CURSOR = 'director:extraction:cursor'
+
+/** Timeout for the recall prefetch before falling back to deterministic retrieval. */
+const RECALL_TIMEOUT_MS = 3000
 
 function latestUserText(messages: readonly OpenAIChat[]): string {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -118,6 +130,10 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
     ? 'default'
     : scopeResolution.storageKey
   const memdirStore = new MemdirStore(api.pluginStorage, memdirScopeKey)
+
+  // ── Recall cache & session notebook ───────────────────────────────
+  const recallCache = new RecallCache(initialState.settings.recallCooldownMs)
+  const sessionNotebook = new SessionNotebook(memdirScopeKey)
 
   // ── Extraction worker ─────────────────────────────────────────────
   const seenHashes = new Set<string>()
@@ -233,12 +249,53 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
       const state = await store.load()
       if (!state.settings.enabled) return null
 
+      // Deterministic retrieval — always computed, used as projection fallback
       const retrieved = retrieveMemory({
         state,
         messages: input.messages
       })
       turnCache.patch(input.turnId, { retrieval: retrieved })
+
+      // ── Start recall prefetch asynchronously ───────────────────────
+      const recentText = input.messages.map((m) => m.content).join(' ')
+      const memDocs = await memdirStore.listDocuments()
+      const storedMd = await memdirStore.getMemoryMd()
+      const memoryMdContent =
+        storedMd ?? buildMemoryMd(memDocs, { tokenBudget: state.settings.briefTokenCap })
+
+      const recallDeps: RecallDeps = {
+        runRecallModel: (manifest, text) =>
+          makeRecallRequest(api, manifest, text, {
+            model: state.settings.directorModel,
+            mode: state.settings.directorMode,
+          }),
+        log: (msg) => api.log(msg),
+      }
+
+      const recallPromise = findRelevantMemories(
+        recallDeps,
+        { docs: memDocs, recentText, memoryMdContent },
+        recallCache,
+      )
+
+      // ── Join recall with timeout / fallback budget ─────────────────
+      let recalledDocsBlock = memoryMdContent // always inject MEMORY.md at minimum
+      try {
+        const recallResult = await Promise.race([
+          recallPromise,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), RECALL_TIMEOUT_MS)),
+        ])
+
+        if (recallResult) {
+          recalledDocsBlock = formatRecalledDocsBlock(recallResult)
+        }
+      } catch (err) {
+        api.log(`Recall prefetch failed: ${err}`)
+      }
+
+      // ── Assemble Director prompt ───────────────────────────────────
       const promptPreset = resolvePromptPreset(state.settings)
+      const notebookBlock = formatNotebookBlock(sessionNotebook.snapshot())
 
       const service = createDirectorService(api, state.settings)
       const result = await service.preRequest({
@@ -248,6 +305,8 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
         assertiveness: state.settings.assertiveness,
         briefTokenCap: state.settings.briefTokenCap,
         promptPreset,
+        notebookBlock: notebookBlock || '',
+        recalledDocsBlock,
       })
 
       if (!result.ok) {
@@ -308,6 +367,7 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
     outputDebounceMs: initialState.settings.outputDebounceMs,
     circuitBreaker,
     turnCache,
+    sessionNotebook,
     onTurnFinalized: (ctx) => housekeeping.afterTurn(ctx),
     onShutdown: () => housekeeping.shutdown(),
     openSettings: async () => {

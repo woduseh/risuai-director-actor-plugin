@@ -1,5 +1,6 @@
-import { retrieveMemory } from '../src/memory/retrieval.js'
+import { retrieveMemory, rankDocsByKeywordOverlap } from '../src/memory/retrieval.js'
 import { createEmptyState } from '../src/contracts/types.js'
+import type { MemdirDocument } from '../src/contracts/types.js'
 
 describe('retrieveMemory', () => {
   test('promotes continuity locks to mustInject and matching summaries to highPriority', () => {
@@ -109,5 +110,61 @@ describe('retrieveMemory', () => {
     // Summary matches scene + entity + text → highPriority
     expect(result.highPriority.some((e) => e.includes('Elena negotiated'))).toBe(true)
     expect(result.scores['s1']).toBeGreaterThan(result.scores['w1']!)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// rankDocsByKeywordOverlap — deterministic fallback for memdir docs
+// ---------------------------------------------------------------------------
+
+function makeDoc(overrides?: Partial<MemdirDocument>): MemdirDocument {
+  return {
+    id: 'doc-1',
+    type: 'character',
+    title: 'Default',
+    description: 'Default description',
+    scopeKey: 'scope',
+    updatedAt: Date.now(),
+    source: 'extraction',
+    freshness: 'current',
+    tags: [],
+    ...overrides,
+  }
+}
+
+describe('rankDocsByKeywordOverlap', () => {
+  test('ranks docs by keyword overlap with query text', () => {
+    const docs = [
+      makeDoc({ id: 'd1', title: 'Dragon Lore', description: 'The dragon attacked at dawn', tags: ['dragon'] }),
+      makeDoc({ id: 'd2', title: 'Market Trade', description: 'Trading goods at the market', tags: ['trade'] }),
+      makeDoc({ id: 'd3', title: 'Dragon Rider', description: 'The dragon rider soared above', tags: ['dragon', 'rider'] }),
+    ]
+
+    const result = rankDocsByKeywordOverlap(docs, 'The dragon breathed fire', 5)
+
+    // Dragon-related docs should rank first
+    expect(result[0]!.id).toMatch(/d[13]/)
+    expect(result.map(d => d.id)).toContain('d1')
+    expect(result.map(d => d.id)).toContain('d3')
+  })
+
+  test('respects maxResults limit', () => {
+    const docs = Array.from({ length: 10 }, (_, i) =>
+      makeDoc({ id: `d${i}`, title: `Doc ${i}`, description: `content ${i}` }),
+    )
+
+    const result = rankDocsByKeywordOverlap(docs, 'content query', 3)
+    expect(result.length).toBeLessThanOrEqual(3)
+  })
+
+  test('returns empty array for empty doc list', () => {
+    const result = rankDocsByKeywordOverlap([], 'query', 5)
+    expect(result).toEqual([])
+  })
+
+  test('returns docs when query has no significant tokens', () => {
+    const docs = [makeDoc({ id: 'd1' })]
+    const result = rankDocsByKeywordOverlap(docs, 'the is a', 5)
+    expect(result.length).toBeLessThanOrEqual(5)
   })
 })
