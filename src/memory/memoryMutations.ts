@@ -218,12 +218,19 @@ export function upsertContinuityFact(
   input: UpsertContinuityFactInput
 ): void {
   const { id, text, priority, sceneId, entityIds } = input
-  const resolvedId = id ?? createId('continuity')
+  let resolvedId = id
 
   function upsertInto(arr: ContinuityFact[]): void {
-    const existing = id ? arr.find((f) => f.id === id) : undefined
+    const existing = id
+      ? arr.find((f) => f.id === id)
+      : arr.find((f) => f.text === text)
 
     if (existing) {
+      if (!resolvedId) {
+        resolvedId = existing.id
+      } else if (existing.id !== resolvedId) {
+        existing.id = resolvedId
+      }
       existing.text = text
       existing.priority = priority
       if (sceneId !== undefined) existing.sceneId = sceneId
@@ -231,6 +238,10 @@ export function upsertContinuityFact(
         existing.entityIds = uniqueStrings([...(existing.entityIds ?? []), ...entityIds])
       }
       return
+    }
+
+    if (!resolvedId) {
+      resolvedId = createId('continuity')
     }
 
     const entry: ContinuityFact = { id: resolvedId, text, priority }

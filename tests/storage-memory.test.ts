@@ -65,7 +65,7 @@ describe('CanonicalStore', () => {
       const store = new CanonicalStore(api.pluginStorage)
       await store.load()
 
-      const snap = (store as any).snapshot() as ReturnType<typeof createEmptyState>
+      const snap = store.snapshot()
 
       expect(snap).toBeDefined()
       expect(snap.schemaVersion).toBe(1)
@@ -78,7 +78,7 @@ describe('CanonicalStore', () => {
       const store = new CanonicalStore(api.pluginStorage)
       await store.load()
 
-      const snap = (store as any).snapshot() as ReturnType<typeof createEmptyState>
+      const snap = store.snapshot()
       snap.memory.summaries.push({
         id: 'mutant',
         text: 'Should not appear in store',
@@ -86,7 +86,7 @@ describe('CanonicalStore', () => {
         updatedAt: Date.now()
       })
 
-      const snap2 = (store as any).snapshot() as ReturnType<typeof createEmptyState>
+      const snap2 = store.snapshot()
       expect(snap2.memory.summaries).toEqual([])
     })
   })
@@ -108,6 +108,30 @@ describe('CanonicalStore', () => {
       expect(state.memory.continuityFacts).toEqual([
         { id: 'cf-1', text: 'The castle was destroyed', priority: 0.9 }
       ])
+    })
+
+    test('load() deep-clones mirrored continuity facts so nested entityIds arrays are not shared', async () => {
+      const api = createMockRisuaiApi()
+      const legacyState = createEmptyState()
+      legacyState.director.continuityFacts = [
+        {
+          id: 'cf-1',
+          text: 'The tower is warded',
+          priority: 0.9,
+          entityIds: ['tower']
+        }
+      ]
+      const legacyMemory = legacyState.memory as unknown as Record<string, unknown>
+      delete legacyMemory.continuityFacts
+      await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, legacyState)
+
+      const store = new CanonicalStore(api.pluginStorage)
+      const state = await store.load()
+
+      state.memory.continuityFacts[0]?.entityIds?.push('ward')
+
+      expect(state.memory.continuityFacts[0]?.entityIds).toEqual(['tower', 'ward'])
+      expect(state.director.continuityFacts[0]?.entityIds).toEqual(['tower'])
     })
   })
 })

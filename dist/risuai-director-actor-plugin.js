@@ -463,7 +463,7 @@ ${MEMORY_UPDATE_SCHEMA}`
   function patchLegacyMemory(state) {
     if (!Array.isArray(state.memory.continuityFacts)) {
       if (Array.isArray(state.director.continuityFacts) && state.director.continuityFacts.length > 0) {
-        state.memory.continuityFacts = state.director.continuityFacts.map((f) => ({ ...f }));
+        state.memory.continuityFacts = structuredClone(state.director.continuityFacts);
       } else {
         state.memory.continuityFacts = [];
       }
@@ -523,10 +523,15 @@ ${MEMORY_UPDATE_SCHEMA}`
   }
   function upsertContinuityFact(state, input) {
     const { id, text, priority, sceneId, entityIds } = input;
-    const resolvedId = id ?? createId("continuity");
+    let resolvedId = id;
     function upsertInto(arr) {
-      const existing = id ? arr.find((f) => f.id === id) : void 0;
+      const existing = id ? arr.find((f) => f.id === id) : arr.find((f) => f.text === text);
       if (existing) {
+        if (!resolvedId) {
+          resolvedId = existing.id;
+        } else if (existing.id !== resolvedId) {
+          existing.id = resolvedId;
+        }
         existing.text = text;
         existing.priority = priority;
         if (sceneId !== void 0) existing.sceneId = sceneId;
@@ -534,6 +539,9 @@ ${MEMORY_UPDATE_SCHEMA}`
           existing.entityIds = uniqueStrings([...existing.entityIds ?? [], ...entityIds]);
         }
         return;
+      }
+      if (!resolvedId) {
+        resolvedId = createId("continuity");
       }
       const entry = { id: resolvedId, text, priority };
       if (sceneId !== void 0) entry.sceneId = sceneId;

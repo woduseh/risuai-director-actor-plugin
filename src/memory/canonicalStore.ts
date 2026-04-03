@@ -11,7 +11,7 @@ export const DIRECTOR_STATE_STORAGE_KEY = 'director-plugin-state'
 function patchLegacyMemory(state: DirectorPluginState): void {
   if (!Array.isArray(state.memory.continuityFacts)) {
     if (Array.isArray(state.director.continuityFacts) && state.director.continuityFacts.length > 0) {
-      state.memory.continuityFacts = state.director.continuityFacts.map((f) => ({ ...f }))
+      state.memory.continuityFacts = structuredClone(state.director.continuityFacts)
     } else {
       state.memory.continuityFacts = []
     }

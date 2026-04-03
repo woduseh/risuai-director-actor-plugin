@@ -113,4 +113,22 @@ describe('applyMemoryUpdate — continuity mirroring', () => {
     expect(result.director.continuityFacts.find((f) => f.id === 'cf-drop')).toBeUndefined()
     expect(result.memory.continuityFacts.find((f) => f.id === 'cf-drop')).toBeUndefined()
   })
+
+  test('repeated continuityLocks reuse the existing fact instead of duplicating by text', () => {
+    const state = createEmptyState()
+    const update = createMinimalUpdate()
+    const input = createMinimalInput({
+      brief: createMinimalBrief({
+        continuityLocks: ['The relic remains sealed']
+      })
+    })
+
+    const first = applyMemoryUpdate(state, update, input).state
+    const second = applyMemoryUpdate(first, update, input).state
+
+    expect(second.director.continuityFacts).toHaveLength(1)
+    expect(second.memory.continuityFacts).toHaveLength(1)
+    expect(second.director.continuityFacts[0]?.text).toBe('The relic remains sealed')
+    expect(second.memory.continuityFacts[0]?.text).toBe('The relic remains sealed')
+  })
 })
