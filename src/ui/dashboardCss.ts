@@ -804,7 +804,6 @@ export function buildDashboardCss(): string {
 .da-textarea:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-  pointer-events: none;
 }
 
 /* ── Focus-visible on toggle ────────────────────────────────────────── */
