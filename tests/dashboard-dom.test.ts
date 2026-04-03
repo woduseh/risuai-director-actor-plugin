@@ -376,4 +376,106 @@ describe('buildDashboardMarkup', () => {
     expect(markup).toContain('data-da-action="save-settings"')
     expect(markup).toContain('data-da-action="reset-settings"')
   })
+
+  // ── Accessibility: aria-label coverage ─────────────────────────────
+
+  test('memory filter input has aria-label', () => {
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'memory-cache',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+    })
+
+    expect(markup).toMatch(/data-da-role="memory-filter"[^>]*aria-label="[^"]+"/);
+  })
+
+  test('add-row inputs have aria-labels', () => {
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'memory-cache',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+    })
+
+    const addRoles = [
+      'add-summary-text',
+      'add-fact-text',
+      'add-world-fact-text',
+      'add-entity-name',
+      'add-relation-source',
+      'add-relation-label',
+      'add-relation-target',
+    ]
+    for (const role of addRoles) {
+      expect(markup, `aria-label on ${role}`).toMatch(
+        new RegExp(`data-da-role="${role}"[^>]*aria-label="[^"]+"`)
+      )
+    }
+  })
+
+  test('memory selection checkboxes have aria-labels', () => {
+    const state = createEmptyState()
+    state.memory.summaries.push({ id: 's1', text: 'a', recencyWeight: 1, updatedAt: 1 })
+    state.memory.continuityFacts.push({ id: 'f1', text: 'b', updatedAt: 2 })
+
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: state,
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'memory-cache',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+    })
+
+    expect(markup).toMatch(/data-da-role="memory-select"[^>]*aria-label="[^"]+"/);
+  })
+
+  test('memory item edit and delete buttons have aria-labels', () => {
+    const state = createEmptyState()
+    state.memory.summaries.push({ id: 's1', text: 'summary one', recencyWeight: 1, updatedAt: 1 })
+
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: state,
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'memory-cache',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+    })
+
+    expect(markup).toMatch(/data-da-action="edit-memory-item"[^>]*aria-label="[^"]+"/);
+    expect(markup).toMatch(/data-da-action="delete-summary"[^>]*aria-label="[^"]+"/);
+  })
+
+  test('close-dashboard button has aria-label', () => {
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'general',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+    })
+
+    expect(markup).toMatch(/data-da-action="close-dashboard"[^>]*aria-label="[^"]+"/);
+  })
+
+  test('connection-status surface has role="status" and aria-live="polite"', () => {
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'general',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: 'Not tested' },
+    })
+
+    expect(markup).toMatch(/da-connection-status[^>]*role="status"/);
+    expect(markup).toMatch(/da-connection-status[^>]*aria-live="polite"/);
+  })
 })

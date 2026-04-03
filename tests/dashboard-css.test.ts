@@ -152,4 +152,31 @@ describe('buildDashboardCss', () => {
       expect(sum, `${full} sums to ${sum}%, expected 100%`).toBe(100)
     }
   })
+
+  // ── Accessibility: reduced-motion fallback ─────────────────────────
+
+  test('includes prefers-reduced-motion media query that disables animations', () => {
+    const css = buildDashboardCss()
+    expect(css).toContain('prefers-reduced-motion')
+    // Should target the armed pulse, toast fade-in, and toggle transitions
+    expect(css).toMatch(/prefers-reduced-motion.*reduce/s)
+  })
+
+  // ── Accessibility: toast pointer-events ────────────────────────────
+
+  test('toast has pointer-events: none so it is click-through', () => {
+    const css = buildDashboardCss()
+    // The .da-toast rule should include pointer-events: none
+    const toastSection = css.slice(css.indexOf('.da-toast'))
+    expect(toastSection).toContain('pointer-events')
+    expect(toastSection).toMatch(/pointer-events\s*:\s*none/)
+  })
+
+  // ── Accessibility: focus-visible for memory checkboxes ──────────────
+
+  test('includes focus-visible styling for memory selection checkboxes', () => {
+    const css = buildDashboardCss()
+    expect(css).toContain('memory-select')
+    expect(css).toMatch(/memory-select.*focus-visible/s)
+  })
 })

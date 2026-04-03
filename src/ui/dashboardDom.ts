@@ -95,7 +95,7 @@ function buildSidebar(activeTab: string): string {
       <div class="da-sidebar-footer da-footer">
         <button class="da-btn" data-da-action="switch-lang" data-da-lang="${nextLocale}">${nextLabel}</button>
         <button class="da-btn da-btn--ghost" data-da-action="export-settings">${t('btn.exportSettings')}</button>
-        <button class="da-btn da-btn--danger da-close-btn" data-da-action="close-dashboard">${t('btn.close')}</button>
+        <button class="da-btn da-btn--danger da-close-btn" data-da-action="close-dashboard" aria-label="${t('btn.close')}">${t('btn.close')}</button>
       </div>
     </aside>`
 }
@@ -148,7 +148,7 @@ function buildGeneralPage(input: DashboardMarkupInput): string {
               </select>
             </label>
           </div>
-          <span class="da-connection-status" data-da-status="${connectionStatus.kind}">${connectionStatus.message}</span>
+          <span class="da-connection-status" data-da-status="${connectionStatus.kind}" role="status" aria-live="polite">${connectionStatus.message}</span>
         </section>
         <section class="da-card">
           <div class="da-card-header">
@@ -527,13 +527,13 @@ function buildMemoryCachePage(input: DashboardMarkupInput): string {
   const backfillHtml = `<div class="da-inline"><button class="da-btn da-btn--primary" data-da-action="backfill-current-chat">${t('btn.backfillCurrentChat')}</button></div>`
   const regenerateHtml = `<div class="da-inline"><button class="da-btn" data-da-action="regenerate-current-chat">${t('btn.regenerateCurrentChat')}</button></div>`
   const bulkDeleteHtml = `<div class="da-inline"><button class="da-btn da-btn--danger" data-da-action="bulk-delete-memory"${selectedCount === 0 ? ' disabled' : ''}>${t('btn.deleteSelected')}</button></div>`
-  const filterHtml = `<input type="text" class="da-input" data-da-role="memory-filter" placeholder="${t('memory.filterPlaceholder')}" />`
+  const filterHtml = `<input type="text" class="da-input" data-da-role="memory-filter" placeholder="${t('memory.filterPlaceholder')}" aria-label="${t('memory.filterPlaceholder')}" />`
 
-  const addSummaryHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-summary-text" placeholder="${t('memory.addSummaryPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-summary">${t('btn.add')}</button></div>`
-  const addFactHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-fact-text" placeholder="${t('memory.addFactPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-continuity-fact">${t('btn.add')}</button></div>`
-  const addWorldFactHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-world-fact-text" placeholder="${t('memory.addWorldFactPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-world-fact">${t('btn.add')}</button></div>`
-  const addEntityHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-entity-name" placeholder="${t('memory.addEntityNamePlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-entity">${t('btn.add')}</button></div>`
-  const addRelationHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-relation-source" placeholder="${t('memory.addRelationSourcePlaceholder')}" /><input type="text" class="da-input da-input--add" data-da-role="add-relation-label" placeholder="${t('memory.addRelationLabelPlaceholder')}" /><input type="text" class="da-input da-input--add" data-da-role="add-relation-target" placeholder="${t('memory.addRelationTargetPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-relation">${t('btn.add')}</button></div>`
+  const addSummaryHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-summary-text" placeholder="${t('memory.addSummaryPlaceholder')}" aria-label="${t('memory.addSummaryPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-summary">${t('btn.add')}</button></div>`
+  const addFactHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-fact-text" placeholder="${t('memory.addFactPlaceholder')}" aria-label="${t('memory.addFactPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-continuity-fact">${t('btn.add')}</button></div>`
+  const addWorldFactHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-world-fact-text" placeholder="${t('memory.addWorldFactPlaceholder')}" aria-label="${t('memory.addWorldFactPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-world-fact">${t('btn.add')}</button></div>`
+  const addEntityHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-entity-name" placeholder="${t('memory.addEntityNamePlaceholder')}" aria-label="${t('memory.addEntityNamePlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-entity">${t('btn.add')}</button></div>`
+  const addRelationHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-relation-source" placeholder="${t('memory.addRelationSourcePlaceholder')}" aria-label="${t('memory.addRelationSourcePlaceholder')}" /><input type="text" class="da-input da-input--add" data-da-role="add-relation-label" placeholder="${t('memory.addRelationLabelPlaceholder')}" aria-label="${t('memory.addRelationLabelPlaceholder')}" /><input type="text" class="da-input da-input--add" data-da-role="add-relation-target" placeholder="${t('memory.addRelationTargetPlaceholder')}" aria-label="${t('memory.addRelationTargetPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-relation">${t('btn.add')}</button></div>`
 
   function renderMemoryItem(
     kind: 'summary' | 'continuity-fact' | 'world-fact' | 'entity' | 'relation',
@@ -547,10 +547,13 @@ function buildMemoryCachePage(input: DashboardMarkupInput): string {
     const itemKey = `${kind}:${id}`
     const checked = selectedKeys.has(itemKey) ? ' checked' : ''
     const isEditing = editingMemory?.kind === kind && editingMemory.id === id
+    const selectLabel = `${t('btn.select')} ${displayText}`
+    const editLabel = `${t('btn.edit')} ${displayText}`
+    const deleteLabel = `${t('btn.delete')} ${displayText}`
 
     if (isEditing) {
       return `<li class="da-memory-item">
-        <input type="checkbox" data-da-role="memory-select" data-da-item-key="${escapeXml(itemKey)}"${checked} />
+        <input type="checkbox" data-da-role="memory-select" data-da-item-key="${escapeXml(itemKey)}"${checked} aria-label="${escapeXml(selectLabel)}" />
         <div class="da-form-grid" style="flex:1">
           <input type="text" class="da-input" data-da-role="${editRole}" data-da-item-id="${escapeXml(id)}" value="${escapeXml(editValue)}" />
           ${extraEditFields}
@@ -561,10 +564,10 @@ function buildMemoryCachePage(input: DashboardMarkupInput): string {
     }
 
     return `<li class="da-memory-item">
-      <input type="checkbox" data-da-role="memory-select" data-da-item-key="${escapeXml(itemKey)}"${checked} />
+      <input type="checkbox" data-da-role="memory-select" data-da-item-key="${escapeXml(itemKey)}"${checked} aria-label="${escapeXml(selectLabel)}" />
       <span>${escapeXml(displayText)}</span>
-      <button class="da-btn da-btn--sm" data-da-action="edit-memory-item" data-da-item-key="${escapeXml(itemKey)}">${t('btn.edit')}</button>
-      <button class="da-btn da-btn--danger da-btn--sm" data-da-action="${deleteAction}" data-da-item-id="${escapeXml(id)}">${t('btn.delete')}</button>
+      <button class="da-btn da-btn--sm" data-da-action="edit-memory-item" data-da-item-key="${escapeXml(itemKey)}" aria-label="${escapeXml(editLabel)}">${t('btn.edit')}</button>
+      <button class="da-btn da-btn--danger da-btn--sm" data-da-action="${deleteAction}" data-da-item-id="${escapeXml(id)}" aria-label="${escapeXml(deleteLabel)}">${t('btn.delete')}</button>
     </li>`
   }
 

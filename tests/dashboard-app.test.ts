@@ -1515,4 +1515,25 @@ describe('openDashboard', () => {
     expect(payload.locale).toBeDefined()
     expect(typeof payload.exportedAt).toBe('number')
   })
+
+  // ── Accessibility: connection-status live-region semantics ──────────
+
+  test('connection-status surface exposes live-region semantics at app level', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const status = root.querySelector('.da-connection-status')
+    expect(status).not.toBeNull()
+    expect(status!.getAttribute('role')).toBe('status')
+    expect(status!.getAttribute('aria-live')).toBe('polite')
+  })
+
+  test('close button injected by app has aria-label', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const closeBtn = root.querySelector('[data-da-action="close"]') as HTMLElement
+    expect(closeBtn).not.toBeNull()
+    expect(closeBtn.getAttribute('aria-label')).toBeTruthy()
+  })
 })

@@ -858,5 +858,35 @@ export function buildDashboardCss(): string {
     transform: translate(-50%, 0);
   }
 }
+
+/* ── Toast pointer-events (click-through) ───────────────────────────── */
+
+.da-toast {
+  pointer-events: none;
+}
+
+/* ── Focus-visible for memory selection checkboxes ──────────────────── */
+
+[data-da-role="memory-select"]:focus-visible {
+  outline: 2px solid var(--da-accent);
+  outline-offset: 2px;
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .da-btn--armed {
+    animation: none;
+  }
+
+  .da-toast {
+    animation: none;
+  }
+
+  .da-toggle-track,
+  .da-toggle-dot {
+    transition: none;
+  }
+}
 `
 }

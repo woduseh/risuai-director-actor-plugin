@@ -433,6 +433,7 @@ class DashboardInstance {
       const closeBtn = this.doc.createElement('button')
       closeBtn.className = 'da-btn da-close-btn'
       closeBtn.setAttribute('data-da-action', 'close')
+      closeBtn.setAttribute('aria-label', t('btn.close'))
       closeBtn.textContent = t('btn.closeIcon')
       sidebar.appendChild(closeBtn)
     }
@@ -492,6 +493,7 @@ class DashboardInstance {
       const closeBtn = this.doc.createElement('button')
       closeBtn.className = 'da-btn da-close-btn'
       closeBtn.setAttribute('data-da-action', 'close')
+      closeBtn.setAttribute('aria-label', t('btn.close'))
       closeBtn.textContent = t('btn.closeIcon')
       sidebar.appendChild(closeBtn)
     }
