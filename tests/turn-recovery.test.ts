@@ -368,6 +368,33 @@ describe('bootstrapPlugin turn recovery integration', () => {
     expect(record).toBeNull()
   })
 
+  test('failed housekeeping leaves record at housekeeping-pending', async () => {
+    const api = createMockRisuaiApi()
+    const storage = api.pluginStorage as InMemoryAsyncStore
+    const recoveryManager = createTurnRecoveryManager(storage, 'default')
+
+    await bootstrapPlugin(api, {
+      director: {
+        async preRequest() { return makeBrief() },
+        async postResponse() { return makeUpdate() },
+      },
+      turnRecovery: recoveryManager,
+      onTurnFinalized: async () => {
+        throw new Error('Extraction service unavailable')
+      },
+    })
+
+    await api.runBeforeRequest([
+      { role: 'system', content: 'Rules.' },
+      { role: 'user', content: 'Go.' },
+    ])
+    await api.runAfterRequest('The actor responds.')
+
+    const record = await recoveryManager.load()
+    expect(record).not.toBeNull()
+    expect(record!.stage).toBe('housekeeping-pending')
+  })
+
   test('failed postResponse leaves recovery record intact', async () => {
     const api = createMockRisuaiApi()
     const storage = api.pluginStorage as InMemoryAsyncStore

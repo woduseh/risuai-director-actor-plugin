@@ -166,6 +166,7 @@ export async function bootstrapPlugin(
       }
 
       // Notify housekeeping for background extraction
+      let housekeepingFailed = false
       if (onTurnFinalized && finalizedTurn.brief) {
         try {
           await onTurnFinalized({
@@ -177,12 +178,15 @@ export async function bootstrapPlugin(
             brief: finalizedTurn.brief,
           })
         } catch (hkErr) {
+          housekeepingFailed = true
           await safeLog(api, `Housekeeping afterTurn failed: ${hkErr}`)
         }
       }
 
-      // Clear recovery record — full turn lifecycle complete
-      if (turnRecovery) {
+      // Clear recovery record only when the full lifecycle completed.
+      // When housekeeping failed the record stays at housekeeping-pending
+      // so startup recovery can replay just the housekeeping stage.
+      if (turnRecovery && !housekeepingFailed) {
         await turnRecovery.clear()
       }
     } catch (err) {
