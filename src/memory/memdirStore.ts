@@ -30,12 +30,16 @@ export interface ListDocumentsOptions {
  */
 export class MemdirStore {
   private readonly storage: AsyncKeyValueStore
-  private readonly scopeKey: string
+  private readonly _scopeKey: string
   private indexCache: MemdirIndex | null = null
 
   constructor(storage: AsyncKeyValueStore, scopeKey: string) {
     this.storage = storage
-    this.scopeKey = scopeKey
+    this._scopeKey = scopeKey
+  }
+
+  get scopeKey(): string {
+    return this._scopeKey
   }
 
   async loadIndex(): Promise<MemdirIndex> {

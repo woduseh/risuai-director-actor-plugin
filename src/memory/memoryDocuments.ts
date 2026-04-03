@@ -95,7 +95,7 @@ export async function migrateCanonicalToMemdir(
   store: MemdirStore,
 ): Promise<MigrationResult> {
   const now = Date.now()
-  const scopeKey = state.projectKey
+  const scopeKey = store.scopeKey
   const docs: MemdirDocument[] = []
 
   // Entities → character documents

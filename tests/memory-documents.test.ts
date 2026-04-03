@@ -251,4 +251,34 @@ describe('migrateCanonicalToMemdir', () => {
     const carolDocs = docs.filter((d) => d.title === 'Carol')
     expect(carolDocs).toHaveLength(1)
   })
+
+  it('assigns the store scopeKey — not state.projectKey — to every migrated document', async () => {
+    const state = createEmptyState()
+    // Ensure state.projectKey differs from the store's scopeKey
+    expect(state.projectKey).not.toBe(scopeKey)
+
+    state.memory.entities = [
+      { id: 'ent-scope', name: 'ScopeCheck', facts: ['f1'], updatedAt: Date.now() },
+    ]
+    state.memory.relations = [
+      { id: 'rel-scope', sourceId: 'a', targetId: 'b', label: 'ally', facts: [], updatedAt: Date.now() },
+    ]
+    state.memory.worldFacts = [
+      { id: 'wf-scope', text: 'World scope fact', updatedAt: Date.now() },
+    ]
+    state.memory.continuityFacts = [
+      { id: 'cf-scope', text: 'Continuity scope fact', priority: 1 },
+    ]
+    state.memory.summaries = [
+      { id: 'sum-scope', text: 'Summary scope fact', recencyWeight: 0.5, updatedAt: Date.now() },
+    ]
+
+    await migrateCanonicalToMemdir(state, store)
+    const docs = await store.listDocuments()
+    expect(docs.length).toBeGreaterThan(0)
+
+    for (const doc of docs) {
+      expect(doc.scopeKey).toBe(scopeKey)
+    }
+  })
 })
