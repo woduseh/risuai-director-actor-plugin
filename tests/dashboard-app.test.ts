@@ -1316,4 +1316,81 @@ describe('openDashboard', () => {
     const finalBtn = document.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLButtonElement
     expect(finalBtn.disabled).toBe(true)
   })
+
+  // ── UI-4: Dead dashboard actions ─────────────────────────────────────
+
+  test('close-dashboard sidebar button closes the dashboard', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const closeDashboardBtn = root.querySelector('[data-da-action="close-dashboard"]') as HTMLElement
+    expect(closeDashboardBtn).not.toBeNull()
+    closeDashboardBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    expect(api.__containerVisible).toBe(false)
+    expect(document.querySelector(`.${DASHBOARD_ROOT_CLASS}`)).toBeNull()
+  })
+
+  test('save-settings toolbar button persists draft like save', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const select = root.querySelector('[data-da-field="assertiveness"]') as HTMLSelectElement
+    select.value = 'firm'
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+
+    const saveSettingsBtn = root.querySelector('[data-da-action="save-settings"]') as HTMLElement
+    expect(saveSettingsBtn).not.toBeNull()
+    saveSettingsBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const stored = await api.pluginStorage.getItem<Record<string, unknown>>(DASHBOARD_SETTINGS_KEY)
+    expect(stored).not.toBeNull()
+    expect((stored as { assertiveness: string }).assertiveness).toBe('firm')
+  })
+
+  test('reset-settings toolbar button discards draft like discard', async () => {
+    await api.pluginStorage.setItem(DASHBOARD_SETTINGS_KEY, {
+      ...DEFAULT_DIRECTOR_SETTINGS,
+      assertiveness: 'light',
+    })
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    // Change to firm
+    const select = root.querySelector('[data-da-field="assertiveness"]') as HTMLSelectElement
+    select.value = 'firm'
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+
+    const resetBtn = root.querySelector('[data-da-action="reset-settings"]') as HTMLElement
+    expect(resetBtn).not.toBeNull()
+    resetBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    // After re-render, assertiveness should be back to persisted value
+    const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const updatedSelect = updatedRoot.querySelector('[data-da-field="assertiveness"]') as HTMLSelectElement
+    expect(updatedSelect.value).toBe('light')
+  })
+
+  test('export-settings sidebar button shows settings JSON via api.alert', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const exportBtn = root.querySelector('[data-da-action="export-settings"]') as HTMLElement
+    expect(exportBtn).not.toBeNull()
+    exportBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    expect(api.__alerts.length).toBeGreaterThan(0)
+    const payload = JSON.parse(api.__alerts[api.__alerts.length - 1]!)
+    expect(payload.schema).toBe('director-actor-dashboard-settings')
+    expect(payload.version).toBe(1)
+    expect(payload.settings).toBeDefined()
+    expect(payload.profiles).toBeDefined()
+    expect(payload.locale).toBeDefined()
+    expect(typeof payload.exportedAt).toBe('number')
+  })
 })

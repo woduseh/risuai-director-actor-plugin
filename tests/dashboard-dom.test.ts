@@ -346,4 +346,34 @@ describe('buildDashboardMarkup', () => {
     expect(markup).toContain('통합 워커')
     expect(markup).toContain('시작 복구')
   })
+
+  // ── Dead dashboard action buttons ───────────────────────────────────
+
+  test('renders sidebar close-dashboard and export-settings action buttons', () => {
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'general',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+    })
+
+    expect(markup).toContain('data-da-action="close-dashboard"')
+    expect(markup).toContain('data-da-action="export-settings"')
+  })
+
+  test('renders settings page save-settings and reset-settings action buttons', () => {
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'general',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+    })
+
+    expect(markup).toContain('data-da-action="save-settings"')
+    expect(markup).toContain('data-da-action="reset-settings"')
+  })
 })

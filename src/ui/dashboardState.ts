@@ -56,6 +56,15 @@ export interface ProfileExportPayload {
   profile: DashboardProfile
 }
 
+export interface SettingsExportPayload {
+  schema: 'director-actor-dashboard-settings'
+  version: 1
+  exportedAt: number
+  locale: import('./i18n.js').DashboardLocale
+  settings: DirectorSettings
+  profiles: ProfileManifest
+}
+
 interface PersistedProfileManifestLike {
   version?: unknown
   activeProfileId?: unknown
@@ -269,6 +278,25 @@ export function createProfileExportPayload(
     schema: 'director-actor-dashboard-profile',
     version: 1,
     profile: { ...profile },
+  }
+}
+
+/**
+ * Wrap the full dashboard settings, profile manifest, and locale into a
+ * typed export envelope suitable for JSON display via `api.alert(...)`.
+ */
+export function createSettingsExportPayload(
+  settings: DirectorSettings,
+  profiles: ProfileManifest,
+  locale: import('./i18n.js').DashboardLocale,
+): SettingsExportPayload {
+  return {
+    schema: 'director-actor-dashboard-settings',
+    version: 1,
+    exportedAt: Date.now(),
+    locale,
+    settings: structuredClone(settings),
+    profiles: structuredClone(profiles),
   }
 }
 

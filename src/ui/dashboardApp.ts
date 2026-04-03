@@ -20,6 +20,7 @@ import {
   resolveSelectedPromptPreset,
   mergeDashboardSettingsIntoPluginState,
   createProfileExportPayload,
+  createSettingsExportPayload,
   createDefaultMemoryOpsStatus,
   computeDocumentCounts,
   computeNotebookFreshness,
@@ -796,13 +797,19 @@ class DashboardInstance {
 
     switch (action) {
       case 'close':
+      case 'close-dashboard':
         await this.close()
         break
       case 'save':
+      case 'save-settings':
         await this.withBusyGuard('save', () => this.handleSave())
         break
       case 'discard':
+      case 'reset-settings':
         await this.withBusyGuard('discard', () => this.handleDiscard())
+        break
+      case 'export-settings':
+        await this.handleExportSettings()
         break
       case 'test-connection':
         await this.withBusyGuard('test-connection', () => this.handleTestConnection())
@@ -1110,6 +1117,17 @@ class DashboardInstance {
     const json = JSON.stringify(payload, null, 2)
     await this.api.alert(json)
     this.showToast(t('toast.profileExported'), 'success')
+  }
+
+  private async handleExportSettings(): Promise<void> {
+    const payload = createSettingsExportPayload(
+      this.draft.settings,
+      this.profiles,
+      getLocale(),
+    )
+    const json = JSON.stringify(payload, null, 2)
+    await this.api.alert(json)
+    this.showToast(t('toast.settingsExported'), 'success')
   }
 
   private async handleImportProfile(): Promise<void> {
