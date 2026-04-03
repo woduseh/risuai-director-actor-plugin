@@ -163,6 +163,51 @@ describe('memory-cache page DOM rendering', () => {
     expect(emptyHint?.textContent).toBeTruthy()
     expect(emptyHint?.textContent).not.toBe('')
   })
+
+  test('memory-cache page escapes memory text and item ids before injecting HTML', async () => {
+    const state = createEmptyState()
+    state.memory.summaries = [
+      {
+        id: 'sum-"quoted"',
+        text: 'Unsafe <strong>summary</strong> & "quotes"',
+        recencyWeight: 1,
+        updatedAt: 1000,
+      },
+    ]
+    state.memory.continuityFacts = [
+      {
+        id: 'cf-"quoted"',
+        text: 'Unsafe <img src=x onerror="boom"> fact',
+        priority: 5,
+      },
+    ]
+
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
+
+    expect(memoryPage.querySelector('strong')).toBeNull()
+    expect(memoryPage.querySelector('img')).toBeNull()
+
+    const renderedTexts = Array.from(memoryPage.querySelectorAll('.da-memory-item span')).map(
+      (node) => node.textContent,
+    )
+    expect(renderedTexts).toContain('Unsafe <strong>summary</strong> & "quotes"')
+    expect(renderedTexts).toContain('Unsafe <img src=x onerror="boom"> fact')
+
+    const summaryDelete = memoryPage.querySelector(
+      '[data-da-action="delete-summary"]',
+    ) as HTMLElement | null
+    const factDelete = memoryPage.querySelector(
+      '[data-da-action="delete-continuity-fact"]',
+    ) as HTMLElement | null
+    expect(summaryDelete?.getAttribute('data-da-item-id')).toBe('sum-"quoted"')
+    expect(factDelete?.getAttribute('data-da-item-id')).toBe('cf-"quoted"')
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -308,6 +353,42 @@ describe('dashboard app memory delete actions', () => {
     expect(memoryPage.textContent).not.toContain('The hero carries a silver sword.')
     // cf-2 should still be present
     expect(memoryPage.textContent).toContain('It is currently nighttime.')
+  })
+
+  test('clicking delete-summary uses writeCanonical when provided', async () => {
+    let currentState = stateWithMemory()
+    let writeCalls = 0
+
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        writeCalls += 1
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    } as DashboardStore & {
+      readCanonical: () => Promise<DirectorPluginState>
+      writeCanonical: (
+        mutator: (state: DirectorPluginState) => DirectorPluginState,
+      ) => Promise<DirectorPluginState>
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const delBtn = root.querySelector(
+      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+    ) as HTMLElement
+    expect(delBtn).not.toBeNull()
+    delBtn.click()
+    await new Promise((r) => {
+      setTimeout(r, 50)
+    })
+
+    expect(writeCalls).toBe(1)
+    expect(currentState.memory.summaries.some((entry) => entry.id === 'sum-1')).toBe(false)
   })
 })
 

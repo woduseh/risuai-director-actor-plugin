@@ -60,6 +60,9 @@ export interface DashboardStore {
   storage: AsyncKeyValueStore
   mirrorToCanonical?: (settings: DirectorSettings) => Promise<void>
   readCanonical?: () => Promise<DirectorPluginState>
+  writeCanonical?: (
+    mutator: (state: DirectorPluginState) => DirectorPluginState,
+  ) => Promise<DirectorPluginState>
 }
 
 /**
@@ -82,6 +85,7 @@ export function createDashboardStore(
         mergeDashboardSettingsIntoPluginState(s, settings),
       )
     }
+    store.writeCanonical = canonicalWriteFirst
   }
   return store
 }
@@ -684,6 +688,20 @@ class DashboardInstance {
   ): Promise<void> {
     const itemId = btn.getAttribute('data-da-item-id')
     if (!itemId) return
+
+    if (this.store.writeCanonical) {
+      const nextState = await this.store.writeCanonical((current) => {
+        if (kind === 'summary') {
+          deleteSummary(current, itemId)
+        } else {
+          deleteContinuityFact(current, itemId)
+        }
+        return current
+      })
+      this.canonicalState = structuredClone(nextState)
+      this.fullReRender()
+      return
+    }
 
     const state = await readCanonicalState(this.store)
     if (kind === 'summary') {

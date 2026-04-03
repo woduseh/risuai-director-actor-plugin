@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Memory dashboard vertical slice for summaries and continuity facts, including localized filter and empty states
+
+### Fixed
+
+- Dashboard memory deletes now prefer the live canonical write path to avoid runtime cache desync
+- Memory dashboard rendering now escapes summary and continuity text/id values before HTML injection
+
 ## [0.2.0] - 2026-04-03
 
 ### Added

@@ -3137,10 +3137,10 @@ ${MEMORY_UPDATE_SCHEMA}`
       </div>`;
     }
     const summaryItems = summaries.map(
-      (s) => `<li class="da-memory-item"><span>${s.text}</span><button class="da-btn da-btn--danger da-btn--sm" data-da-action="delete-summary" data-da-item-id="${s.id}">${t("btn.delete")}</button></li>`
+      (s) => `<li class="da-memory-item"><span>${escapeXml(s.text)}</span><button class="da-btn da-btn--danger da-btn--sm" data-da-action="delete-summary" data-da-item-id="${escapeXml(s.id)}">${t("btn.delete")}</button></li>`
     ).join("");
     const factItems = facts.map(
-      (f) => `<li class="da-memory-item"><span>${f.text}</span><button class="da-btn da-btn--danger da-btn--sm" data-da-action="delete-continuity-fact" data-da-item-id="${f.id}">${t("btn.delete")}</button></li>`
+      (f) => `<li class="da-memory-item"><span>${escapeXml(f.text)}</span><button class="da-btn da-btn--danger da-btn--sm" data-da-action="delete-continuity-fact" data-da-item-id="${escapeXml(f.id)}">${t("btn.delete")}</button></li>`
     ).join("");
     return `
       ${filterHtml}
@@ -3328,6 +3328,7 @@ ${MEMORY_UPDATE_SCHEMA}`
           (s) => mergeDashboardSettingsIntoPluginState(s, settings)
         );
       };
+      store.writeCanonical = canonicalWriteFirst;
     }
     return store;
   }
@@ -3781,6 +3782,19 @@ ${MEMORY_UPDATE_SCHEMA}`
     async handleDeleteMemoryItem(btn, kind) {
       const itemId = btn.getAttribute("data-da-item-id");
       if (!itemId) return;
+      if (this.store.writeCanonical) {
+        const nextState = await this.store.writeCanonical((current) => {
+          if (kind === "summary") {
+            deleteSummary(current, itemId);
+          } else {
+            deleteContinuityFact(current, itemId);
+          }
+          return current;
+        });
+        this.canonicalState = structuredClone(nextState);
+        this.fullReRender();
+        return;
+      }
       const state = await readCanonicalState(this.store);
       if (kind === "summary") {
         deleteSummary(state, itemId);

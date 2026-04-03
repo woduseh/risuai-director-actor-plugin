@@ -11,6 +11,7 @@ import {
   getLocale,
 } from './i18n.js'
 import type { DashboardLocale } from './i18n.js'
+import { escapeXml } from '../utils/xml.js'
 
 // ---------------------------------------------------------------------------
 // Tab definitions
@@ -330,14 +331,14 @@ function buildMemoryCachePage(input: DashboardMarkupInput): string {
   const summaryItems = summaries
     .map(
       (s) =>
-        `<li class="da-memory-item"><span>${s.text}</span><button class="da-btn da-btn--danger da-btn--sm" data-da-action="delete-summary" data-da-item-id="${s.id}">${t('btn.delete')}</button></li>`,
+        `<li class="da-memory-item"><span>${escapeXml(s.text)}</span><button class="da-btn da-btn--danger da-btn--sm" data-da-action="delete-summary" data-da-item-id="${escapeXml(s.id)}">${t('btn.delete')}</button></li>`,
     )
     .join('')
 
   const factItems = facts
     .map(
       (f) =>
-        `<li class="da-memory-item"><span>${f.text}</span><button class="da-btn da-btn--danger da-btn--sm" data-da-action="delete-continuity-fact" data-da-item-id="${f.id}">${t('btn.delete')}</button></li>`,
+        `<li class="da-memory-item"><span>${escapeXml(f.text)}</span><button class="da-btn da-btn--danger da-btn--sm" data-da-action="delete-continuity-fact" data-da-item-id="${escapeXml(f.id)}">${t('btn.delete')}</button></li>`,
     )
     .join('')
 
