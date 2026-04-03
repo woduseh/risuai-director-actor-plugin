@@ -19,6 +19,8 @@ export interface DirectorContext {
   assertiveness: DirectorAssertiveness
   briefTokenCap: number
   promptPreset?: DirectorPromptPreset
+  /** Pre-formatted session notebook block (rendered by formatNotebookBlock). */
+  notebookBlock?: string
 }
 
 export interface PostReviewContext {
@@ -109,6 +111,7 @@ export const DEFAULT_DIRECTOR_PROMPT_PRESET: DirectorPromptPreset = {
     '## Continuity Locks',
     '{{continuityFacts}}',
     '',
+    '{{notebookBlock}}',
     '## Memory Summaries',
     '{{memorySummaries}}',
     '',
@@ -221,6 +224,7 @@ export function buildPreRequestPrompt(ctx: DirectorContext): OpenAIChat[] {
     pacingMode: ctx.directorState.pacingMode,
     activeArcs: formatArcs(ctx.directorState),
     continuityFacts: formatContinuityFacts(ctx.directorState),
+    notebookBlock: ctx.notebookBlock ?? '',
   }
 
   return [
