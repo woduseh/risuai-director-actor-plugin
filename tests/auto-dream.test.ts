@@ -518,6 +518,77 @@ describe('autoDream — consolidation worker', () => {
     expect(remaining[0]!.id).toBe('keep-me')
   })
 
+  it('refuses to prune migration-sourced docs', async () => {
+    const migrationDoc = makeDoc({
+      id: 'mig-1',
+      type: 'character',
+      title: 'Migrated entity',
+      description: 'Came from canonical migration',
+      source: 'migration',
+    })
+    // Need eligible docs so the model is actually called
+    await memdirStore.putDocument(makeDoc({ id: 'ext-a', source: 'extraction' }))
+    await memdirStore.putDocument(makeDoc({ id: 'ext-b', source: 'extraction' }))
+    await memdirStore.putDocument(migrationDoc)
+
+    const deps = makeDeps(memdirStore, {
+      runConsolidationModel: vi.fn(async () =>
+        JSON.stringify({
+          merges: [],
+          prunes: ['mig-1'],
+          updates: [],
+        }),
+      ),
+    })
+
+    const worker = createAutoDreamWorker(deps)
+    const result = await worker.run()
+
+    expect(result.pruned).toBe(0)
+    const remaining = await memdirStore.listDocuments()
+    expect(remaining.find((d) => d.id === 'mig-1')).toBeDefined()
+  })
+
+  it('refuses to merge migration-sourced docs', async () => {
+    const migrationDoc = makeDoc({
+      id: 'mig-merge',
+      type: 'character',
+      title: 'Migrated',
+      description: 'From canonical',
+      source: 'migration',
+    })
+    await memdirStore.putDocument(makeDoc({ id: 'ext-c', source: 'extraction' }))
+    await memdirStore.putDocument(makeDoc({ id: 'ext-d', source: 'extraction' }))
+    await memdirStore.putDocument(migrationDoc)
+
+    const deps = makeDeps(memdirStore, {
+      runConsolidationModel: vi.fn(async () =>
+        JSON.stringify({
+          merges: [
+            {
+              sourceIds: ['ext-c', 'mig-merge'],
+              mergedDoc: {
+                type: 'character',
+                title: 'Merged',
+                description: 'Should not happen',
+                tags: [],
+              },
+            },
+          ],
+          prunes: [],
+          updates: [],
+        }),
+      ),
+    })
+
+    const worker = createAutoDreamWorker(deps)
+    const result = await worker.run()
+
+    expect(result.merged).toBe(0)
+    const remaining = await memdirStore.listDocuments()
+    expect(remaining.find((d) => d.id === 'mig-merge')).toBeDefined()
+  })
+
   it('creates merged doc before removing sources (safe ordering)', async () => {
     const doc1 = makeDoc({
       id: 'order-1',

@@ -646,6 +646,9 @@
     if (!Array.isArray(state.memory.relations)) {
       state.memory.relations = [];
     }
+    if (!Array.isArray(state.memory.summaries)) {
+      state.memory.summaries = [];
+    }
   }
   function isValidState(value) {
     if (value == null || typeof value !== "object") return false;
@@ -660,6 +663,7 @@
     storageKey;
     migrateFromFlatKey;
     memdirStore;
+    onMigrationError;
     current = null;
     migrationMarker = null;
     constructor(storage, options) {
@@ -667,6 +671,7 @@
       this.storageKey = options?.storageKey ?? DIRECTOR_STATE_STORAGE_KEY;
       this.migrateFromFlatKey = options?.migrateFromFlatKey === true && this.storageKey !== DIRECTOR_STATE_STORAGE_KEY;
       this.memdirStore = options?.memdirStore ?? null;
+      this.onMigrationError = options?.onMigrationError ?? null;
     }
     /** The storage key this store reads/writes. */
     get stateStorageKey() {
@@ -759,7 +764,10 @@
           marker
         );
         this.migrationMarker = marker;
-      } catch {
+      } catch (err) {
+        if (this.onMigrationError) {
+          this.onMigrationError(err);
+        }
       }
     }
   };
@@ -2346,10 +2354,6 @@ ${lines.join("\n").trimEnd()}`;
   var CONSOLIDATION_ELIGIBLE_SOURCES = /* @__PURE__ */ new Set([
     "extraction"
   ]);
-  var USER_LOCKED_SOURCES = /* @__PURE__ */ new Set([
-    "operator",
-    "manual"
-  ]);
   function createAutoDreamWorker(deps) {
     function shouldRun(gate) {
       if (!gate.enabled) return false;
@@ -2404,12 +2408,12 @@ ${lines.join("\n").trimEnd()}`;
       for (const merge of merges) {
         if (!Array.isArray(merge.sourceIds) || merge.sourceIds.length === 0) continue;
         if (!merge.mergedDoc || typeof merge.mergedDoc.title !== "string") continue;
-        const hasUserLocked = merge.sourceIds.some((id) => {
+        const hasNonEligible = merge.sourceIds.some((id) => {
           const doc = docMap.get(id);
-          return doc != null && USER_LOCKED_SOURCES.has(doc.source);
+          return doc != null && !CONSOLIDATION_ELIGIBLE_SOURCES.has(doc.source);
         });
-        if (hasUserLocked) {
-          deps.log(`[dream] consolidate: refusing to merge user-locked docs`);
+        if (hasNonEligible) {
+          deps.log(`[dream] consolidate: refusing to merge non-eligible docs`);
           continue;
         }
         const now = Date.now();
@@ -2436,8 +2440,8 @@ ${lines.join("\n").trimEnd()}`;
       for (const pruneId of prunes) {
         if (typeof pruneId !== "string") continue;
         const doc = docMap.get(pruneId);
-        if (doc != null && USER_LOCKED_SOURCES.has(doc.source)) {
-          deps.log(`[dream] prune: refusing to prune user-locked doc ${pruneId}`);
+        if (doc != null && !CONSOLIDATION_ELIGIBLE_SOURCES.has(doc.source)) {
+          deps.log(`[dream] prune: refusing to prune non-eligible doc ${pruneId} (source: ${doc.source})`);
           continue;
         }
         await deps.memdirStore.removeDocument(pruneId);
@@ -2520,6 +2524,17 @@ ${lines.join("\n").trimEnd()}`;
       this.storage = storage;
       this.key = `${LOCK_KEY_PREFIX}:${scopeKey}`;
       this.workerId = workerId;
+    }
+    // ── Query ──────────────────────────────────────────────────────────
+    /**
+     * Check whether any worker currently holds a non-stale lock.
+     * This is a read-only query — it never modifies state.
+     */
+    async isHeld() {
+      const existing = await this.storage.getItem(this.key);
+      if (existing == null) return false;
+      const elapsed = Date.now() - existing.lastTouchedAt;
+      return elapsed <= STALE_THRESHOLD_MS;
     }
     // ── Acquire ───────────────────────────────────────────────────────
     /**
@@ -6709,9 +6724,13 @@ ${lines.join("\n").trimEnd()}`;
   }
   async function registerDirectorActorPlugin(api) {
     const scopeResolution = await resolveScopeStorageKey(api);
+    const memdirScopeKey = scopeResolution.isFallback ? "default" : scopeResolution.storageKey;
+    const memdirStore = new MemdirStore(api.pluginStorage, memdirScopeKey);
     const store = new CanonicalStore(api.pluginStorage, {
       storageKey: scopeResolution.storageKey,
-      migrateFromFlatKey: !scopeResolution.isFallback
+      migrateFromFlatKey: !scopeResolution.isFallback,
+      memdirStore,
+      onMigrationError: (err) => api.log(`Memdir migration error: ${err}`)
     });
     const turnCache = new TurnCache();
     const initialState = await store.load();
@@ -6719,8 +6738,6 @@ ${lines.join("\n").trimEnd()}`;
       initialState.settings.cooldownFailureThreshold,
       initialState.settings.cooldownMs
     );
-    const memdirScopeKey = scopeResolution.isFallback ? "default" : scopeResolution.storageKey;
-    const memdirStore = new MemdirStore(api.pluginStorage, memdirScopeKey);
     const recallCache = new RecallCache(initialState.settings.recallCooldownMs);
     const sessionNotebook = new SessionNotebook(memdirScopeKey);
     const seenHashes = /* @__PURE__ */ new Set();
@@ -6984,6 +7001,25 @@ ${lines.join("\n").trimEnd()}`;
           (mutator) => store.writeFirst(mutator),
           store.stateStorageKey
         );
+        dashboardStore.forceExtract = async () => {
+          await extractionWorker.flush();
+        };
+        dashboardStore.forceDream = async () => {
+          const result = await consolidationLock.withLock(() => dreamWorker.run());
+          if (result == null) {
+            throw new Error("Consolidation lock is held by another worker");
+          }
+        };
+        dashboardStore.getRecalledDocs = async () => {
+          const cached = recallCache.get();
+          if (!cached) return [];
+          return cached.selectedDocs.map((d) => ({
+            id: d.id,
+            title: d.title,
+            freshness: d.freshness
+          }));
+        };
+        dashboardStore.isMemoryLocked = () => consolidationLock.isHeld();
         await openDashboard(api, dashboardStore);
       }
     });

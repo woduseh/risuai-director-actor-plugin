@@ -169,4 +169,38 @@ describe('ConsolidationLock', () => {
     const result = await lockB.withLock(async () => 42)
     expect(result).toBeNull()
   })
+
+  // ── isHeld ────────────────────────────────────────────────────────────
+
+  it('isHeld returns false when no lock exists', async () => {
+    const lock = new ConsolidationLock(store, scopeKey, workerId)
+    expect(await lock.isHeld()).toBe(false)
+  })
+
+  it('isHeld returns true when a lock is held', async () => {
+    const lock = new ConsolidationLock(store, scopeKey, workerId)
+    await lock.tryAcquire()
+    expect(await lock.isHeld()).toBe(true)
+  })
+
+  it('isHeld returns false after lock is released', async () => {
+    const lock = new ConsolidationLock(store, scopeKey, workerId)
+    await lock.tryAcquire()
+    await lock.release()
+    expect(await lock.isHeld()).toBe(false)
+  })
+
+  it('isHeld returns false for a stale lock', async () => {
+    const key = `director-memdir:consolidate-lock:${scopeKey}`
+    const staleTs = Date.now() - STALE_THRESHOLD_MS - 1000
+    await store.setItem(key, {
+      workerId: 'dead-worker',
+      acquiredAt: staleTs,
+      expiresAt: staleTs + STALE_THRESHOLD_MS,
+      lastTouchedAt: staleTs,
+    } satisfies LeaseBody)
+
+    const lock = new ConsolidationLock(store, scopeKey, workerId)
+    expect(await lock.isHeld()).toBe(false)
+  })
 })

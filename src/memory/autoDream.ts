@@ -13,12 +13,6 @@ const CONSOLIDATION_ELIGIBLE_SOURCES: ReadonlySet<MemdirSource> = new Set([
   'extraction',
 ])
 
-/** Sources that are user-locked and must never be auto-pruned. */
-const USER_LOCKED_SOURCES: ReadonlySet<MemdirSource> = new Set([
-  'operator',
-  'manual',
-])
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -188,13 +182,13 @@ export function createAutoDreamWorker(deps: AutoDreamDeps): AutoDreamWorker {
       if (!Array.isArray(merge.sourceIds) || merge.sourceIds.length === 0) continue
       if (!merge.mergedDoc || typeof merge.mergedDoc.title !== 'string') continue
 
-      // Refuse to merge user-locked docs
-      const hasUserLocked = merge.sourceIds.some((id) => {
+      // Refuse to merge non-eligible docs (only extraction sources may be merged)
+      const hasNonEligible = merge.sourceIds.some((id) => {
         const doc = docMap.get(id)
-        return doc != null && USER_LOCKED_SOURCES.has(doc.source)
+        return doc != null && !CONSOLIDATION_ELIGIBLE_SOURCES.has(doc.source)
       })
-      if (hasUserLocked) {
-        deps.log(`[dream] consolidate: refusing to merge user-locked docs`)
+      if (hasNonEligible) {
+        deps.log(`[dream] consolidate: refusing to merge non-eligible docs`)
         continue
       }
 
@@ -227,9 +221,9 @@ export function createAutoDreamWorker(deps: AutoDreamDeps): AutoDreamWorker {
       if (typeof pruneId !== 'string') continue
       const doc = docMap.get(pruneId)
 
-      // Never prune user-locked docs
-      if (doc != null && USER_LOCKED_SOURCES.has(doc.source)) {
-        deps.log(`[dream] prune: refusing to prune user-locked doc ${pruneId}`)
+      // Only prune consolidation-eligible docs; reject all other sources
+      if (doc != null && !CONSOLIDATION_ELIGIBLE_SOURCES.has(doc.source)) {
+        deps.log(`[dream] prune: refusing to prune non-eligible doc ${pruneId} (source: ${doc.source})`)
         continue
       }
 

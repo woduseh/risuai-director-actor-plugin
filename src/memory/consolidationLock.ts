@@ -43,6 +43,19 @@ export class ConsolidationLock {
     this.workerId = workerId
   }
 
+  // ── Query ──────────────────────────────────────────────────────────
+
+  /**
+   * Check whether any worker currently holds a non-stale lock.
+   * This is a read-only query — it never modifies state.
+   */
+  async isHeld(): Promise<boolean> {
+    const existing = await this.storage.getItem<LeaseBody>(this.key)
+    if (existing == null) return false
+    const elapsed = Date.now() - existing.lastTouchedAt
+    return elapsed <= STALE_THRESHOLD_MS
+  }
+
   // ── Acquire ───────────────────────────────────────────────────────
 
   /**

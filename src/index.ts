@@ -121,9 +121,18 @@ function recordDirectorSuccess(
 
 export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void> {
   const scopeResolution = await resolveScopeStorageKey(api)
+
+  // Create memdir store first so CanonicalStore can migrate into it on load
+  const memdirScopeKey = scopeResolution.isFallback
+    ? 'default'
+    : scopeResolution.storageKey
+  const memdirStore = new MemdirStore(api.pluginStorage, memdirScopeKey)
+
   const store = new CanonicalStore(api.pluginStorage, {
     storageKey: scopeResolution.storageKey,
     migrateFromFlatKey: !scopeResolution.isFallback,
+    memdirStore,
+    onMigrationError: (err) => api.log(`Memdir migration error: ${err}`),
   })
   const turnCache = new TurnCache()
   const initialState = await store.load()
@@ -131,12 +140,6 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
     initialState.settings.cooldownFailureThreshold,
     initialState.settings.cooldownMs
   )
-
-  // Memdir store for extracted document persistence
-  const memdirScopeKey = scopeResolution.isFallback
-    ? 'default'
-    : scopeResolution.storageKey
-  const memdirStore = new MemdirStore(api.pluginStorage, memdirScopeKey)
 
   // ── Recall cache & session notebook ───────────────────────────────
   const recallCache = new RecallCache(initialState.settings.recallCooldownMs)
@@ -447,6 +450,25 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
         (mutator) => store.writeFirst(mutator),
         store.stateStorageKey,
       )
+      dashboardStore.forceExtract = async () => {
+        await extractionWorker.flush()
+      }
+      dashboardStore.forceDream = async () => {
+        const result = await consolidationLock.withLock(() => dreamWorker.run())
+        if (result == null) {
+          throw new Error('Consolidation lock is held by another worker')
+        }
+      }
+      dashboardStore.getRecalledDocs = async () => {
+        const cached = recallCache.get()
+        if (!cached) return []
+        return cached.selectedDocs.map((d) => ({
+          id: d.id,
+          title: d.title,
+          freshness: d.freshness,
+        }))
+      }
+      dashboardStore.isMemoryLocked = () => consolidationLock.isHeld()
       await openDashboard(api, dashboardStore)
     }
   })
