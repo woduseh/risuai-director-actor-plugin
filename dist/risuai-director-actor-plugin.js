@@ -2539,6 +2539,15 @@ ${MEMORY_UPDATE_SCHEMA}`
     const key = SIDEBAR_GROUP_KEY_MAP[groupId];
     return key ? t(key) : groupId;
   }
+  var BUILTIN_PROFILE_KEY_MAP = {
+    "builtin-balanced": "profile.balanced",
+    "builtin-gentle": "profile.gentle",
+    "builtin-strict": "profile.strict"
+  };
+  function profileDisplayName(id, fallbackName) {
+    const key = BUILTIN_PROFILE_KEY_MAP[id];
+    return key ? t(key) : fallbackName;
+  }
 
   // src/ui/dashboardDom.ts
   var DASHBOARD_TABS = [
@@ -2760,7 +2769,7 @@ ${MEMORY_UPDATE_SCHEMA}`
     const { profiles } = input;
     const profileItems = profiles.profiles.map((p) => {
       const active = p.id === profiles.activeProfileId ? " da-profile--active" : "";
-      return `<li class="da-profile-item${active}" data-da-profile-id="${p.id}">${p.name}</li>`;
+      return `<li class="da-profile-item${active}" data-da-profile-id="${p.id}">${profileDisplayName(p.id, p.name)}</li>`;
     }).join("");
     return `
       <div class="da-grid">
@@ -3379,6 +3388,20 @@ ${MEMORY_UPDATE_SCHEMA}`
       this.fullReRender();
       this.showToast(t("toast.changesDiscarded"));
     }
+    // ── Connection status helpers ────────────────────────────────────────
+    /** Re-derive a localized message from `kind`, preserving raw error text. */
+    localizedConnectionMessage() {
+      switch (this.connectionStatus.kind) {
+        case "idle":
+          return t("connection.notTested");
+        case "testing":
+          return t("connection.testing");
+        case "ok":
+          return t("connection.connected", { count: String(this.modelOptions.length) });
+        default:
+          return this.connectionStatus.message;
+      }
+    }
     // ── Connection test ───────────────────────────────────────────────────
     async handleTestConnection() {
       this.connectionStatus = { kind: "testing", message: t("connection.testing") };
@@ -3486,7 +3509,7 @@ ${MEMORY_UPDATE_SCHEMA}`
       const nextLocale = btn.getAttribute("data-da-lang") ?? "en";
       setLocale(nextLocale);
       await this.store.storage.setItem(DASHBOARD_LOCALE_KEY, nextLocale);
-      this.connectionStatus = { kind: this.connectionStatus.kind, message: this.connectionStatus.message };
+      this.connectionStatus = { kind: this.connectionStatus.kind, message: this.localizedConnectionMessage() };
       this.fullReRender();
     }
     // ── Toast ─────────────────────────────────────────────────────────────

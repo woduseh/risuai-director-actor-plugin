@@ -10,16 +10,15 @@ import type { DashboardLocale } from './i18n.js'
 
 export interface DashboardTab {
   id: string
-  labelKey: string
   group: 'general' | 'tuning' | 'memory' | 'profiles'
 }
 
 export const DASHBOARD_TABS: readonly DashboardTab[] = [
-  { id: 'general', labelKey: 'general', group: 'general' },
-  { id: 'prompt-tuning', labelKey: 'prompt-tuning', group: 'tuning' },
-  { id: 'model-settings', labelKey: 'model-settings', group: 'tuning' },
-  { id: 'memory-cache', labelKey: 'memory-cache', group: 'memory' },
-  { id: 'settings-profiles', labelKey: 'settings-profiles', group: 'profiles' },
+  { id: 'general', group: 'general' },
+  { id: 'prompt-tuning', group: 'tuning' },
+  { id: 'model-settings', group: 'tuning' },
+  { id: 'memory-cache', group: 'memory' },
+  { id: 'settings-profiles', group: 'profiles' },
 ] as const
 
 // ---------------------------------------------------------------------------
@@ -244,7 +243,7 @@ function buildModelSettingsPage(input: DashboardMarkupInput): string {
             </label>
             <label class="da-label">
               <span class="da-label-text">${t('label.customModelId')}</span>
-              <input type="text" class="da-input" data-da-field="directorModel" value="${settings.directorModel}" placeholder="type a model ID directly" />
+              <input type="text" class="da-input" data-da-field="directorModel" value="${settings.directorModel}" placeholder="${t('placeholder.customModelId')}" />
             </label>
             <div class="da-inline">
               <button class="da-btn da-btn--primary" data-da-action="test-connection">${t('btn.testConnection')}</button>

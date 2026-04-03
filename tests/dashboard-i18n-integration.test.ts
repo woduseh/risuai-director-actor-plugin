@@ -144,7 +144,6 @@ describe('dashboard i18n integration', () => {
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     const statusAfter = updatedRoot.querySelector('.da-connection-status')
-    setLocale('ko')
     expect(statusAfter?.textContent).toBe(t('connection.notTested'))
   })
 
@@ -178,8 +177,7 @@ describe('dashboard i18n integration', () => {
 
     const updatedStatus = document.querySelector('.da-connection-status')
     expect(updatedStatus?.getAttribute('data-da-status')).toBe('ok')
-    // Should now contain Korean text, not stale English
-    setLocale('ko')
+    // Locale is already 'ko' from the click handler; t() returns Korean text
     const expected = t('connection.connected', { count: '2' })
     expect(updatedStatus?.textContent).toBe(expected)
   })

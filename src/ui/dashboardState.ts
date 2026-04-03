@@ -1,6 +1,7 @@
 import type { AsyncKeyValueStore } from '../contracts/risuai.js'
 import type { DirectorSettings, DirectorPluginState } from '../contracts/types.js'
 import { DEFAULT_DIRECTOR_SETTINGS } from '../contracts/types.js'
+import { t } from './i18n.js'
 
 // ---------------------------------------------------------------------------
 // Storage keys & schema version
@@ -176,7 +177,7 @@ export function createProfileFromSettings(
   const now = Date.now()
   return {
     id: `profile-${now}-${Math.random().toString(36).slice(2, 8)}`,
-    name: name.trim() || `Profile ${now}`,
+    name: name.trim() || t('profile.defaultName', { n: String(now) }),
     createdAt: now,
     updatedAt: now,
     basedOn,

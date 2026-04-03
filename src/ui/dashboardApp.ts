@@ -545,7 +545,7 @@ class DashboardInstance {
     const id = `${PROFILE_ID_PREFIX}${String(now)}-${Math.random().toString(36).slice(2, 6)}`
     const newProfile: DashboardProfile = {
       id,
-      name: `Profile ${String(this.profiles.profiles.length + 1)}`,
+      name: t('profile.defaultName', { n: String(this.profiles.profiles.length + 1) }),
       createdAt: now,
       updatedAt: now,
       basedOn: this.profiles.activeProfileId,

@@ -146,7 +146,11 @@ const EN_CATALOG = {
   // Import alert
   'alert.importInstructions': 'To import a profile, save the JSON to plugin storage key "{{key}}" and click Import again.',
 
-  // Built-in profile names
+  // Placeholders
+  'placeholder.customModelId': 'type a model ID directly',
+
+  // Profile names
+  'profile.defaultName': 'Profile {{n}}',
   'profile.balanced': 'Balanced',
   'profile.gentle': 'Gentle',
   'profile.strict': 'Strict',
@@ -293,7 +297,11 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   // Import alert
   'alert.importInstructions': '프로필을 가져오려면 JSON을 플러그인 저장소 키 "{{key}}"에 저장한 후 가져오기를 다시 클릭하세요.',
 
-  // Built-in profile names
+  // Placeholders
+  'placeholder.customModelId': '모델 ID를 직접 입력하세요',
+
+  // Profile names
+  'profile.defaultName': '프로필 {{n}}',
   'profile.balanced': '균형',
   'profile.gentle': '부드러움',
   'profile.strict': '엄격',
