@@ -2028,7 +2028,7 @@ describe('destructive-action arming', () => {
 
   // -- arming cleared on tab switch -----------------------------------------
 
-  test('armed state is cleared when switching tabs', async () => {
+  test('switching tabs disarms memory delete buttons until they are explicitly re-armed', async () => {
     let currentState = stateWithMemory()
     store = {
       storage: api.pluginStorage,
@@ -2047,6 +2047,7 @@ describe('destructive-action arming', () => {
     const delBtn = root.querySelector(
       '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
     ) as HTMLElement
+    const originalLabel = delBtn.textContent
     delBtn.click() // arm
     expect(delBtn.classList.contains('da-btn--armed')).toBe(true)
 
@@ -2054,8 +2055,9 @@ describe('destructive-action arming', () => {
     const generalBtn = root.querySelector('[data-da-target="general"]') as HTMLElement
     generalBtn.click()
 
-    // Armed CSS class should be removed from the DOM button
+    // Armed CSS class and confirm copy should be removed from the hidden DOM button
     expect(delBtn.classList.contains('da-btn--armed')).toBe(false)
+    expect(delBtn.textContent).toBe(originalLabel)
 
     // Switch back to memory tab — button must not be armed
     navigateToMemoryTab(root)
@@ -2063,6 +2065,7 @@ describe('destructive-action arming', () => {
       '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
     ) as HTMLElement
     expect(freshBtn.classList.contains('da-btn--armed')).toBe(false)
+    expect(freshBtn.textContent).toBe(originalLabel)
 
     // Clicking the delete button again should arm (first-click), not execute
     freshBtn.click()
