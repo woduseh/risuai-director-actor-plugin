@@ -1859,6 +1859,53 @@ describe('destructive-action arming', () => {
     expect(currentState.memory.summaries.some((s) => s.id === 'sum-1')).toBe(false)
   })
 
+  // -- button text restored on early-return handler --------------------------
+
+  test('button text is restored after second click even when handler returns early', async () => {
+    let currentState = stateWithFullMemory()
+    let guardBlocked = false
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+      checkRefreshGuard: () => ({
+        blocked: guardBlocked,
+        reason: guardBlocked ? 'test-guard' : undefined,
+      }),
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    // Select an item so bulk-delete button is enabled
+    const checkbox = root.querySelector(
+      'input[data-da-role="memory-select"][data-da-item-key="summary:sum-1"]',
+    ) as HTMLInputElement
+    checkbox.checked = true
+    checkbox.dispatchEvent(new Event('change', { bubbles: true }))
+
+    const bulkBtn = root.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLButtonElement
+    const originalText = bulkBtn.textContent
+
+    bulkBtn.click() // arm
+    expect(bulkBtn.textContent).toBe('Confirm Delete Selected?')
+    expect(bulkBtn.classList.contains('da-btn--armed')).toBe(true)
+
+    // Block the guard so handler returns early without fullReRender
+    guardBlocked = true
+
+    bulkBtn.click() // confirm — handler hits guard and returns early
+    await vi.advanceTimersByTimeAsync(100)
+
+    // Button text must be restored, not stuck on confirm copy
+    expect(bulkBtn.textContent).toBe(originalText)
+    expect(bulkBtn.classList.contains('da-btn--armed')).toBe(false)
+  })
+
   // -- delete prompt preset -------------------------------------------------
 
   test('first click on delete-prompt-preset only arms, second click executes', async () => {

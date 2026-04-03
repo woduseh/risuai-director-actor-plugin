@@ -670,7 +670,10 @@ class DashboardInstance {
     const key = DashboardInstance.armKey(action, btn)
 
     if (this.armedActions.has(key)) {
-      // Second click — disarm and signal "execute"
+      // Second click — disarm and signal "execute".
+      // Restore original text eagerly so it isn't stuck on confirm copy
+      // when the downstream handler returns early without fullReRender().
+      btn.textContent = this.armedActions.get(key) ?? ''
       this.armedActions.delete(key)
       btn.classList.remove('da-btn--armed')
       return true
