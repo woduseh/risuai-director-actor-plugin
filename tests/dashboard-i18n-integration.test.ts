@@ -6,8 +6,9 @@ import { createMockRisuaiApi } from './helpers/mockRisuai.js'
 import { openDashboard, closeDashboard } from '../src/ui/dashboardApp.js'
 import type { DashboardStore } from '../src/ui/dashboardApp.js'
 import { DASHBOARD_ROOT_CLASS } from '../src/ui/dashboardCss.js'
-import { setLocale, getLocale } from '../src/ui/i18n.js'
-import { DASHBOARD_LOCALE_KEY } from '../src/ui/dashboardState.js'
+import { setLocale, getLocale, t } from '../src/ui/i18n.js'
+import { DASHBOARD_LOCALE_KEY, DASHBOARD_SETTINGS_KEY } from '../src/ui/dashboardState.js'
+import { DEFAULT_DIRECTOR_SETTINGS } from '../src/contracts/types.js'
 
 function createTestStore(api: ReturnType<typeof createMockRisuaiApi>): DashboardStore {
   return { storage: api.pluginStorage }
@@ -124,5 +125,93 @@ describe('dashboard i18n integration', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     // Should not contain English tab labels
     expect(root.innerHTML).not.toContain('>General<')
+  })
+
+  // ── Connection status re-localization on locale switch ──────────────
+
+  test('idle connection status re-localizes on locale switch', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    // Initially English idle text
+    const statusBefore = root.querySelector('.da-connection-status')
+    expect(statusBefore?.textContent).toBe(t('connection.notTested'))
+
+    // Switch to Korean
+    const langBtn = root.querySelector('[data-da-action="switch-lang"]') as HTMLElement
+    langBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const statusAfter = updatedRoot.querySelector('.da-connection-status')
+    setLocale('ko')
+    expect(statusAfter?.textContent).toBe(t('connection.notTested'))
+  })
+
+  test('ok connection status re-localizes on locale switch', async () => {
+    await api.pluginStorage.setItem(DASHBOARD_SETTINGS_KEY, {
+      ...DEFAULT_DIRECTOR_SETTINGS,
+      directorApiKey: 'sk-test',
+      directorBaseUrl: 'https://api.openai.com/v1',
+    })
+    // Initial model load + test-connection click
+    api.enqueueNativeFetchJson({ data: [{ id: 'm1' }, { id: 'm2' }] })
+    api.enqueueNativeFetchJson({ data: [{ id: 'm1' }, { id: 'm2' }] })
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    // Trigger connection test to set status to 'ok'
+    const testBtn = root.querySelector('[data-da-action="test-connection"]') as HTMLElement
+    testBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    // Status should be English 'ok'
+    const statusEl = document.querySelector('.da-connection-status')
+    expect(statusEl?.getAttribute('data-da-status')).toBe('ok')
+    expect(statusEl?.textContent).toContain('2 models')
+
+    // Switch to Korean
+    const langBtn = document.querySelector('[data-da-action="switch-lang"]') as HTMLElement
+    langBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const updatedStatus = document.querySelector('.da-connection-status')
+    expect(updatedStatus?.getAttribute('data-da-status')).toBe('ok')
+    // Should now contain Korean text, not stale English
+    setLocale('ko')
+    const expected = t('connection.connected', { count: '2' })
+    expect(updatedStatus?.textContent).toBe(expected)
+  })
+
+  test('error connection status preserves raw error text on locale switch', async () => {
+    await api.pluginStorage.setItem(DASHBOARD_SETTINGS_KEY, {
+      ...DEFAULT_DIRECTOR_SETTINGS,
+      directorApiKey: 'sk-bad',
+      directorBaseUrl: 'https://api.openai.com/v1',
+    })
+    // Initial model load succeeds, test-connection fails
+    api.enqueueNativeFetchJson({ data: [] })
+    api.enqueueNativeFetchJson({ error: 'Unauthorized' }, { status: 401, ok: false })
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const testBtn = root.querySelector('[data-da-action="test-connection"]') as HTMLElement
+    testBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const statusEl = document.querySelector('.da-connection-status')
+    expect(statusEl?.getAttribute('data-da-status')).toBe('error')
+    const errorText = statusEl?.textContent ?? ''
+
+    // Switch to Korean — error text should stay unchanged
+    const langBtn = document.querySelector('[data-da-action="switch-lang"]') as HTMLElement
+    langBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const updatedStatus = document.querySelector('.da-connection-status')
+    expect(updatedStatus?.getAttribute('data-da-status')).toBe('error')
+    expect(updatedStatus?.textContent).toBe(errorText)
   })
 })

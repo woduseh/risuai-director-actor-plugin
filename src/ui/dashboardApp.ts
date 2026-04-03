@@ -499,6 +499,18 @@ class DashboardInstance {
     this.showToast(t('toast.changesDiscarded'))
   }
 
+  // ── Connection status helpers ────────────────────────────────────────
+
+  /** Re-derive a localized message from `kind`, preserving raw error text. */
+  private localizedConnectionMessage(): string {
+    switch (this.connectionStatus.kind) {
+      case 'idle': return t('connection.notTested')
+      case 'testing': return t('connection.testing')
+      case 'ok': return t('connection.connected', { count: String(this.modelOptions.length) })
+      default: return this.connectionStatus.message
+    }
+  }
+
   // ── Connection test ───────────────────────────────────────────────────
 
   private async handleTestConnection(): Promise<void> {
@@ -630,7 +642,7 @@ class DashboardInstance {
     const nextLocale = (btn.getAttribute('data-da-lang') ?? 'en') as DashboardLocale
     setLocale(nextLocale)
     await this.store.storage.setItem(DASHBOARD_LOCALE_KEY, nextLocale)
-    this.connectionStatus = { kind: this.connectionStatus.kind, message: this.connectionStatus.message }
+    this.connectionStatus = { kind: this.connectionStatus.kind, message: this.localizedConnectionMessage() }
     this.fullReRender()
   }
 
