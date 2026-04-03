@@ -173,6 +173,147 @@
     ];
   }
 
+  // src/runtime/jsonRepair.ts
+  function normalizeQuotes(text) {
+    return text.replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"').replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'");
+  }
+  function removeTrailingCommas(text) {
+    const out = [];
+    let inString = false;
+    let escape = false;
+    let pendingCommaIdx = -1;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (escape) {
+        escape = false;
+        out.push(ch);
+        continue;
+      }
+      if (ch === "\\" && inString) {
+        escape = true;
+        out.push(ch);
+        continue;
+      }
+      if (ch === '"') {
+        inString = !inString;
+        out.push(ch);
+        continue;
+      }
+      if (inString) {
+        out.push(ch);
+        continue;
+      }
+      if (ch === ",") {
+        pendingCommaIdx = out.length;
+        out.push(ch);
+        continue;
+      }
+      if ((ch === "}" || ch === "]") && pendingCommaIdx !== -1) {
+        let allWhitespace = true;
+        for (let j = pendingCommaIdx + 1; j < out.length; j++) {
+          if (!/\s/.test(out[j])) {
+            allWhitespace = false;
+            break;
+          }
+        }
+        if (allWhitespace) {
+          out.splice(pendingCommaIdx, 1);
+        }
+        pendingCommaIdx = -1;
+        out.push(ch);
+        continue;
+      }
+      if (!/\s/.test(ch)) {
+        pendingCommaIdx = -1;
+      }
+      out.push(ch);
+    }
+    return out.join("");
+  }
+  function stripMarkdownCodeFences(text) {
+    const normalised = text.replace(/\r\n/g, "\n");
+    const fenceRe = /```[a-zA-Z]*\n([\s\S]*?)\n```/;
+    const m = fenceRe.exec(normalised);
+    if (m) return m[1].trim();
+    return normalised.trim();
+  }
+  var OPEN_CHAR = { object: "{", array: "[" };
+  var CLOSE_CHAR = { object: "}", array: "]" };
+  function extractBalancedSubstring(text, kind) {
+    const open = OPEN_CHAR[kind];
+    const close = CLOSE_CHAR[kind];
+    const start = text.indexOf(open);
+    if (start === -1) return null;
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch === "\\" && inString) {
+        escape = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+      if (ch === open) depth++;
+      else if (ch === close) {
+        depth--;
+        if (depth === 0) {
+          return text.slice(start, i + 1);
+        }
+      }
+    }
+    return null;
+  }
+  function attemptRepairedParse(raw) {
+    const fenceStripped = stripMarkdownCodeFences(raw);
+    const pristine = tryParse(fenceStripped);
+    if (pristine !== void 0) return pristine;
+    const stripped = normalizeQuotes(fenceStripped);
+    const fast = tryParse(stripped);
+    if (fast !== void 0) return fast;
+    const detrailed = removeTrailingCommas(stripped);
+    const afterDetrail = tryParse(detrailed);
+    if (afterDetrail !== void 0) return afterDetrail;
+    const normalized = normalizeQuotes(raw.replace(/\r\n/g, "\n"));
+    for (const kind of ["object", "array"]) {
+      const sub = extractBalancedSubstring(normalized, kind);
+      if (sub) {
+        const parsed = tryParse(sub);
+        if (parsed !== void 0) return parsed;
+        const repairedSub = removeTrailingCommas(sub);
+        const parsedRepaired = tryParse(repairedSub);
+        if (parsedRepaired !== void 0) return parsedRepaired;
+      }
+    }
+    return null;
+  }
+  function tryParse(s) {
+    try {
+      return JSON.parse(s);
+    } catch {
+      return void 0;
+    }
+  }
+  function isRecord(v) {
+    return typeof v === "object" && v !== null && !Array.isArray(v);
+  }
+  function repairParseObject(raw) {
+    const parsed = attemptRepairedParse(raw);
+    return isRecord(parsed) ? parsed : null;
+  }
+  function repairParseArray(raw) {
+    const parsed = attemptRepairedParse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  }
+
   // src/director/validator.ts
   var ModelPayloadError = class extends Error {
     constructor(message) {
@@ -199,7 +340,7 @@
     "archive",
     "drop"
   ];
-  function isRecord(v) {
+  function isRecord2(v) {
     return typeof v === "object" && v !== null && !Array.isArray(v);
   }
   function requireString(obj, key, label) {
@@ -230,7 +371,7 @@
   }
   function requireRecord(obj, key, label) {
     const v = obj[key];
-    if (!isRecord(v)) throw new ModelPayloadError(`${label}: expected object for "${key}"`);
+    if (!isRecord2(v)) throw new ModelPayloadError(`${label}: expected object for "${key}"`);
     return v;
   }
   function requireEnum(obj, key, allowed, label) {
@@ -240,62 +381,11 @@
     }
     return v;
   }
-  function stripMarkdownCodeFences(text) {
-    const normalised = text.replace(/\r\n/g, "\n");
-    const fenceRe = /```[a-zA-Z]*\n([\s\S]*?)\n```/;
-    const m = fenceRe.exec(normalised);
-    if (m) return m[1].trim();
-    return normalised.trim();
-  }
   function parseJsonObject(text) {
     if (!text.trim()) throw new ModelPayloadError("Empty input");
-    const stripped = stripMarkdownCodeFences(text);
-    const direct = tryParseObject(stripped);
-    if (direct) return direct;
-    const extracted = extractJsonSubstring(stripped);
-    if (extracted) return extracted;
+    const result = repairParseObject(text);
+    if (result) return result;
     throw new ModelPayloadError("Could not extract a JSON object from the model output");
-  }
-  function tryParseObject(s) {
-    try {
-      const parsed = JSON.parse(s);
-      if (isRecord(parsed)) return parsed;
-    } catch {
-    }
-    return null;
-  }
-  function extractJsonSubstring(text) {
-    const start = text.indexOf("{");
-    if (start === -1) return null;
-    let depth = 0;
-    let inString = false;
-    let escape = false;
-    for (let i = start; i < text.length; i++) {
-      const ch = text[i];
-      if (escape) {
-        escape = false;
-        continue;
-      }
-      if (ch === "\\" && inString) {
-        escape = true;
-        continue;
-      }
-      if (ch === '"') {
-        inString = !inString;
-        continue;
-      }
-      if (inString) continue;
-      if (ch === "{") depth++;
-      else if (ch === "}") {
-        depth--;
-        if (depth === 0) {
-          const candidate = text.slice(start, i + 1);
-          const result = tryParseObject(candidate);
-          if (result) return result;
-        }
-      }
-    }
-    return null;
   }
   function parseSceneBrief(text) {
     const raw = parseJsonObject(text);
@@ -307,7 +397,7 @@
     const pacing = requireEnum(raw, "pacing", BRIEF_PACING_VALUES, L);
     const rawBeats = requireArray(raw, "beats", L);
     const beats = rawBeats.map((b, i) => {
-      if (!isRecord(b)) throw new ModelPayloadError(`${L}: beats[${i}] must be an object`);
+      if (!isRecord2(b)) throw new ModelPayloadError(`${L}: beats[${i}] must be an object`);
       const goal = requireString(b, "goal", `${L}.beats[${i}]`);
       const reason = requireString(b, "reason", `${L}.beats[${i}]`);
       const beat = { goal, reason };
@@ -357,7 +447,7 @@
     const relationUpdates = requireArray(raw, "relationUpdates", L);
     const rawOps = requireArray(raw, "memoryOps", L);
     const memoryOps = rawOps.map((o, i) => {
-      if (!isRecord(o)) throw new ModelPayloadError(`${L}: memoryOps[${i}] must be an object`);
+      if (!isRecord2(o)) throw new ModelPayloadError(`${L}: memoryOps[${i}] must be an object`);
       const op = requireEnum(o, "op", MEMORY_OP_VALUES, `${L}.memoryOps[${i}]`);
       const target = requireString(o, "target", `${L}.memoryOps[${i}]`);
       const payload = requireRecord(o, "payload", `${L}.memoryOps[${i}]`);
@@ -2161,19 +2251,13 @@ ${recentText}`
     return warnings;
   }
   function parseRecallResponse(text) {
-    try {
-      const match = text.match(/\[[\s\S]*?\]/);
-      if (!match) return null;
-      const parsed = JSON.parse(match[0]);
-      if (!Array.isArray(parsed)) return null;
-      const ids = parsed.filter(
-        (item) => typeof item === "string"
-      );
-      if (ids.length === 0 && parsed.length > 0) return null;
-      return ids;
-    } catch {
-      return null;
-    }
+    const parsed = repairParseArray(text);
+    if (!parsed) return null;
+    const ids = parsed.filter(
+      (item) => typeof item === "string"
+    );
+    if (ids.length === 0 && parsed.length > 0) return null;
+    return ids;
   }
   function buildFallbackResult(docs, recentText, memoryMdContent, maxResults) {
     const selected = rankDocsByKeywordOverlap(docs, recentText, maxResults);
@@ -2477,10 +2561,11 @@ ${lines.join("\n").trimEnd()}`;
       const prompt = buildConsolidationPrompt(eligibleDocs);
       deps.log("[dream] consolidate: calling model");
       const rawResponse = await deps.runConsolidationModel(prompt);
+      const parsed = repairParseObject(rawResponse);
       let response;
-      try {
-        response = JSON.parse(rawResponse);
-      } catch {
+      if (parsed) {
+        response = parsed;
+      } else {
         deps.log("[dream] consolidate: failed to parse model response");
         return result;
       }

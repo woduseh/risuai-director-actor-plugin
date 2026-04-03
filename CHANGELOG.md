@@ -10,6 +10,13 @@
 - `bootstrapPlugin` accepts optional `turnRecovery` option for crash-safe turn processing
 - Startup recovery wired in `registerDirectorActorPlugin` composition root
 - 16 focused tests covering persist/advance/clear lifecycle, stage-aware replay, idempotent recovery, and failure retention
+- Reusable JSON repair layer for LLM outputs shared by director validation, recall parsing, and dream consolidation
+- Focused JSON repair coverage for fenced/prose-wrapped payloads, smart quotes, trailing commas, and repaired recall arrays
+
+### Fixed
+
+- Recall and dream parsing now recover from common malformed-but-repairable JSON instead of failing on the first `JSON.parse`
+- Trailing-comma repair now respects JSON string boundaries, avoiding silent corruption of values containing `, ]` or `, }`
 
 ## [0.4.1] - 2026-04-04
 
