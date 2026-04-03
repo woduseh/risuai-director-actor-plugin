@@ -427,4 +427,45 @@ describe('composition root wiring', () => {
     expect(guardData).not.toBeNull()
     expect(guardData!.shutdownTs).toBeGreaterThanOrEqual(beforeShutdown)
   })
+
+  test('housekeeping.shutdown still runs when markShutdown throws', async () => {
+    const api = createMockRisuaiApi()
+
+    api.enqueueLlmResult({
+      type: 'success',
+      result: JSON.stringify({
+        confidence: 0.9,
+        pacing: 'steady',
+        beats: [],
+        continuityLocks: [],
+        ensembleWeights: {},
+        styleInheritance: {},
+        forbiddenMoves: [],
+        memoryHints: [],
+      }),
+    })
+
+    await registerDirectorActorPlugin(api)
+
+    // Make safeLocalStorage.setItem throw so markShutdown fails
+    const guardKey = refreshGuardStorageKey(DIRECTOR_STATE_STORAGE_KEY)
+    const originalSetItem = api.safeLocalStorage.setItem.bind(api.safeLocalStorage)
+    vi.spyOn(api.safeLocalStorage, 'setItem').mockImplementation(
+      async (key: string, value: unknown) => {
+        if (key === guardKey) throw new Error('storage write failed')
+        return originalSetItem(key, value)
+      },
+    )
+
+    // Shutdown should still complete without throwing
+    await expect(api.runUnload()).resolves.toBeUndefined()
+
+    // Verify the guard was NOT stamped (because setItem threw)
+    const guardData = await api.safeLocalStorage.getItem<{
+      shutdownTs: number
+    }>(guardKey)
+    // The guard data from startup is still there, but shutdownTs should
+    // not have been updated since setItem threw
+    expect(guardData!.shutdownTs).toBe(0)
+  })
 })

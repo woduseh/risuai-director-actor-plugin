@@ -1417,17 +1417,6 @@ class DashboardInstance {
   }
 
   private async handleForceDream(): Promise<void> {
-    if (this.store.checkRefreshGuard) {
-      const status = this.store.checkRefreshGuard()
-      if (status.blocked) {
-        this.showToast(guardReasonToast(status.reason!))
-        return
-      }
-    }
-    if (this.store.markMaintenance) {
-      await this.store.markMaintenance('force-dream')
-    }
-
     if (!this.store.forceDream) {
       this.showToast(t('toast.noCallback'))
       return
@@ -1435,7 +1424,13 @@ class DashboardInstance {
     try {
       await this.store.forceDream()
     } catch (err) {
-      this.showToast(t('toast.dreamFailed', { error: String(err) }))
+      const msg = String(err)
+      const blockedMatch = msg.match(/blocked:(\w+)/)
+      if (blockedMatch && this.store.checkRefreshGuard) {
+        this.showToast(guardReasonToast(blockedMatch[1] as BlockReason))
+        return
+      }
+      this.showToast(t('toast.dreamFailed', { error: msg }))
       return
     }
     this.showToast(t('toast.dreamStarted'))

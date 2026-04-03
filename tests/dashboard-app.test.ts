@@ -815,13 +815,11 @@ describe('openDashboard', () => {
 
   // ── Refresh guard — heavy maintenance blocked ─────────────────────
 
-  test('force-dream is blocked and shows toast when refresh guard reports startup', async () => {
-    let dreamCalled = false
+  test('force-dream is blocked and shows toast when callback throws blocked:startup', async () => {
     const storeWithGuard: DashboardStore = {
       storage: api.pluginStorage,
-      forceDream: async () => { dreamCalled = true },
+      forceDream: async () => { throw new Error('blocked:startup') },
       checkRefreshGuard: () => ({ blocked: true, reason: 'startup' as const }),
-      markMaintenance: async () => {},
     }
 
     await openDashboard(api, storeWithGuard)
@@ -835,19 +833,17 @@ describe('openDashboard', () => {
     dreamBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    expect(dreamCalled).toBe(false)
     const toast = document.querySelector('.da-toast')
     expect(toast).not.toBeNull()
     expect(toast!.textContent).toContain('starting up')
   })
 
-  test('force-dream proceeds when refresh guard is not blocked', async () => {
+  test('force-dream proceeds when callback does not throw', async () => {
     let dreamCalled = false
     const storeWithGuard: DashboardStore = {
       storage: api.pluginStorage,
       forceDream: async () => { dreamCalled = true },
       checkRefreshGuard: () => ({ blocked: false, reason: null }),
-      markMaintenance: async () => {},
     }
 
     await openDashboard(api, storeWithGuard)
@@ -860,6 +856,31 @@ describe('openDashboard', () => {
     dreamBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
+    expect(dreamCalled).toBe(true)
+  })
+
+  test('force-dream does not self-block via pre-stamped maintenance', async () => {
+    let dreamCalled = false
+    let maintenanceStamped = false
+    const storeWithGuard: DashboardStore = {
+      storage: api.pluginStorage,
+      forceDream: async () => { dreamCalled = true },
+      checkRefreshGuard: () => ({ blocked: false, reason: null }),
+      markMaintenance: async () => { maintenanceStamped = true },
+    }
+
+    await openDashboard(api, storeWithGuard)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    const dreamBtn = root.querySelector('[data-da-action="force-dream"]') as HTMLElement
+    dreamBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    // Dashboard must NOT pre-stamp maintenance; the runtime closure owns the stamp
+    expect(maintenanceStamped).toBe(false)
     expect(dreamCalled).toBe(true)
   })
 

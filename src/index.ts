@@ -493,7 +493,11 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
       return housekeeping.afterTurn(ctx)
     },
     onShutdown: async () => {
-      await refreshGuard.markShutdown()
+      try {
+        await refreshGuard.markShutdown()
+      } catch {
+        // Guard stamp failure must not prevent pending extraction flush
+      }
       await housekeeping.shutdown()
     },
     openSettings: async () => {
@@ -510,6 +514,7 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
         if (blockStatus.blocked) {
           throw new Error(`blocked:${blockStatus.reason}`)
         }
+        await refreshGuard.markMaintenance('force-dream')
         const result = await consolidationLock.withLock(() => dreamWorker.run())
         if (result == null) {
           throw new Error('Consolidation lock is held by another worker')
