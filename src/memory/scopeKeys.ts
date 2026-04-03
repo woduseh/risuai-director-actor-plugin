@@ -37,11 +37,6 @@ export function characterScopeIdentity(
 }
 
 /**
- * Fallback chat fingerprint from chaId, chat.name, chat.lastDate,
- * and the first 3 non-empty messages.
- * Returns an 8-char lowercase hex string.
- */
-/**
  * Build a chat fingerprint from metadata and early messages.
  *
  * Callers should pass the `.content` string from each message in the chat's

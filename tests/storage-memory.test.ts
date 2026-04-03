@@ -19,7 +19,7 @@ describe('CanonicalStore', () => {
     const api = createMockRisuaiApi()
     // Simulate a legacy persisted state that pre-dates the continuityFacts field
     const legacyState = createEmptyState()
-    const legacyMemory = legacyState.memory as Record<string, unknown>
+    const legacyMemory = legacyState.memory as unknown as Record<string, unknown>
     delete legacyMemory.continuityFacts
     await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, legacyState)
 
