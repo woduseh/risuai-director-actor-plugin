@@ -217,4 +217,28 @@ describe('buildDashboardMarkup', () => {
 
     expect(markup).toContain('data-da-role="memory-locked"')
   })
+
+  test('locked badge does not appear in stale-warnings list', () => {
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'memory-cache',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+      memoryOpsStatus: {
+        lastExtractTs: 0,
+        lastDreamTs: 0,
+        notebookFreshness: 'unknown',
+        documentCounts: { summaries: 0, continuityFacts: 0, worldFacts: 0, entities: 0, relations: 0 },
+        fallbackRetrievalEnabled: false,
+        isMemoryLocked: true,
+        staleWarnings: [],
+        recalledDocs: [],
+      },
+    })
+
+    expect(markup).toContain('data-da-role="memory-locked"')
+    expect(markup).not.toContain('data-da-role="stale-warnings"')
+  })
 })

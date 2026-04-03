@@ -752,6 +752,48 @@ describe('openDashboard', () => {
     expect(dreamCalled).toBe(true)
   })
 
+  test('force-extract shows error toast when callback throws', async () => {
+    const storeWithOps: DashboardStore = {
+      storage: api.pluginStorage,
+      forceExtract: async () => { throw new Error('extract-boom') },
+    }
+
+    await openDashboard(api, storeWithOps)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    const extractBtn = root.querySelector('[data-da-action="force-extract"]') as HTMLElement
+    extractBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const toast = document.querySelector('.da-toast')
+    expect(toast).not.toBeNull()
+    expect(toast!.textContent).toContain('extract-boom')
+  })
+
+  test('force-dream shows error toast when callback throws', async () => {
+    const storeWithOps: DashboardStore = {
+      storage: api.pluginStorage,
+      forceDream: async () => { throw new Error('dream-boom') },
+    }
+
+    await openDashboard(api, storeWithOps)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    const dreamBtn = root.querySelector('[data-da-action="force-dream"]') as HTMLElement
+    dreamBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const toast = document.querySelector('.da-toast')
+    expect(toast).not.toBeNull()
+    expect(toast!.textContent).toContain('dream-boom')
+  })
+
   test('toggle-fallback-retrieval persists mode and re-renders', async () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement

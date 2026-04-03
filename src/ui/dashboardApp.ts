@@ -194,19 +194,15 @@ function computeLatestMemoryTs(state: DirectorPluginState): number {
 function buildStaleWarnings(
   lastExtractTs: number,
   lastDreamTs: number,
-  isLocked: boolean,
 ): string[] {
   const warnings: string[] = []
-  if (isLocked) {
-    warnings.push('Consolidation lock is active — memory writes are blocked')
-  }
   const now = Date.now()
   const STALE_MS = 24 * 60 * 60 * 1000
   if (lastExtractTs > 0 && now - lastExtractTs > STALE_MS) {
-    warnings.push('Memory extraction is more than 24 h old')
+    warnings.push(t('memoryOps.staleExtract'))
   }
   if (lastDreamTs > 0 && now - lastDreamTs > STALE_MS) {
-    warnings.push('Last consolidation pass is more than 24 h old')
+    warnings.push(t('memoryOps.staleDream'))
   }
   return warnings
 }
@@ -229,7 +225,7 @@ async function buildMemoryOpsStatus(
     documentCounts: computeDocumentCounts(canonicalState.memory),
     fallbackRetrievalEnabled: prefs.fallbackRetrievalEnabled,
     isMemoryLocked: isLocked,
-    staleWarnings: buildStaleWarnings(latestMemoryTs, dreamState.lastDreamTs, isLocked),
+    staleWarnings: buildStaleWarnings(latestMemoryTs, dreamState.lastDreamTs),
     recalledDocs: [],
   }
 }
@@ -1351,7 +1347,12 @@ class DashboardInstance {
       this.showToast(t('toast.noCallback'))
       return
     }
-    await this.store.forceExtract()
+    try {
+      await this.store.forceExtract()
+    } catch (err) {
+      this.showToast(t('toast.extractFailed', { error: String(err) }))
+      return
+    }
     this.showToast(t('toast.extractStarted'))
     await this.refreshMemoryOpsStatus()
     this.fullReRender()
@@ -1362,7 +1363,12 @@ class DashboardInstance {
       this.showToast(t('toast.noCallback'))
       return
     }
-    await this.store.forceDream()
+    try {
+      await this.store.forceDream()
+    } catch (err) {
+      this.showToast(t('toast.dreamFailed', { error: String(err) }))
+      return
+    }
     this.showToast(t('toast.dreamStarted'))
     await this.refreshMemoryOpsStatus()
     this.fullReRender()
@@ -1415,7 +1421,7 @@ class DashboardInstance {
       documentCounts: computeDocumentCounts(canonicalState.memory),
       fallbackRetrievalEnabled: prefs.fallbackRetrievalEnabled,
       isMemoryLocked: isLocked,
-      staleWarnings: buildStaleWarnings(latestMemoryTs, dreamState.lastDreamTs, isLocked),
+      staleWarnings: buildStaleWarnings(latestMemoryTs, dreamState.lastDreamTs),
       recalledDocs: this.memoryOpsStatus.recalledDocs,
     }
   }
