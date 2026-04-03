@@ -40,7 +40,8 @@ describe('removeTrailingCommas', () => {
   })
 
   test('removes trailing comma with whitespace', () => {
-    expect(removeTrailingCommas('{"a":1 , }')).toBe('{"a":1 }')
+    // Only the comma is removed; surrounding whitespace is preserved
+    expect(removeTrailingCommas('{"a":1 , }')).toBe('{"a":1  }')
   })
 
   test('handles nested trailing commas', () => {
@@ -49,6 +50,24 @@ describe('removeTrailingCommas', () => {
 
   test('no-op when no trailing commas', () => {
     expect(removeTrailingCommas('{"a":1}')).toBe('{"a":1}')
+  })
+
+  test('preserves ", ]" inside string while removing real trailing comma in array', () => {
+    const input = '{"a":"hello, ]world","b":[1,2,]}'
+    const expected = '{"a":"hello, ]world","b":[1,2]}'
+    expect(removeTrailingCommas(input)).toBe(expected)
+  })
+
+  test('preserves ", }" inside string while removing real trailing comma in object', () => {
+    const input = '{"msg":"end, }here","x":1,}'
+    const expected = '{"msg":"end, }here","x":1}'
+    expect(removeTrailingCommas(input)).toBe(expected)
+  })
+
+  test('preserves both ", ]" and ", }" inside strings with nested trailing commas', () => {
+    const input = '{"a":"val, ]","b":["item, }",],}'
+    const expected = '{"a":"val, ]","b":["item, }"]}'
+    expect(removeTrailingCommas(input)).toBe(expected)
   })
 })
 
