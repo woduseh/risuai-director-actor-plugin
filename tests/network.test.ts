@@ -149,6 +149,7 @@ describe('backgroundHousekeeping', () => {
         withLock: async <T>(fn: () => Promise<T>) => fn(),
       } as any,
       onDreamComplete: vi.fn(async () => {}),
+      onDreamFailure: vi.fn(async () => {}),
       log: vi.fn(),
     }
 
@@ -166,6 +167,47 @@ describe('backgroundHousekeeping', () => {
     const r2 = await hk.tryDream()
     expect(r2).not.toBeNull()
     expect(dreamRunFn).toHaveBeenCalledTimes(1)
+  })
+
+  test('afterTurn calls onDreamFailure when dream worker throws', async () => {
+    const deps = makeDeps()
+    const dreamError = new Error('consolidation crash')
+    const onDreamFailure = vi.fn(async () => {})
+
+    const dreamDeps: DreamHousekeepingDeps = {
+      async buildCadenceGate(): Promise<DreamCadenceGate> {
+        return {
+          enabled: true,
+          lastDreamTs: 0,
+          dreamMinHoursElapsed: 0,
+          turnsSinceLastDream: 100,
+          dreamMinTurnsElapsed: 1,
+          sessionsSinceLastDream: 100,
+          dreamMinSessionsElapsed: 1,
+          userInteractionGuardMs: 0,
+          lastUserInteractionTs: 0,
+        }
+      },
+      dreamWorker: {
+        shouldRun: () => true,
+        run: vi.fn(async () => { throw dreamError }),
+      },
+      consolidationLock: {
+        withLock: async <T>(fn: () => Promise<T>) => fn(),
+      } as any,
+      onDreamComplete: vi.fn(async () => {}),
+      onDreamFailure,
+      log: vi.fn(),
+    }
+
+    const hk = createBackgroundHousekeeping(deps, dreamDeps)
+    await hk.afterTurn(makeContext())
+
+    expect(onDreamFailure).toHaveBeenCalledTimes(1)
+    expect(onDreamFailure).toHaveBeenCalledWith(dreamError)
+    expect(deps.log).toHaveBeenCalledWith(
+      expect.stringContaining('consolidation crash'),
+    )
   })
 })
 

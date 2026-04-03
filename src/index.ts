@@ -180,8 +180,8 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
         }
 
         if (!result.ok) {
+          await diagnostics.recordWorkerFailure('extraction', result.error)
           if (isTransientError(result.error)) {
-            await diagnostics.recordWorkerFailure('extraction', result.error)
             throw new Error(result.error)
           }
           return { applied: false, memoryUpdate: null }
@@ -324,6 +324,9 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
         dreamState.sessionsSinceLastDream = 0
         await saveDreamState(api.pluginStorage, dreamState)
         await diagnostics.recordWorkerSuccess('dream', `merged=${result.merged}`)
+      },
+      async onDreamFailure(error: unknown): Promise<void> {
+        await diagnostics.recordWorkerFailure('dream', error)
       },
       log(message: string): void {
         api.log(message)

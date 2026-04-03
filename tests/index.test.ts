@@ -8,6 +8,10 @@ import {
 } from '../src/director/prompt.js'
 import { createMockRisuaiApi } from './helpers/mockRisuai.js'
 import { MemdirStore } from '../src/memory/memdirStore.js'
+import {
+  diagnosticsStorageKey,
+  type DiagnosticsSnapshot,
+} from '../src/runtime/diagnostics.js'
 
 describe('registerDirectorActorPlugin', () => {
   test('wires the live plugin, injects via author-note routing, and persists memory updates', async () => {
@@ -229,6 +233,62 @@ describe('registerDirectorActorPlugin', () => {
 
     expect(docs.some((doc) => doc.description.includes('Recovered extraction memory.'))).toBe(true)
     expect(api.__logs.some((entry) => entry.includes('Retrying'))).toBe(true)
+  })
+
+  test('non-transient extraction failure records diagnostics before returning', async () => {
+    const api = createMockRisuaiApi()
+
+    // Pre-request LLM result (success)
+    api.enqueueLlmResult({
+      type: 'success',
+      result: JSON.stringify({
+        confidence: 0.93,
+        pacing: 'steady',
+        beats: [{ goal: 'Escalate', reason: 'Needed' }],
+        continuityLocks: [],
+        ensembleWeights: {},
+        styleInheritance: {},
+        forbiddenMoves: [],
+        memoryHints: [],
+      }),
+    })
+    // Inline director.postResponse (success — so housekeeping runs)
+    api.enqueueLlmResult({
+      type: 'success',
+      result: JSON.stringify({
+        status: 'pass',
+        turnScore: 0.8,
+        violations: [],
+        durableFacts: ['Inline fact.'],
+        sceneDelta: {},
+        entityUpdates: [],
+        relationUpdates: [],
+        memoryOps: [],
+      }),
+    })
+    // Background extraction: non-transient failure (no 429/500/timeout keywords)
+    api.enqueueLlmResult({
+      type: 'fail',
+      result: 'Invalid model configuration',
+    })
+
+    await registerDirectorActorPlugin(api)
+
+    await api.runBeforeRequest([
+      { role: 'system', content: 'Rules.' },
+      { role: 'user', content: 'Go.' },
+    ])
+    await api.runAfterRequest('The actor responds.')
+
+    // Let microtask/housekeeping drain
+    await new Promise((r) => setTimeout(r, 100))
+
+    // Diagnostics should record the extraction failure
+    const diagKey = diagnosticsStorageKey(DIRECTOR_STATE_STORAGE_KEY)
+    const snap = await api.pluginStorage.getItem<DiagnosticsSnapshot>(diagKey)
+    expect(snap).not.toBeNull()
+    expect(snap!.extraction.health).toBe('error')
+    expect(snap!.extraction.lastDetail).toContain('Invalid model configuration')
   })
 })
 

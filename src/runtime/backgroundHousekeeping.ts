@@ -26,6 +26,8 @@ export interface DreamHousekeepingDeps {
   consolidationLock: ConsolidationLock
   /** Called after a successful dream pass to persist the timestamp. */
   onDreamComplete(result: DreamResult): Promise<void>
+  /** Called when a dream pass fails to record diagnostics. */
+  onDreamFailure(error: unknown): Promise<void>
   /** Log a message. */
   log(message: string): void
 }
@@ -110,6 +112,9 @@ export function createBackgroundHousekeeping(
       deps.log(
         `[housekeeping] Dream attempt failed: ${err instanceof Error ? err.message : String(err)}`,
       )
+      if (dreamDeps) {
+        await dreamDeps.onDreamFailure(err)
+      }
     }
   }
 
