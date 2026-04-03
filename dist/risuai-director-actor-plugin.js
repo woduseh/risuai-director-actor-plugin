@@ -34,6 +34,76 @@
   "memoryOps": [{"op":"insert"|"update"|"merge"|"archive"|"drop","target":"\u2026","payload":{}}],
   "correction?": "\u2026"
 }`;
+  var DEFAULT_DIRECTOR_PROMPT_PRESET = {
+    preRequestSystemTemplate: [
+      "You are the Director \u2014 a collaborative-fiction scene analyst.",
+      "Examine the conversation and context below, then produce a SceneBrief:",
+      "a compact JSON plan that guides the next response.",
+      "",
+      "Assertiveness: {{assertivenessDirective}}",
+      "",
+      "Rules:",
+      "- Maintain continuity with established facts.",
+      "- Respect the current scene phase and pacing.",
+      "- Identify beats that advance active arcs naturally.",
+      "- Note forbidden moves (contradictions, spoilers, lore violations).",
+      "- Keep output concise \u2014 aim for \u2264{{briefTokenCap}} tokens.",
+      "",
+      "Respond ONLY with a JSON object matching this schema:\n{{sceneBriefSchema}}"
+    ].join("\n"),
+    preRequestUserTemplate: [
+      "## Current State",
+      "Scene: {{currentSceneId}}",
+      "Phase: {{scenePhase}}",
+      "Pacing: {{pacingMode}}",
+      "",
+      "## Active Arcs",
+      "{{activeArcs}}",
+      "",
+      "## Continuity Locks",
+      "{{continuityFacts}}",
+      "",
+      "## Memory Summaries",
+      "{{memorySummaries}}",
+      "",
+      "## Recent Conversation",
+      "{{recentConversation}}"
+    ].join("\n"),
+    postResponseSystemTemplate: [
+      "You are the Director \u2014 a post-response reviewer for collaborative fiction.",
+      "Review the AI response against the SceneBrief below.",
+      "Extract durable facts, detect violations, and produce a MemoryUpdate.",
+      "",
+      "Assertiveness: {{assertivenessDirective}}",
+      "",
+      "Rules:",
+      "- Score turn quality (0\u20131) based on brief adherence, continuity, characterisation.",
+      "- List violations (continuity breaks, forbidden moves used, OOC behaviour).",
+      "- Extract durable facts worth remembering long-term.",
+      "- Produce memory operations for the storage layer.",
+      '- "pass" = acceptable, "soft-fail" = minor issues, "hard-fail" = severe violations.',
+      "",
+      "Respond ONLY with a JSON object matching this schema:\n{{memoryUpdateSchema}}"
+    ].join("\n"),
+    postResponseUserTemplate: [
+      "## SceneBrief Used",
+      "{{sceneBriefJson}}",
+      "",
+      "## Current State",
+      "Scene: {{currentSceneId}}",
+      "Phase: {{scenePhase}}",
+      "",
+      "## AI Response",
+      "{{responseText}}",
+      "",
+      "## Recent Conversation Context",
+      "{{recentConversation}}"
+    ].join("\n"),
+    assertivenessDirectives: { ...ASSERTIVENESS_DIRECTIVE },
+    sceneBriefSchema: SCENE_BRIEF_SCHEMA,
+    memoryUpdateSchema: MEMORY_UPDATE_SCHEMA,
+    maxRecentMessages: MAX_RECENT_MESSAGES
+  };
   function formatConversationTail(messages, max) {
     const tail = messages.slice(-max);
     return tail.map((m) => `[${m.role}] ${m.content}`).join("\n");
@@ -51,89 +121,46 @@
     if (active.length === 0) return "(none)";
     return active.map((a) => `- ${a.label} (weight ${a.weight})`).join("\n");
   }
+  function applyTemplate(template, vars) {
+    return template.replace(
+      /\{\{([a-zA-Z0-9_]+)\}\}/g,
+      (match, key) => Object.prototype.hasOwnProperty.call(vars, key) ? vars[key] : match
+    );
+  }
   function buildPreRequestPrompt(ctx) {
-    const system = {
-      role: "system",
-      content: [
-        "You are the Director \u2014 a collaborative-fiction scene analyst.",
-        "Examine the conversation and context below, then produce a SceneBrief:",
-        "a compact JSON plan that guides the next response.",
-        "",
-        `Assertiveness: ${ASSERTIVENESS_DIRECTIVE[ctx.assertiveness]}`,
-        "",
-        "Rules:",
-        "- Maintain continuity with established facts.",
-        "- Respect the current scene phase and pacing.",
-        "- Identify beats that advance active arcs naturally.",
-        "- Note forbidden moves (contradictions, spoilers, lore violations).",
-        `- Keep output concise \u2014 aim for \u2264${ctx.briefTokenCap} tokens.`,
-        "",
-        `Respond ONLY with a JSON object matching this schema:
-${SCENE_BRIEF_SCHEMA}`
-      ].join("\n")
+    const preset = ctx.promptPreset ?? DEFAULT_DIRECTOR_PROMPT_PRESET;
+    const vars = {
+      assertivenessDirective: preset.assertivenessDirectives[ctx.assertiveness],
+      sceneBriefSchema: preset.sceneBriefSchema,
+      briefTokenCap: String(ctx.briefTokenCap),
+      recentConversation: formatConversationTail(ctx.messages, preset.maxRecentMessages),
+      memorySummaries: formatMemorySummaries(ctx.memory),
+      currentSceneId: ctx.directorState.currentSceneId,
+      scenePhase: ctx.directorState.scenePhase,
+      pacingMode: ctx.directorState.pacingMode,
+      activeArcs: formatArcs(ctx.directorState),
+      continuityFacts: formatContinuityFacts(ctx.directorState)
     };
-    const user = {
-      role: "user",
-      content: [
-        "## Current State",
-        `Scene: ${ctx.directorState.currentSceneId}`,
-        `Phase: ${ctx.directorState.scenePhase}`,
-        `Pacing: ${ctx.directorState.pacingMode}`,
-        "",
-        "## Active Arcs",
-        formatArcs(ctx.directorState),
-        "",
-        "## Continuity Locks",
-        formatContinuityFacts(ctx.directorState),
-        "",
-        "## Memory Summaries",
-        formatMemorySummaries(ctx.memory),
-        "",
-        "## Recent Conversation",
-        formatConversationTail(ctx.messages, MAX_RECENT_MESSAGES)
-      ].join("\n")
-    };
-    return [system, user];
+    return [
+      { role: "system", content: applyTemplate(preset.preRequestSystemTemplate, vars) },
+      { role: "user", content: applyTemplate(preset.preRequestUserTemplate, vars) }
+    ];
   }
   function buildPostResponsePrompt(ctx) {
-    const system = {
-      role: "system",
-      content: [
-        "You are the Director \u2014 a post-response reviewer for collaborative fiction.",
-        "Review the AI response against the SceneBrief below.",
-        "Extract durable facts, detect violations, and produce a MemoryUpdate.",
-        "",
-        `Assertiveness: ${ASSERTIVENESS_DIRECTIVE[ctx.assertiveness]}`,
-        "",
-        "Rules:",
-        "- Score turn quality (0\u20131) based on brief adherence, continuity, characterisation.",
-        "- List violations (continuity breaks, forbidden moves used, OOC behaviour).",
-        "- Extract durable facts worth remembering long-term.",
-        "- Produce memory operations for the storage layer.",
-        '- "pass" = acceptable, "soft-fail" = minor issues, "hard-fail" = severe violations.',
-        "",
-        `Respond ONLY with a JSON object matching this schema:
-${MEMORY_UPDATE_SCHEMA}`
-      ].join("\n")
+    const preset = ctx.promptPreset ?? DEFAULT_DIRECTOR_PROMPT_PRESET;
+    const vars = {
+      assertivenessDirective: preset.assertivenessDirectives[ctx.assertiveness],
+      memoryUpdateSchema: preset.memoryUpdateSchema,
+      responseText: ctx.responseText,
+      sceneBriefJson: JSON.stringify(ctx.brief, null, 2),
+      currentSceneId: ctx.directorState.currentSceneId,
+      scenePhase: ctx.directorState.scenePhase,
+      recentConversation: formatConversationTail(ctx.messages, preset.maxRecentMessages)
     };
-    const user = {
-      role: "user",
-      content: [
-        "## SceneBrief Used",
-        JSON.stringify(ctx.brief, null, 2),
-        "",
-        "## Current State",
-        `Scene: ${ctx.directorState.currentSceneId}`,
-        `Phase: ${ctx.directorState.scenePhase}`,
-        "",
-        "## AI Response",
-        ctx.responseText,
-        "",
-        "## Recent Conversation Context",
-        formatConversationTail(ctx.messages, MAX_RECENT_MESSAGES)
-      ].join("\n")
-    };
-    return [system, user];
+    return [
+      { role: "system", content: applyTemplate(preset.postResponseSystemTemplate, vars) },
+      { role: "user", content: applyTemplate(preset.postResponseUserTemplate, vars) }
+    ];
   }
 
   // src/director/validator.ts
@@ -3808,6 +3835,10 @@ ${MEMORY_UPDATE_SCHEMA}`
       });
       this.lifecycle.listen(this.root, "input", (e) => {
         const el = e.target;
+        if (el instanceof HTMLInputElement && el.getAttribute("data-da-role") === "memory-filter") {
+          this.handleMemoryFilter(el.value);
+          return;
+        }
         if (el instanceof HTMLInputElement && (el.type === "text" || el.type === "password" || el.type === "number")) {
           this.handleFieldChange(el);
         }
@@ -4079,6 +4110,16 @@ ${MEMORY_UPDATE_SCHEMA}`
         this.showToast(t("toast.profileImported"));
       } catch {
         await this.api.alertError(t("toast.failedParseProfile"));
+      }
+    }
+    // ── Memory filter ──────────────────────────────────────────────────────
+    handleMemoryFilter(query) {
+      if (!this.root) return;
+      const needle = query.trim().toLowerCase();
+      const items = this.root.querySelectorAll(".da-memory-item");
+      for (const item of Array.from(items)) {
+        const text = (item.textContent ?? "").toLowerCase();
+        item.classList.toggle("da-hidden", needle !== "" && !text.includes(needle));
       }
     }
     // ── Memory delete ──────────────────────────────────────────────────────

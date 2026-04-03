@@ -759,3 +759,116 @@ describe('memory-cache page Korean localization', () => {
     expect(emptyHint?.textContent).toBeTruthy()
   })
 })
+
+// ---------------------------------------------------------------------------
+// 5. Memory filter – live filtering of rendered memory items
+// ---------------------------------------------------------------------------
+
+describe('memory-cache page filter', () => {
+  let api: ReturnType<typeof createMockRisuaiApi>
+  let store: DashboardStore
+
+  beforeEach(() => {
+    api = createMockRisuaiApi()
+    store = createTestStore(api)
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  afterEach(async () => {
+    await closeDashboard()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  /** Helper: open dashboard, navigate to memory tab, return page + filter. */
+  async function openMemoryPage() {
+    const state = stateWithMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+    const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
+    const filterInput = memoryPage.querySelector('input[data-da-role="memory-filter"]') as HTMLInputElement
+    return { memoryPage, filterInput }
+  }
+
+  /** Simulate typing into the filter input. */
+  function typeFilter(input: HTMLInputElement, value: string): void {
+    input.value = value
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+
+  test('typing into the filter hides non-matching items', async () => {
+    const { memoryPage, filterInput } = await openMemoryPage()
+
+    // All 4 items visible before filtering
+    const allItems = memoryPage.querySelectorAll('.da-memory-item')
+    expect(allItems.length).toBe(4)
+
+    typeFilter(filterInput, 'dragon')
+
+    const visible = Array.from(memoryPage.querySelectorAll('.da-memory-item'))
+      .filter((el) => !el.classList.contains('da-hidden'))
+    const hidden = Array.from(memoryPage.querySelectorAll('.da-memory-item'))
+      .filter((el) => el.classList.contains('da-hidden'))
+
+    expect(visible.length).toBe(1)
+    expect(hidden.length).toBe(3)
+    expect(visible[0]).toBeDefined()
+    expect(visible[0]?.textContent).toContain('dragon')
+  })
+
+  test('clearing the filter restores all items', async () => {
+    const { memoryPage, filterInput } = await openMemoryPage()
+
+    typeFilter(filterInput, 'dragon')
+    // Verify at least one item is hidden
+    expect(
+      Array.from(memoryPage.querySelectorAll('.da-memory-item'))
+        .some((el) => el.classList.contains('da-hidden')),
+    ).toBe(true)
+
+    // Clear the filter
+    typeFilter(filterInput, '')
+
+    const allItems = Array.from(memoryPage.querySelectorAll('.da-memory-item'))
+    for (const item of allItems) {
+      expect(item.classList.contains('da-hidden')).toBe(false)
+    }
+    expect(allItems.length).toBe(4)
+  })
+
+  test('filtering applies across both summaries and continuity facts', async () => {
+    const { memoryPage, filterInput } = await openMemoryPage()
+
+    // "sword" appears only in a continuity fact, "river" only in a summary
+    typeFilter(filterInput, 'sword')
+    let visible = Array.from(memoryPage.querySelectorAll('.da-memory-item'))
+      .filter((el) => !el.classList.contains('da-hidden'))
+    expect(visible.length).toBe(1)
+    expect(visible[0]).toBeDefined()
+    expect(visible[0]?.textContent).toContain('silver sword')
+
+    typeFilter(filterInput, 'river')
+    visible = Array.from(memoryPage.querySelectorAll('.da-memory-item'))
+      .filter((el) => !el.classList.contains('da-hidden'))
+    expect(visible.length).toBe(1)
+    expect(visible[0]).toBeDefined()
+    expect(visible[0]?.textContent).toContain('river')
+  })
+
+  test('filtering is case-insensitive', async () => {
+    const { memoryPage, filterInput } = await openMemoryPage()
+
+    typeFilter(filterInput, 'DRAGON')
+    const visible = Array.from(memoryPage.querySelectorAll('.da-memory-item'))
+      .filter((el) => !el.classList.contains('da-hidden'))
+    expect(visible.length).toBe(1)
+    expect(visible[0]).toBeDefined()
+    expect(visible[0]?.textContent).toContain('dragon')
+  })
+})

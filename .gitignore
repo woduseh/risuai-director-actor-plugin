@@ -4,3 +4,17 @@ node_modules/
 worktrees/
 docs/superpowers/
 
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+coverage/
+

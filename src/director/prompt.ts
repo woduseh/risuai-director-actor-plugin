@@ -7,6 +7,21 @@ import type {
 } from '../contracts/types.js'
 
 // ---------------------------------------------------------------------------
+// Prompt preset type
+// ---------------------------------------------------------------------------
+
+export interface DirectorPromptPreset {
+  preRequestSystemTemplate: string
+  preRequestUserTemplate: string
+  postResponseSystemTemplate: string
+  postResponseUserTemplate: string
+  assertivenessDirectives: Record<DirectorAssertiveness, string>
+  sceneBriefSchema: string
+  memoryUpdateSchema: string
+  maxRecentMessages: number
+}
+
+// ---------------------------------------------------------------------------
 // Input context types
 // ---------------------------------------------------------------------------
 
@@ -16,6 +31,7 @@ export interface DirectorContext {
   memory: CanonicalMemory
   assertiveness: DirectorAssertiveness
   briefTokenCap: number
+  promptPreset?: DirectorPromptPreset
 }
 
 export interface PostReviewContext {
@@ -25,6 +41,7 @@ export interface PostReviewContext {
   directorState: DirectorState
   memory: CanonicalMemory
   assertiveness: DirectorAssertiveness
+  promptPreset?: DirectorPromptPreset
 }
 
 // ---------------------------------------------------------------------------
@@ -69,6 +86,85 @@ const MEMORY_UPDATE_SCHEMA = `{
 }`
 
 // ---------------------------------------------------------------------------
+// Default preset — reproduces the original hardcoded prompts byte-for-byte
+// ---------------------------------------------------------------------------
+
+export const DEFAULT_DIRECTOR_PROMPT_PRESET: DirectorPromptPreset = {
+  preRequestSystemTemplate: [
+    'You are the Director — a collaborative-fiction scene analyst.',
+    'Examine the conversation and context below, then produce a SceneBrief:',
+    'a compact JSON plan that guides the next response.',
+    '',
+    'Assertiveness: {{assertivenessDirective}}',
+    '',
+    'Rules:',
+    '- Maintain continuity with established facts.',
+    '- Respect the current scene phase and pacing.',
+    '- Identify beats that advance active arcs naturally.',
+    '- Note forbidden moves (contradictions, spoilers, lore violations).',
+    '- Keep output concise — aim for ≤{{briefTokenCap}} tokens.',
+    '',
+    'Respond ONLY with a JSON object matching this schema:\n{{sceneBriefSchema}}',
+  ].join('\n'),
+
+  preRequestUserTemplate: [
+    '## Current State',
+    'Scene: {{currentSceneId}}',
+    'Phase: {{scenePhase}}',
+    'Pacing: {{pacingMode}}',
+    '',
+    '## Active Arcs',
+    '{{activeArcs}}',
+    '',
+    '## Continuity Locks',
+    '{{continuityFacts}}',
+    '',
+    '## Memory Summaries',
+    '{{memorySummaries}}',
+    '',
+    '## Recent Conversation',
+    '{{recentConversation}}',
+  ].join('\n'),
+
+  postResponseSystemTemplate: [
+    'You are the Director — a post-response reviewer for collaborative fiction.',
+    'Review the AI response against the SceneBrief below.',
+    'Extract durable facts, detect violations, and produce a MemoryUpdate.',
+    '',
+    'Assertiveness: {{assertivenessDirective}}',
+    '',
+    'Rules:',
+    '- Score turn quality (0–1) based on brief adherence, continuity, characterisation.',
+    '- List violations (continuity breaks, forbidden moves used, OOC behaviour).',
+    '- Extract durable facts worth remembering long-term.',
+    '- Produce memory operations for the storage layer.',
+    '- "pass" = acceptable, "soft-fail" = minor issues, "hard-fail" = severe violations.',
+    '',
+    'Respond ONLY with a JSON object matching this schema:\n{{memoryUpdateSchema}}',
+  ].join('\n'),
+
+  postResponseUserTemplate: [
+    '## SceneBrief Used',
+    '{{sceneBriefJson}}',
+    '',
+    '## Current State',
+    'Scene: {{currentSceneId}}',
+    'Phase: {{scenePhase}}',
+    '',
+    '## AI Response',
+    '{{responseText}}',
+    '',
+    '## Recent Conversation Context',
+    '{{recentConversation}}',
+  ].join('\n'),
+
+  assertivenessDirectives: { ...ASSERTIVENESS_DIRECTIVE },
+  sceneBriefSchema: SCENE_BRIEF_SCHEMA,
+  memoryUpdateSchema: MEMORY_UPDATE_SCHEMA,
+  maxRecentMessages: MAX_RECENT_MESSAGES,
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -101,93 +197,56 @@ function formatArcs(state: DirectorState): string {
 }
 
 // ---------------------------------------------------------------------------
+// Template engine
+// ---------------------------------------------------------------------------
+
+function applyTemplate(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (match, key: string) =>
+    Object.prototype.hasOwnProperty.call(vars, key) ? vars[key]! : match,
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Prompt builders
 // ---------------------------------------------------------------------------
 
 export function buildPreRequestPrompt(ctx: DirectorContext): OpenAIChat[] {
-  const system: OpenAIChat = {
-    role: 'system',
-    content: [
-      'You are the Director — a collaborative-fiction scene analyst.',
-      'Examine the conversation and context below, then produce a SceneBrief:',
-      'a compact JSON plan that guides the next response.',
-      '',
-      `Assertiveness: ${ASSERTIVENESS_DIRECTIVE[ctx.assertiveness]}`,
-      '',
-      'Rules:',
-      '- Maintain continuity with established facts.',
-      '- Respect the current scene phase and pacing.',
-      '- Identify beats that advance active arcs naturally.',
-      '- Note forbidden moves (contradictions, spoilers, lore violations).',
-      `- Keep output concise — aim for ≤${ctx.briefTokenCap} tokens.`,
-      '',
-      `Respond ONLY with a JSON object matching this schema:\n${SCENE_BRIEF_SCHEMA}`,
-    ].join('\n'),
+  const preset = ctx.promptPreset ?? DEFAULT_DIRECTOR_PROMPT_PRESET
+
+  const vars: Record<string, string> = {
+    assertivenessDirective: preset.assertivenessDirectives[ctx.assertiveness],
+    sceneBriefSchema: preset.sceneBriefSchema,
+    briefTokenCap: String(ctx.briefTokenCap),
+    recentConversation: formatConversationTail(ctx.messages, preset.maxRecentMessages),
+    memorySummaries: formatMemorySummaries(ctx.memory),
+    currentSceneId: ctx.directorState.currentSceneId,
+    scenePhase: ctx.directorState.scenePhase,
+    pacingMode: ctx.directorState.pacingMode,
+    activeArcs: formatArcs(ctx.directorState),
+    continuityFacts: formatContinuityFacts(ctx.directorState),
   }
 
-  const user: OpenAIChat = {
-    role: 'user',
-    content: [
-      '## Current State',
-      `Scene: ${ctx.directorState.currentSceneId}`,
-      `Phase: ${ctx.directorState.scenePhase}`,
-      `Pacing: ${ctx.directorState.pacingMode}`,
-      '',
-      '## Active Arcs',
-      formatArcs(ctx.directorState),
-      '',
-      '## Continuity Locks',
-      formatContinuityFacts(ctx.directorState),
-      '',
-      '## Memory Summaries',
-      formatMemorySummaries(ctx.memory),
-      '',
-      '## Recent Conversation',
-      formatConversationTail(ctx.messages, MAX_RECENT_MESSAGES),
-    ].join('\n'),
-  }
-
-  return [system, user]
+  return [
+    { role: 'system', content: applyTemplate(preset.preRequestSystemTemplate, vars) },
+    { role: 'user', content: applyTemplate(preset.preRequestUserTemplate, vars) },
+  ]
 }
 
 export function buildPostResponsePrompt(ctx: PostReviewContext): OpenAIChat[] {
-  const system: OpenAIChat = {
-    role: 'system',
-    content: [
-      'You are the Director — a post-response reviewer for collaborative fiction.',
-      'Review the AI response against the SceneBrief below.',
-      'Extract durable facts, detect violations, and produce a MemoryUpdate.',
-      '',
-      `Assertiveness: ${ASSERTIVENESS_DIRECTIVE[ctx.assertiveness]}`,
-      '',
-      'Rules:',
-      '- Score turn quality (0–1) based on brief adherence, continuity, characterisation.',
-      '- List violations (continuity breaks, forbidden moves used, OOC behaviour).',
-      '- Extract durable facts worth remembering long-term.',
-      '- Produce memory operations for the storage layer.',
-      '- "pass" = acceptable, "soft-fail" = minor issues, "hard-fail" = severe violations.',
-      '',
-      `Respond ONLY with a JSON object matching this schema:\n${MEMORY_UPDATE_SCHEMA}`,
-    ].join('\n'),
+  const preset = ctx.promptPreset ?? DEFAULT_DIRECTOR_PROMPT_PRESET
+
+  const vars: Record<string, string> = {
+    assertivenessDirective: preset.assertivenessDirectives[ctx.assertiveness],
+    memoryUpdateSchema: preset.memoryUpdateSchema,
+    responseText: ctx.responseText,
+    sceneBriefJson: JSON.stringify(ctx.brief, null, 2),
+    currentSceneId: ctx.directorState.currentSceneId,
+    scenePhase: ctx.directorState.scenePhase,
+    recentConversation: formatConversationTail(ctx.messages, preset.maxRecentMessages),
   }
 
-  const user: OpenAIChat = {
-    role: 'user',
-    content: [
-      '## SceneBrief Used',
-      JSON.stringify(ctx.brief, null, 2),
-      '',
-      '## Current State',
-      `Scene: ${ctx.directorState.currentSceneId}`,
-      `Phase: ${ctx.directorState.scenePhase}`,
-      '',
-      '## AI Response',
-      ctx.responseText,
-      '',
-      '## Recent Conversation Context',
-      formatConversationTail(ctx.messages, MAX_RECENT_MESSAGES),
-    ].join('\n'),
-  }
-
-  return [system, user]
+  return [
+    { role: 'system', content: applyTemplate(preset.postResponseSystemTemplate, vars) },
+    { role: 'user', content: applyTemplate(preset.postResponseUserTemplate, vars) },
+  ]
 }

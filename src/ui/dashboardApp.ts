@@ -380,6 +380,13 @@ class DashboardInstance {
       const el = e.target as HTMLElement
       if (
         el instanceof HTMLInputElement &&
+        el.getAttribute('data-da-role') === 'memory-filter'
+      ) {
+        this.handleMemoryFilter(el.value)
+        return
+      }
+      if (
+        el instanceof HTMLInputElement &&
         (el.type === 'text' || el.type === 'password' || el.type === 'number')
       ) {
         this.handleFieldChange(el)
@@ -698,6 +705,18 @@ class DashboardInstance {
       this.showToast(t('toast.profileImported'))
     } catch {
       await this.api.alertError(t('toast.failedParseProfile'))
+    }
+  }
+
+  // ── Memory filter ──────────────────────────────────────────────────────
+
+  private handleMemoryFilter(query: string): void {
+    if (!this.root) return
+    const needle = query.trim().toLowerCase()
+    const items = this.root.querySelectorAll('.da-memory-item')
+    for (const item of Array.from(items)) {
+      const text = (item.textContent ?? '').toLowerCase()
+      item.classList.toggle('da-hidden', needle !== '' && !text.includes(needle))
     }
   }
 

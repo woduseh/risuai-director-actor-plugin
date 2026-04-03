@@ -7,6 +7,8 @@
 - Memory dashboard vertical slice for summaries and continuity facts, including localized filter and empty states
 - Scoped canonical storage keys per character/chat with legacy flat-key migration
 - Inline manual add controls for summary and continuity memory items in the dashboard
+- Live dashboard filtering across rendered summary and continuity memory items
+- Prompt preset foundation for director prompt builders with built-in default templates and custom override support
 
 ### Fixed
 
@@ -14,6 +16,7 @@
 - Memory dashboard rendering now escapes summary and continuity text/id values before HTML injection
 - Scoped resolver no longer drifts as no-id chats gain opening turns
 - Scoped resolver no longer merges different stable chat IDs that share the same default name/opening messages
+- Prompt template rendering now preserves literal `{{token}}` text inside dynamic conversation, memory, and response content
 
 ## [0.2.0] - 2026-04-03
 

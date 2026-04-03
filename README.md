@@ -11,7 +11,7 @@ Director-Actor collaborative long-memory plugin for **RisuAI Plugin V3**.
 - Survives streaming output with debounce-safe finalization
 - Opens a fullscreen dashboard UI with sidebar navigation, modern theme-aware styling, and profile management
 - Supports director model provider settings, model discovery, connection testing, and JSON import/export flows
-- Includes a bilingual memory dashboard slice for summaries and continuity facts with localized empty states plus safe add/delete actions
+- Includes a bilingual memory dashboard slice for summaries and continuity facts with localized empty states, live filtering, and safe add/delete actions
 
 ## Project layout
 
