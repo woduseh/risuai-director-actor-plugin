@@ -161,6 +161,18 @@ describe('repairParseObject', () => {
   test('returns null for empty input', () => {
     expect(repairParseObject('')).toBeNull()
   })
+
+  test('preserves string value containing ", }" without mutation', () => {
+    const input = '{"msg":"items: a, }"}'
+    const result = repairParseObject(input)
+    expect(result).toEqual({ msg: 'items: a, }' })
+  })
+
+  test('preserves string value containing ", ]" without mutation', () => {
+    const input = '{"msg":"list: 1, ]"}'
+    const result = repairParseObject(input)
+    expect(result).toEqual({ msg: 'list: 1, ]' })
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -204,5 +216,17 @@ describe('repairParseArray', () => {
 
   test('returns null for empty input', () => {
     expect(repairParseArray('')).toBeNull()
+  })
+
+  test('preserves array element containing ", ]" without mutation', () => {
+    const input = '["keep: x, ]"]'
+    const result = repairParseArray(input)
+    expect(result).toEqual(['keep: x, ]'])
+  })
+
+  test('preserves array element containing ", }" without mutation', () => {
+    const input = '["keep: x, }"]'
+    const result = repairParseArray(input)
+    expect(result).toEqual(['keep: x, }'])
   })
 })

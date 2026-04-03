@@ -93,17 +93,19 @@ export function extractBalancedSubstring(
  * attempt `JSON.parse`.  Returns the parsed value or null.
  *
  * Pipeline order:
- *   1. Strip fences
- *   2. Normalize smart quotes
- *   3. Try JSON.parse (fast path)
- *   4. Remove trailing commas → retry
- *   5. Extract balanced substring → retry (with trailing-comma removal)
+ *   1. Strip fences → try JSON.parse (pristine fast path)
+ *   2. Normalize smart quotes → try JSON.parse
+ *   3. Remove trailing commas → retry
+ *   4. Extract balanced substring → retry (with trailing-comma removal)
  */
 function attemptRepairedParse(raw: string): unknown | null {
-  // Step 1–2: fence strip + quote normalize
-  const stripped = normalizeQuotes(stripMarkdownCodeFences(raw))
+  // Step 1: fence strip only — try parse before any text mutation
+  const fenceStripped = stripMarkdownCodeFences(raw)
+  const pristine = tryParse(fenceStripped)
+  if (pristine !== undefined) return pristine
 
-  // Step 3: fast path
+  // Step 2–3: quote normalize + fast path
+  const stripped = normalizeQuotes(fenceStripped)
   const fast = tryParse(stripped)
   if (fast !== undefined) return fast
 
