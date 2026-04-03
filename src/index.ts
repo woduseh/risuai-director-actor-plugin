@@ -43,6 +43,10 @@ import {
   type DirectorPostResponseInput,
   type DirectorPreRequestInput
 } from './runtime/plugin.js'
+import {
+  createTurnRecoveryManager,
+  attemptStartupRecovery,
+} from './runtime/turnRecovery.js'
 import { openDashboard, createDashboardStore } from './ui/dashboardApp.js'
 
 function createId(prefix: string): string {
@@ -317,6 +321,12 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
     },
   )
 
+  // ── Turn recovery manager ──────────────────────────────────────────
+  const turnRecovery = createTurnRecoveryManager(
+    api.pluginStorage,
+    scopeResolution.storageKey,
+  )
+
   const director = {
     async preRequest(input: DirectorPreRequestInput) {
       const state = await store.load()
@@ -446,6 +456,7 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
     circuitBreaker,
     turnCache,
     sessionNotebook,
+    turnRecovery,
     onTurnFinalized: (ctx) => {
       lastUserInteractionTs = Date.now()
       dreamState.turnsSinceLastDream += 1
@@ -479,6 +490,13 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
       dashboardStore.isMemoryLocked = () => consolidationLock.isHeld()
       await openDashboard(api, dashboardStore)
     }
+  })
+
+  // ── Startup recovery ─────────────────────────────────────────────
+  await attemptStartupRecovery(turnRecovery, {
+    postResponse: (input) => director.postResponse(input).then(() => {}),
+    runHousekeeping: (ctx) => housekeeping.afterTurn(ctx),
+    log: (msg) => api.log(msg),
   })
 }
 

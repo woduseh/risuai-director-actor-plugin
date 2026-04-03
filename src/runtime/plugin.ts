@@ -12,6 +12,7 @@ import { injectDirectorBrief } from '../adapter/universalPromptAdapter.js'
 import type { ExtractionContext } from '../memory/extractMemories.js'
 import { TurnCache } from '../memory/turnCache.js'
 import { registerPluginUi, showSettingsOverlay } from '../ui/settings.js'
+import type { TurnRecoveryManager } from './turnRecovery.js'
 
 // ---------------------------------------------------------------------------
 // Public contracts
@@ -58,6 +59,8 @@ export interface BootstrapOptions {
   onShutdown?: () => Promise<void> | void
   /** Optional session notebook for tracking turn activity thresholds. */
   sessionNotebook?: { recordTurn(estimatedTokens: number): void }
+  /** Optional durable turn recovery manager for crash-safe turn processing. */
+  turnRecovery?: TurnRecoveryManager
 }
 
 // ---------------------------------------------------------------------------
@@ -90,6 +93,7 @@ export async function bootstrapPlugin(
   const onTurnFinalized = options.onTurnFinalized ?? null
   const onShutdown = options.onShutdown ?? null
   const sessionNotebook = options.sessionNotebook ?? null
+  const turnRecovery = options.turnRecovery ?? null
 
   let currentTurnId: string | null = null
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -148,8 +152,18 @@ export async function bootstrapPlugin(
         postInput.retrieval = finalizedTurn.retrieval
       }
 
+      // Persist recovery record before the potentially-failing postResponse
+      if (turnRecovery) {
+        await turnRecovery.persist(turnIndex, postInput)
+      }
+
       await director.postResponse(postInput)
       circuitBreaker?.recordSuccess()
+
+      // Advance recovery record — postResponse succeeded
+      if (turnRecovery) {
+        await turnRecovery.advance(postInput.turnId)
+      }
 
       // Notify housekeeping for background extraction
       if (onTurnFinalized && finalizedTurn.brief) {
@@ -165,6 +179,11 @@ export async function bootstrapPlugin(
         } catch (hkErr) {
           await safeLog(api, `Housekeeping afterTurn failed: ${hkErr}`)
         }
+      }
+
+      // Clear recovery record — full turn lifecycle complete
+      if (turnRecovery) {
+        await turnRecovery.clear()
       }
     } catch (err) {
       await safeLog(api, `Director postResponse failed: ${err}`)

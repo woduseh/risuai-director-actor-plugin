@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.2] - 2026-04-04
+
+### Added
+
+- Durable pending-turn recovery via pluginStorage-backed `TurnRecoveryManager`
+- Stage-aware recovery record tracks `post-response-pending` and `housekeeping-pending` stages
+- `attemptStartupRecovery()` replays incomplete turns on next plugin startup without double-applying canonical memory updates
+- `bootstrapPlugin` accepts optional `turnRecovery` option for crash-safe turn processing
+- Startup recovery wired in `registerDirectorActorPlugin` composition root
+- 16 focused tests covering persist/advance/clear lifecycle, stage-aware replay, idempotent recovery, and failure retention
+
 ## [0.4.1] - 2026-04-04
 
 ### Added
