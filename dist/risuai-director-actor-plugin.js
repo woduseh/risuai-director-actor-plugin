@@ -1,7 +1,7 @@
 //@name risuai-director-actor-plugin
 //@display-name RisuAI Director Actor
 //@api 3.0
-//@version 0.4.1
+//@version 0.4.2
 //@description Director-Actor collaborative long-memory plugin for RisuAI Plugin V3
 
 "use strict";
@@ -6618,6 +6618,7 @@ ${lines.join("\n").trimEnd()}`;
     const onTurnFinalized = options.onTurnFinalized ?? null;
     const onShutdown = options.onShutdown ?? null;
     const sessionNotebook = options.sessionNotebook ?? null;
+    const turnRecovery = options.turnRecovery ?? null;
     let currentTurnId = null;
     let debounceTimer = null;
     let turnIndex = 0;
@@ -6663,8 +6664,15 @@ ${lines.join("\n").trimEnd()}`;
         if (finalizedTurn.retrieval !== void 0) {
           postInput.retrieval = finalizedTurn.retrieval;
         }
+        if (turnRecovery) {
+          await turnRecovery.persist(turnIndex, postInput);
+        }
         await director.postResponse(postInput);
         circuitBreaker?.recordSuccess();
+        if (turnRecovery) {
+          await turnRecovery.advance(postInput.turnId);
+        }
+        let housekeepingFailed = false;
         if (onTurnFinalized && finalizedTurn.brief) {
           try {
             await onTurnFinalized({
@@ -6676,8 +6684,12 @@ ${lines.join("\n").trimEnd()}`;
               brief: finalizedTurn.brief
             });
           } catch (hkErr) {
+            housekeepingFailed = true;
             await safeLog(api, `Housekeeping afterTurn failed: ${hkErr}`);
           }
+        }
+        if (turnRecovery && !housekeepingFailed) {
+          await turnRecovery.clear();
         }
       } catch (err) {
         await safeLog(api, `Director postResponse failed: ${err}`);
@@ -6754,6 +6766,81 @@ ${lines.join("\n").trimEnd()}`;
         }
       }
     });
+  }
+
+  // src/runtime/turnRecovery.ts
+  var PENDING_TURN_SCHEMA_VERSION = 1;
+  function pendingTurnStorageKey(scopeKey) {
+    return `director:pending-turn:${scopeKey}`;
+  }
+  function createTurnRecoveryManager(storage, scopeKey) {
+    const key = pendingTurnStorageKey(scopeKey);
+    return {
+      async persist(turnIndex, postInput) {
+        const now = Date.now();
+        const record = {
+          schemaVersion: PENDING_TURN_SCHEMA_VERSION,
+          turnId: postInput.turnId,
+          turnIndex,
+          stage: "post-response-pending",
+          postInput,
+          createdAt: now,
+          updatedAt: now
+        };
+        await storage.setItem(key, record);
+      },
+      async advance(turnId) {
+        const existing = await storage.getItem(key);
+        if (!existing || existing.turnId !== turnId) return;
+        const advanced = {
+          ...existing,
+          stage: "housekeeping-pending",
+          updatedAt: Date.now()
+        };
+        await storage.setItem(key, advanced);
+      },
+      async clear() {
+        await storage.removeItem(key);
+      },
+      async load() {
+        const raw = await storage.getItem(key);
+        if (!raw) return null;
+        if (typeof raw !== "object" || raw.schemaVersion !== PENDING_TURN_SCHEMA_VERSION) {
+          await storage.removeItem(key);
+          return null;
+        }
+        return raw;
+      }
+    };
+  }
+  async function attemptStartupRecovery(manager, deps) {
+    const record = await manager.load();
+    if (!record) return false;
+    deps.log(
+      `[turn-recovery] Found pending turn ${record.turnId} at stage=${record.stage}`
+    );
+    try {
+      if (record.stage === "post-response-pending") {
+        await deps.postResponse(record.postInput);
+        await manager.advance(record.turnId);
+      }
+      const ctx = {
+        turnId: record.postInput.turnId,
+        turnIndex: record.turnIndex,
+        type: record.postInput.type,
+        content: record.postInput.content,
+        messages: record.postInput.messages,
+        brief: record.postInput.brief
+      };
+      await deps.runHousekeeping(ctx);
+      await manager.clear();
+      deps.log(`[turn-recovery] Successfully recovered turn ${record.turnId}`);
+    } catch (err) {
+      deps.log(
+        `[turn-recovery] Recovery failed for turn ${record.turnId}: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+    return true;
   }
 
   // src/index.ts
@@ -6978,6 +7065,10 @@ ${lines.join("\n").trimEnd()}`;
         }
       }
     );
+    const turnRecovery = createTurnRecoveryManager(
+      api.pluginStorage,
+      scopeResolution.storageKey
+    );
     const director = {
       async preRequest(input) {
         const state = await store.load();
@@ -7084,6 +7175,7 @@ ${lines.join("\n").trimEnd()}`;
       circuitBreaker,
       turnCache,
       sessionNotebook,
+      turnRecovery,
       onTurnFinalized: (ctx) => {
         lastUserInteractionTs = Date.now();
         dreamState.turnsSinceLastDream += 1;
@@ -7117,6 +7209,12 @@ ${lines.join("\n").trimEnd()}`;
         dashboardStore.isMemoryLocked = () => consolidationLock.isHeld();
         await openDashboard(api, dashboardStore);
       }
+    });
+    await attemptStartupRecovery(turnRecovery, {
+      postResponse: (input) => director.postResponse(input).then(() => {
+      }),
+      runHousekeeping: (ctx) => housekeeping.afterTurn(ctx),
+      log: (msg) => api.log(msg)
     });
   }
   var index_default = registerDirectorActorPlugin;
