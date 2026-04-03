@@ -58,8 +58,15 @@ import type { BlockReason } from '../runtime/refreshGuard.js'
 // ---------------------------------------------------------------------------
 
 const TOAST_DURATION_MS = 2500
+const TOAST_DURATION_ERROR_MS = 5000
 const PROFILE_ID_PREFIX = 'user-profile-'
 const IMPORT_STAGING_KEY = 'dashboard-profile-import-staging'
+
+// ---------------------------------------------------------------------------
+// Toast severity
+// ---------------------------------------------------------------------------
+
+export type ToastSeverity = 'success' | 'info' | 'warning' | 'error'
 
 // ---------------------------------------------------------------------------
 // Module-level singleton guard
@@ -779,7 +786,7 @@ class DashboardInstance {
 
     this.draft.isDirty = false
     this.updateDirtyIndicator()
-    this.showToast(t('toast.settingsSaved'))
+    this.showToast(t('toast.settingsSaved'), 'success')
   }
 
   private async handleDiscard(): Promise<void> {
@@ -790,7 +797,7 @@ class DashboardInstance {
       normalizePersistedSettings(raw ?? {}),
     )
     this.fullReRender()
-    this.showToast(t('toast.changesDiscarded'))
+    this.showToast(t('toast.changesDiscarded'), 'info')
   }
 
   // ── Connection status helpers ────────────────────────────────────────
@@ -871,7 +878,7 @@ class DashboardInstance {
     )
 
     this.fullReRender()
-    this.showToast(t('toast.profileCreated'))
+    this.showToast(t('toast.profileCreated'), 'success')
   }
 
   private selectProfile(profileId: string): void {
@@ -894,13 +901,13 @@ class DashboardInstance {
       (p) => p.id === this.profiles.activeProfileId,
     )
     if (!activeProfile) {
-      this.showToast(t('toast.noProfileSelected'))
+      this.showToast(t('toast.noProfileSelected'), 'warning')
       return
     }
     const payload = createProfileExportPayload(activeProfile)
     const json = JSON.stringify(payload, null, 2)
     await this.api.alert(json)
-    this.showToast(t('toast.profileExported'))
+    this.showToast(t('toast.profileExported'), 'success')
   }
 
   private async handleImportProfile(): Promise<void> {
@@ -940,7 +947,7 @@ class DashboardInstance {
       await this.store.storage.removeItem(IMPORT_STAGING_KEY)
 
       this.fullReRender()
-      this.showToast(t('toast.profileImported'))
+      this.showToast(t('toast.profileImported'), 'success')
     } catch {
       await this.api.alertError(t('toast.failedParseProfile'))
     }
@@ -1017,7 +1024,7 @@ class DashboardInstance {
     if (this.store.checkRefreshGuard) {
       const status = this.store.checkRefreshGuard()
       if (status.blocked) {
-        this.showToast(guardReasonToast(status.reason!))
+        this.showToast(guardReasonToast(status.reason!), 'warning')
         return
       }
     }
@@ -1053,18 +1060,19 @@ class DashboardInstance {
     if (result.appliedUpdates > 0) {
       this.showToast(
         t('toast.backfillCompleted', { count: String(result.appliedUpdates) }),
+        'success',
       )
       return
     }
 
-    this.showToast(t('toast.backfillSkipped'))
+    this.showToast(t('toast.backfillSkipped'), 'info')
   }
 
   private async handleRegenerateCurrentChat(): Promise<void> {
     if (this.store.checkRefreshGuard) {
       const status = this.store.checkRefreshGuard()
       if (status.blocked) {
-        this.showToast(guardReasonToast(status.reason!))
+        this.showToast(guardReasonToast(status.reason!), 'warning')
         return
       }
     }
@@ -1233,7 +1241,7 @@ class DashboardInstance {
     if (this.store.checkRefreshGuard) {
       const status = this.store.checkRefreshGuard()
       if (status.blocked) {
-        this.showToast(guardReasonToast(status.reason!))
+        this.showToast(guardReasonToast(status.reason!), 'warning')
         return
       }
     }
@@ -1402,23 +1410,23 @@ class DashboardInstance {
 
   private async handleForceExtract(): Promise<void> {
     if (!this.store.forceExtract) {
-      this.showToast(t('toast.noCallback'))
+      this.showToast(t('toast.noCallback'), 'warning')
       return
     }
     try {
       await this.store.forceExtract()
     } catch (err) {
-      this.showToast(t('toast.extractFailed', { error: String(err) }))
+      this.showToast(t('toast.extractFailed', { error: String(err) }), 'error')
       return
     }
-    this.showToast(t('toast.extractStarted'))
+    this.showToast(t('toast.extractStarted'), 'info')
     await this.refreshMemoryOpsStatus()
     this.fullReRender()
   }
 
   private async handleForceDream(): Promise<void> {
     if (!this.store.forceDream) {
-      this.showToast(t('toast.noCallback'))
+      this.showToast(t('toast.noCallback'), 'warning')
       return
     }
     try {
@@ -1427,20 +1435,20 @@ class DashboardInstance {
       const msg = String(err)
       const blockedMatch = msg.match(/blocked:(\w+)/)
       if (blockedMatch && this.store.checkRefreshGuard) {
-        this.showToast(guardReasonToast(blockedMatch[1] as BlockReason))
+        this.showToast(guardReasonToast(blockedMatch[1] as BlockReason), 'warning')
         return
       }
-      this.showToast(t('toast.dreamFailed', { error: msg }))
+      this.showToast(t('toast.dreamFailed', { error: msg }), 'error')
       return
     }
-    this.showToast(t('toast.dreamStarted'))
+    this.showToast(t('toast.dreamStarted'), 'info')
     await this.refreshMemoryOpsStatus()
     this.fullReRender()
   }
 
   private async handleInspectRecalled(): Promise<void> {
     if (!this.store.getRecalledDocs) {
-      this.showToast(t('toast.noCallback'))
+      this.showToast(t('toast.noCallback'), 'warning')
       return
     }
     const docs = await this.store.getRecalledDocs()
@@ -1464,7 +1472,7 @@ class DashboardInstance {
     await saveMemoryOpsPrefs(this.store.storage, {
       fallbackRetrievalEnabled: next,
     })
-    this.showToast(t('toast.fallbackToggled'))
+    this.showToast(t('toast.fallbackToggled'), 'info')
     this.fullReRender()
   }
 
@@ -1506,18 +1514,28 @@ class DashboardInstance {
 
   // ── Toast ─────────────────────────────────────────────────────────────
 
-  private showToast(message: string): void {
+  private showToast(message: string, severity: ToastSeverity = 'info'): void {
     const prev = this.doc.querySelector('.da-toast')
     if (prev) prev.remove()
 
     const toast = this.doc.createElement('div')
-    toast.className = 'da-toast'
+    toast.className = `da-toast da-toast--${severity}`
+
+    if (severity === 'error') {
+      toast.setAttribute('role', 'alert')
+      toast.setAttribute('aria-live', 'assertive')
+    } else {
+      toast.setAttribute('role', 'status')
+      toast.setAttribute('aria-live', 'polite')
+    }
+
     toast.textContent = message
     this.doc.body.appendChild(toast)
 
+    const duration = severity === 'error' ? TOAST_DURATION_ERROR_MS : TOAST_DURATION_MS
     this.lifecycle.setTimeout(() => {
       if (toast.parentNode) toast.parentNode.removeChild(toast)
-    }, TOAST_DURATION_MS)
+    }, duration)
   }
 }
 

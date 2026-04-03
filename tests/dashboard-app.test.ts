@@ -925,4 +925,84 @@ describe('openDashboard', () => {
     expect(toast).not.toBeNull()
     expect(toast!.textContent).toContain('maintenance')
   })
+
+  // ── UI-1: Toast severity and aria-live semantics ──────────────────
+
+  test('save action shows a success toast with aria-live', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const select = root.querySelector('[data-da-field="assertiveness"]') as HTMLSelectElement
+    select.value = 'firm'
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+
+    const saveBtn = root.querySelector('[data-da-action="save"]') as HTMLElement
+    saveBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const toast = document.querySelector('.da-toast')
+    expect(toast).not.toBeNull()
+    expect(toast!.classList.contains('da-toast--success')).toBe(true)
+    expect(toast!.getAttribute('role')).toBe('status')
+    expect(toast!.getAttribute('aria-live')).toBe('polite')
+  })
+
+  test('error toast gets aria-live="assertive" and role="alert"', async () => {
+    const storeWithOps: DashboardStore = {
+      storage: api.pluginStorage,
+      forceExtract: async () => { throw new Error('boom') },
+    }
+
+    await openDashboard(api, storeWithOps)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    const extractBtn = root.querySelector('[data-da-action="force-extract"]') as HTMLElement
+    extractBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const toast = document.querySelector('.da-toast')
+    expect(toast).not.toBeNull()
+    expect(toast!.classList.contains('da-toast--error')).toBe(true)
+    expect(toast!.getAttribute('role')).toBe('alert')
+    expect(toast!.getAttribute('aria-live')).toBe('assertive')
+  })
+
+  test('warning toast uses warning severity class', async () => {
+    const storeWithGuard: DashboardStore = {
+      storage: api.pluginStorage,
+      forceExtract: async () => {},
+      checkRefreshGuard: () => ({ blocked: true, reason: 'startup' as const }),
+    }
+
+    await openDashboard(api, storeWithGuard)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    // backfill is guarded by checkRefreshGuard
+    const backfillBtn = root.querySelector('[data-da-action="backfill-current-chat"]') as HTMLElement
+    backfillBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const toast = document.querySelector('.da-toast')
+    expect(toast).not.toBeNull()
+    expect(toast!.classList.contains('da-toast--warning')).toBe(true)
+  })
+
+  test('discard action shows an info toast', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const discardBtn = root.querySelector('[data-da-action="discard"]') as HTMLElement
+    discardBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const toast = document.querySelector('.da-toast')
+    expect(toast).not.toBeNull()
+    expect(toast!.classList.contains('da-toast--info')).toBe(true)
+  })
 })

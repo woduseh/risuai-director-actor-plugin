@@ -82,4 +82,55 @@ describe('buildDashboardCss', () => {
       expect(css).toContain(selector)
     }
   })
+
+  // ── UI-1: Unstyled DOM classes ──────────────────────────────────────
+
+  test('includes styles for diagnostic/warning/recalled/breadcrumb DOM classes', () => {
+    const css = buildDashboardCss()
+    const selectors = [
+      '.da-warning',
+      '.da-warning-list',
+      '.da-warning-item',
+      '.da-recalled-list',
+      '.da-recalled-item',
+      '.da-breadcrumb-list',
+      '.da-breadcrumb-item',
+      '.da-badge--sm',
+      '.da-diag-section',
+    ]
+
+    for (const selector of selectors) {
+      expect(css).toContain(selector)
+    }
+  })
+
+  // ── UI-1: Disabled form controls ────────────────────────────────────
+
+  test('includes disabled styling for buttons and form controls', () => {
+    const css = buildDashboardCss()
+    expect(css).toContain('.da-btn:disabled')
+    expect(css).toContain('.da-input:disabled')
+    expect(css).toContain('.da-select:disabled')
+    expect(css).toContain('.da-textarea:disabled')
+  })
+
+  // ── UI-1: Focus-visible on toggle ───────────────────────────────────
+
+  test('includes :focus-visible styling for toggle controls', () => {
+    const css = buildDashboardCss()
+    expect(css).toContain('.da-toggle')
+    expect(css).toContain('focus-visible')
+    // Toggle should have a visible focus ring
+    expect(css).toMatch(/\.da-toggle.*focus-visible/)
+  })
+
+  // ── UI-1: Toast severity variants ───────────────────────────────────
+
+  test('includes toast severity variant CSS', () => {
+    const css = buildDashboardCss()
+    expect(css).toContain('.da-toast--success')
+    expect(css).toContain('.da-toast--info')
+    expect(css).toContain('.da-toast--warning')
+    expect(css).toContain('.da-toast--error')
+  })
 })

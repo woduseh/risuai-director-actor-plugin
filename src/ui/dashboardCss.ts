@@ -712,6 +712,130 @@ export function buildDashboardCss(): string {
   animation: da-toast-fade-in 0.18s ease-out;
 }
 
+/* ── Diagnostics / Warning / Recalled / Breadcrumb surfaces ─────────── */
+
+.da-diag-section {
+  display: grid;
+  gap: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--da-border);
+}
+
+.da-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--da-danger) 28%, var(--da-border));
+  border-radius: var(--da-radius-sm);
+  background: color-mix(in srgb, var(--da-danger) 8%, transparent);
+  color: var(--da-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.da-warning-list {
+  display: grid;
+  gap: 8px;
+}
+
+.da-warning-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, #f4c95d 22%, var(--da-border));
+  border-radius: var(--da-radius-sm);
+  background: color-mix(in srgb, #f4c95d 8%, transparent);
+  color: var(--da-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.da-recalled-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.da-recalled-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--da-border);
+  border-radius: var(--da-radius-sm);
+  background: color-mix(in srgb, var(--da-bg) 92%, black);
+  font-size: 13px;
+}
+
+.da-breadcrumb-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.da-breadcrumb-item {
+  padding: 6px 10px;
+  border-left: 3px solid color-mix(in srgb, var(--da-accent) 44%, transparent);
+  font-size: 12px;
+  color: var(--da-text-muted);
+  line-height: 1.5;
+}
+
+.da-badge--sm {
+  min-height: 20px;
+  padding: 0 6px;
+  font-size: 10px;
+}
+
+/* ── Disabled form controls ─────────────────────────────────────────── */
+
+.da-btn:disabled,
+.da-input:disabled,
+.da-select:disabled,
+.da-textarea:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ── Focus-visible on toggle ────────────────────────────────────────── */
+
+.da-toggle input[type="checkbox"]:focus-visible + .da-toggle-track {
+  outline: 2px solid var(--da-accent);
+  outline-offset: 2px;
+}
+
+/* ── Toast severity variants ────────────────────────────────────────── */
+
+.da-toast--success {
+  border-color: color-mix(in srgb, #25c281 48%, var(--da-border));
+  background: linear-gradient(180deg, color-mix(in srgb, #25c281 76%, white 6%), color-mix(in srgb, #25c281 62%, black));
+}
+
+.da-toast--info {
+  border-color: color-mix(in srgb, var(--da-accent) 38%, var(--da-border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--da-accent) 76%, white 6%), color-mix(in srgb, var(--da-accent) 62%, black));
+}
+
+.da-toast--warning {
+  border-color: color-mix(in srgb, #f4c95d 48%, var(--da-border));
+  background: linear-gradient(180deg, color-mix(in srgb, #f4c95d 76%, white 6%), color-mix(in srgb, #f4c95d 62%, black));
+}
+
+.da-toast--error {
+  border-color: color-mix(in srgb, var(--da-danger) 48%, var(--da-border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--da-danger) 76%, white 6%), color-mix(in srgb, var(--da-danger) 62%, black));
+}
+
 @keyframes da-toast-fade-in {
   from {
     opacity: 0;
