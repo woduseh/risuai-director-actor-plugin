@@ -1,4 +1,6 @@
 import type { ExtractionContext } from '../memory/extractMemories.js'
+import type { DreamCadenceGate, AutoDreamWorker, DreamResult } from '../memory/autoDream.js'
+import type { ConsolidationLock } from '../memory/consolidationLock.js'
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -15,11 +17,26 @@ export interface HousekeepingDeps {
   log(message: string): void
 }
 
+export interface DreamHousekeepingDeps {
+  /** Build the cadence gate snapshot from current runtime state. */
+  buildCadenceGate(): DreamCadenceGate
+  /** The dream consolidation worker. */
+  dreamWorker: AutoDreamWorker
+  /** Cooperative lock for the consolidation scope. */
+  consolidationLock: ConsolidationLock
+  /** Called after a successful dream pass to persist the timestamp. */
+  onDreamComplete(result: DreamResult): Promise<void>
+  /** Log a message. */
+  log(message: string): void
+}
+
 export interface BackgroundHousekeeping {
   /** Called after a turn is finalized. Coalesces rapid calls. */
   afterTurn(ctx: ExtractionContext): Promise<void>
   /** Graceful shutdown — flush remaining work. */
   shutdown(): Promise<void>
+  /** Attempt a dream consolidation pass (gated). */
+  tryDream(): Promise<DreamResult | null>
 }
 
 // ---------------------------------------------------------------------------
@@ -30,9 +47,14 @@ export interface BackgroundHousekeeping {
  * Cooperative housekeeping layer that coalesces rapid afterTurn calls
  * and delegates to the extraction worker. Since the RisuAI Plugin V3
  * runtime has no true background daemon, this is entirely hook-driven.
+ *
+ * When dream deps are provided, afterTurn will also attempt a
+ * consolidation pass after extraction — gated by cadence thresholds
+ * and a cooperative lock.
  */
 export function createBackgroundHousekeeping(
   deps: HousekeepingDeps,
+  dreamDeps?: DreamHousekeepingDeps,
 ): BackgroundHousekeeping {
   let pendingCtx: ExtractionContext | null = null
   let scheduled = false
@@ -51,6 +73,26 @@ export function createBackgroundHousekeeping(
     }
   }
 
+  async function tryDream(): Promise<DreamResult | null> {
+    if (!dreamDeps) return null
+
+    const gate = dreamDeps.buildCadenceGate()
+    if (!dreamDeps.dreamWorker.shouldRun(gate)) return null
+
+    const result = await dreamDeps.consolidationLock.withLock(async () => {
+      return dreamDeps.dreamWorker.run()
+    })
+
+    if (result != null) {
+      await dreamDeps.onDreamComplete(result)
+      dreamDeps.log(
+        `[housekeeping] Dream pass complete: merged=${result.merged} pruned=${result.pruned} updated=${result.updated}`,
+      )
+    }
+
+    return result
+  }
+
   async function afterTurn(ctx: ExtractionContext): Promise<void> {
     pendingCtx = ctx
 
@@ -60,6 +102,15 @@ export function createBackgroundHousekeeping(
       await Promise.resolve()
       await drainPending()
     }
+
+    // Opportunistic dream attempt — cheap gates first
+    try {
+      await tryDream()
+    } catch (err) {
+      deps.log(
+        `[housekeeping] Dream attempt failed: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
   }
 
   async function shutdown(): Promise<void> {
@@ -67,5 +118,5 @@ export function createBackgroundHousekeeping(
     await deps.flushExtraction()
   }
 
-  return { afterTurn, shutdown }
+  return { afterTurn, shutdown, tryDream }
 }

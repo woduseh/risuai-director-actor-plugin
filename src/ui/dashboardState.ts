@@ -402,6 +402,52 @@ export async function saveProfileManifest(
 }
 
 // ---------------------------------------------------------------------------
+// Dream runtime state (persisted per-scope)
+// ---------------------------------------------------------------------------
+
+export const DASHBOARD_DREAM_STATE_KEY = 'dashboard-dream-state-v1'
+
+export interface DreamRuntimeState {
+  /** Epoch ms of the last successful dream consolidation pass. */
+  lastDreamTs: number
+  /** Turns observed since the last dream pass. */
+  turnsSinceLastDream: number
+  /** Sessions observed since the last dream pass. */
+  sessionsSinceLastDream: number
+}
+
+export function createDefaultDreamState(): DreamRuntimeState {
+  return {
+    lastDreamTs: 0,
+    turnsSinceLastDream: 0,
+    sessionsSinceLastDream: 0,
+  }
+}
+
+export async function loadDreamState(
+  storage: AsyncKeyValueStore,
+): Promise<DreamRuntimeState> {
+  const raw = await storage.getItem<DreamRuntimeState>(DASHBOARD_DREAM_STATE_KEY)
+  if (
+    raw != null &&
+    typeof raw === 'object' &&
+    typeof raw.lastDreamTs === 'number' &&
+    typeof raw.turnsSinceLastDream === 'number' &&
+    typeof raw.sessionsSinceLastDream === 'number'
+  ) {
+    return raw
+  }
+  return createDefaultDreamState()
+}
+
+export async function saveDreamState(
+  storage: AsyncKeyValueStore,
+  state: DreamRuntimeState,
+): Promise<void> {
+  await storage.setItem(DASHBOARD_DREAM_STATE_KEY, state)
+}
+
+// ---------------------------------------------------------------------------
 // Merge helper
 // ---------------------------------------------------------------------------
 

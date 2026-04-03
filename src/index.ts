@@ -29,6 +29,13 @@ import {
 import { makeRecallRequest } from './runtime/network.js'
 import { SessionNotebook, formatNotebookBlock } from './memory/sessionMemory.js'
 import { createBackgroundHousekeeping } from './runtime/backgroundHousekeeping.js'
+import { createAutoDreamWorker, type DreamResult } from './memory/autoDream.js'
+import { ConsolidationLock } from './memory/consolidationLock.js'
+import {
+  loadDreamState,
+  saveDreamState,
+  type DreamRuntimeState,
+} from './ui/dashboardState.js'
 import { CircuitBreaker } from './runtime/circuitBreaker.js'
 import { hashExtractionContext } from './runtime/network.js'
 import {
@@ -235,14 +242,73 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
   )
 
   // ── Background housekeeping ───────────────────────────────────────
-  const housekeeping = createBackgroundHousekeeping({
-    submitExtraction: (ctx) => extractionWorker.submit(ctx),
-    flushExtraction: () => extractionWorker.flush(),
-    getExtractionMinTurnInterval: () => initialState.settings.extractionMinTurnInterval,
+  const dreamState: DreamRuntimeState = await loadDreamState(api.pluginStorage)
+  let lastUserInteractionTs = Date.now()
+
+  const dreamWorker = createAutoDreamWorker({
+    memdirStore,
     log(message: string): void {
       api.log(message)
     },
+    async runConsolidationModel(prompt: string): Promise<string> {
+      const state = await store.load()
+      const result = await api.runLLMModel({
+        messages: [
+          { role: 'system', content: 'You are a memory consolidation assistant.' },
+          { role: 'user', content: prompt },
+        ],
+        staticModel: state.settings.directorModel,
+        mode: state.settings.directorMode,
+      })
+      if (result.type === 'fail') {
+        throw new Error(`Consolidation model call failed: ${result.result}`)
+      }
+      return result.result
+    },
   })
+
+  const consolidationLock = new ConsolidationLock(
+    api.pluginStorage,
+    memdirScopeKey,
+    `worker-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  )
+
+  const housekeeping = createBackgroundHousekeeping(
+    {
+      submitExtraction: (ctx) => extractionWorker.submit(ctx),
+      flushExtraction: () => extractionWorker.flush(),
+      getExtractionMinTurnInterval: () => initialState.settings.extractionMinTurnInterval,
+      log(message: string): void {
+        api.log(message)
+      },
+    },
+    {
+      buildCadenceGate() {
+        return {
+          enabled: initialState.settings.enabled && initialState.settings.postReviewEnabled,
+          lastDreamTs: dreamState.lastDreamTs,
+          dreamMinHoursElapsed: initialState.settings.dreamMinHoursElapsed,
+          turnsSinceLastDream: dreamState.turnsSinceLastDream,
+          dreamMinTurnsElapsed: initialState.settings.extractionMinTurnInterval * 3,
+          sessionsSinceLastDream: dreamState.sessionsSinceLastDream,
+          dreamMinSessionsElapsed: initialState.settings.dreamMinSessionsElapsed,
+          userInteractionGuardMs: 10_000,
+          lastUserInteractionTs,
+        }
+      },
+      dreamWorker,
+      consolidationLock,
+      async onDreamComplete(result: DreamResult): Promise<void> {
+        dreamState.lastDreamTs = Date.now()
+        dreamState.turnsSinceLastDream = 0
+        dreamState.sessionsSinceLastDream = 0
+        await saveDreamState(api.pluginStorage, dreamState)
+      },
+      log(message: string): void {
+        api.log(message)
+      },
+    },
+  )
 
   const director = {
     async preRequest(input: DirectorPreRequestInput) {
@@ -368,7 +434,11 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
     circuitBreaker,
     turnCache,
     sessionNotebook,
-    onTurnFinalized: (ctx) => housekeeping.afterTurn(ctx),
+    onTurnFinalized: (ctx) => {
+      lastUserInteractionTs = Date.now()
+      dreamState.turnsSinceLastDream += 1
+      return housekeeping.afterTurn(ctx)
+    },
     onShutdown: () => housekeeping.shutdown(),
     openSettings: async () => {
       const dashboardStore = createDashboardStore(

@@ -1,0 +1,425 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { InMemoryAsyncStore } from './helpers/mockRisuai.js'
+import { MemdirStore } from '../src/memory/memdirStore.js'
+import type { MemdirDocument, MemdirSource, MemdirDocumentType } from '../src/contracts/types.js'
+import {
+  createAutoDreamWorker,
+  type AutoDreamDeps,
+  type DreamCadenceGate,
+  type DreamResult,
+} from '../src/memory/autoDream.js'
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makeDoc(overrides?: Partial<MemdirDocument>): MemdirDocument {
+  const id = `doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+  return {
+    id,
+    type: 'character' as MemdirDocumentType,
+    title: `Test doc ${id}`,
+    description: `Description of ${id}`,
+    scopeKey: 'test-scope',
+    updatedAt: Date.now(),
+    source: 'extraction' as MemdirSource,
+    freshness: 'current',
+    tags: [],
+    ...overrides,
+  }
+}
+
+function makeGate(overrides?: Partial<DreamCadenceGate>): DreamCadenceGate {
+  return {
+    enabled: true,
+    lastDreamTs: 0,
+    dreamMinHoursElapsed: 0, // no time gate in tests by default
+    turnsSinceLastDream: 10,
+    dreamMinTurnsElapsed: 5,
+    sessionsSinceLastDream: 3,
+    dreamMinSessionsElapsed: 2,
+    userInteractionGuardMs: 0, // disabled by default in tests
+    lastUserInteractionTs: 0,
+    ...overrides,
+  }
+}
+
+function makeDeps(
+  store: MemdirStore,
+  overrides?: Partial<AutoDreamDeps>,
+): AutoDreamDeps {
+  return {
+    memdirStore: store,
+    log: vi.fn(),
+    runConsolidationModel: vi.fn(async (_prompt: string) => {
+      return JSON.stringify({
+        merges: [],
+        prunes: [],
+        updates: [],
+      })
+    }),
+    ...overrides,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('autoDream — cadence gate', () => {
+  it('blocks when feature is disabled', () => {
+    const gate = makeGate({ enabled: false })
+    const worker = createAutoDreamWorker(
+      makeDeps(new MemdirStore(new InMemoryAsyncStore(), 'test')),
+    )
+    expect(worker.shouldRun(gate)).toBe(false)
+  })
+
+  it('blocks when not enough time has elapsed', () => {
+    const now = Date.now()
+    const gate = makeGate({
+      lastDreamTs: now - 1000,
+      dreamMinHoursElapsed: 4, // need 4 hours
+    })
+    const worker = createAutoDreamWorker(
+      makeDeps(new MemdirStore(new InMemoryAsyncStore(), 'test')),
+    )
+    expect(worker.shouldRun(gate)).toBe(false)
+  })
+
+  it('blocks when not enough turns have elapsed', () => {
+    const gate = makeGate({
+      turnsSinceLastDream: 2,
+      dreamMinTurnsElapsed: 5,
+    })
+    const worker = createAutoDreamWorker(
+      makeDeps(new MemdirStore(new InMemoryAsyncStore(), 'test')),
+    )
+    expect(worker.shouldRun(gate)).toBe(false)
+  })
+
+  it('blocks when not enough sessions have elapsed', () => {
+    const gate = makeGate({
+      sessionsSinceLastDream: 1,
+      dreamMinSessionsElapsed: 2,
+    })
+    const worker = createAutoDreamWorker(
+      makeDeps(new MemdirStore(new InMemoryAsyncStore(), 'test')),
+    )
+    expect(worker.shouldRun(gate)).toBe(false)
+  })
+
+  it('passes when all thresholds are met', () => {
+    const gate = makeGate({
+      lastDreamTs: 0,
+      dreamMinHoursElapsed: 0,
+      turnsSinceLastDream: 10,
+      dreamMinTurnsElapsed: 5,
+      sessionsSinceLastDream: 3,
+      dreamMinSessionsElapsed: 2,
+    })
+    const worker = createAutoDreamWorker(
+      makeDeps(new MemdirStore(new InMemoryAsyncStore(), 'test')),
+    )
+    expect(worker.shouldRun(gate)).toBe(true)
+  })
+
+  it('blocks when user interaction guard is active', () => {
+    const now = Date.now()
+    const gate = makeGate({
+      userInteractionGuardMs: 5000,
+      lastUserInteractionTs: now - 1000, // only 1s ago
+    })
+    const worker = createAutoDreamWorker(
+      makeDeps(new MemdirStore(new InMemoryAsyncStore(), 'test')),
+    )
+    expect(worker.shouldRun(gate)).toBe(false)
+  })
+
+  it('passes user interaction guard after enough time', () => {
+    const now = Date.now()
+    const gate = makeGate({
+      userInteractionGuardMs: 5000,
+      lastUserInteractionTs: now - 10_000, // 10s ago, guard is 5s
+    })
+    const worker = createAutoDreamWorker(
+      makeDeps(new MemdirStore(new InMemoryAsyncStore(), 'test')),
+    )
+    expect(worker.shouldRun(gate)).toBe(true)
+  })
+})
+
+describe('autoDream — consolidation worker', () => {
+  let store: InMemoryAsyncStore
+  let memdirStore: MemdirStore
+
+  beforeEach(() => {
+    store = new InMemoryAsyncStore()
+    memdirStore = new MemdirStore(store, 'test-scope')
+  })
+
+  it('merges duplicate docs with same title and type', async () => {
+    const doc1 = makeDoc({
+      id: 'dup-1',
+      type: 'character',
+      title: 'Alice',
+      description: 'Alice is kind',
+      source: 'extraction',
+      updatedAt: 1000,
+    })
+    const doc2 = makeDoc({
+      id: 'dup-2',
+      type: 'character',
+      title: 'Alice',
+      description: 'Alice is brave',
+      source: 'extraction',
+      updatedAt: 2000,
+    })
+    await memdirStore.putDocument(doc1)
+    await memdirStore.putDocument(doc2)
+
+    const deps = makeDeps(memdirStore, {
+      runConsolidationModel: vi.fn(async () =>
+        JSON.stringify({
+          merges: [
+            {
+              sourceIds: ['dup-1', 'dup-2'],
+              mergedDoc: {
+                type: 'character',
+                title: 'Alice',
+                description: 'Alice is kind and brave',
+                tags: [],
+              },
+            },
+          ],
+          prunes: [],
+          updates: [],
+        }),
+      ),
+    })
+
+    const worker = createAutoDreamWorker(deps)
+    const result = await worker.run()
+
+    expect(result.merged).toBeGreaterThan(0)
+
+    // Original docs should be removed, replaced by merged doc
+    const remainingDocs = await memdirStore.listDocuments()
+    expect(remainingDocs.length).toBe(1)
+    expect(remainingDocs[0]!.title).toBe('Alice')
+    expect(remainingDocs[0]!.description).toContain('kind and brave')
+  })
+
+  it('prunes stale extraction docs', async () => {
+    const staleDoc = makeDoc({
+      id: 'stale-1',
+      type: 'plot',
+      title: 'Old event',
+      description: 'This happened ages ago',
+      source: 'extraction',
+      freshness: 'stale',
+      updatedAt: 1000,
+    })
+    await memdirStore.putDocument(staleDoc)
+    // Need ≥2 eligible docs to trigger consolidation
+    await memdirStore.putDocument(
+      makeDoc({ id: 'filler-stale', source: 'extraction' }),
+    )
+
+    const deps = makeDeps(memdirStore, {
+      runConsolidationModel: vi.fn(async () =>
+        JSON.stringify({
+          merges: [],
+          prunes: ['stale-1'],
+          updates: [],
+        }),
+      ),
+    })
+
+    const worker = createAutoDreamWorker(deps)
+    const result = await worker.run()
+
+    expect(result.pruned).toBeGreaterThan(0)
+    const remaining = await memdirStore.listDocuments()
+    // stale-1 pruned, filler-stale remains
+    expect(remaining.length).toBe(1)
+    expect(remaining[0]!.id).toBe('filler-stale')
+  })
+
+  it('preserves user-locked (operator/manual) memories from pruning', async () => {
+    const operatorDoc = makeDoc({
+      id: 'operator-1',
+      type: 'character',
+      title: 'Core trait',
+      description: 'Operator defined trait',
+      source: 'operator',
+    })
+    const manualDoc = makeDoc({
+      id: 'manual-1',
+      type: 'world',
+      title: 'World rule',
+      description: 'Manual world rule',
+      source: 'manual',
+    })
+    await memdirStore.putDocument(operatorDoc)
+    await memdirStore.putDocument(manualDoc)
+
+    // Even if model says prune them, worker should refuse
+    const deps = makeDeps(memdirStore, {
+      runConsolidationModel: vi.fn(async () =>
+        JSON.stringify({
+          merges: [],
+          prunes: ['operator-1', 'manual-1'],
+          updates: [],
+        }),
+      ),
+    })
+
+    const worker = createAutoDreamWorker(deps)
+    const result = await worker.run()
+
+    expect(result.pruned).toBe(0)
+    const remaining = await memdirStore.listDocuments()
+    expect(remaining.length).toBe(2)
+  })
+
+  it('handles empty document list gracefully', async () => {
+    const deps = makeDeps(memdirStore)
+    const worker = createAutoDreamWorker(deps)
+    const result = await worker.run()
+
+    expect(result.merged).toBe(0)
+    expect(result.pruned).toBe(0)
+    expect(result.updated).toBe(0)
+  })
+
+  it('skips consolidation when doc count is below threshold', async () => {
+    // Only one document — not enough to consolidate
+    await memdirStore.putDocument(makeDoc({ source: 'extraction' }))
+
+    const deps = makeDeps(memdirStore)
+    const worker = createAutoDreamWorker(deps)
+    const result = await worker.run()
+
+    expect(result.skipped).toBe(true)
+    expect(deps.runConsolidationModel).not.toHaveBeenCalled()
+  })
+
+  it('applies updates from the model to existing docs', async () => {
+    const doc = makeDoc({
+      id: 'update-target',
+      type: 'character',
+      title: 'Bob',
+      description: 'Bob is angry',
+      source: 'extraction',
+    })
+    await memdirStore.putDocument(doc)
+
+    // Need a second doc to exceed consolidation threshold
+    await memdirStore.putDocument(
+      makeDoc({ id: 'filler', source: 'extraction' }),
+    )
+
+    const deps = makeDeps(memdirStore, {
+      runConsolidationModel: vi.fn(async () =>
+        JSON.stringify({
+          merges: [],
+          prunes: [],
+          updates: [
+            {
+              id: 'update-target',
+              description: 'Bob is now calm',
+              freshness: 'current',
+            },
+          ],
+        }),
+      ),
+    })
+
+    const worker = createAutoDreamWorker(deps)
+    const result = await worker.run()
+
+    expect(result.updated).toBeGreaterThan(0)
+    const updated = await memdirStore.getDocument('update-target')
+    expect(updated).not.toBeNull()
+    expect(updated!.description).toBe('Bob is now calm')
+  })
+
+  it('only processes extraction/dream-sourced docs by default', async () => {
+    // Mix of sources
+    await memdirStore.putDocument(
+      makeDoc({ id: 'ext-1', source: 'extraction' }),
+    )
+    await memdirStore.putDocument(
+      makeDoc({ id: 'ext-2', source: 'extraction' }),
+    )
+    await memdirStore.putDocument(
+      makeDoc({ id: 'op-1', source: 'operator' }),
+    )
+    await memdirStore.putDocument(
+      makeDoc({ id: 'man-1', source: 'manual' }),
+    )
+
+    const modelFn = vi.fn(async () =>
+      JSON.stringify({ merges: [], prunes: [], updates: [] }),
+    )
+    const deps = makeDeps(memdirStore, { runConsolidationModel: modelFn })
+
+    const worker = createAutoDreamWorker(deps)
+    await worker.run()
+
+    // The model should have been called, and the prompt should only
+    // reference extraction/dream docs
+    expect(modelFn).toHaveBeenCalledTimes(1)
+    const prompt = String((modelFn.mock.calls as unknown[][])[0]?.[0] ?? '')
+    // operator and manual docs should not be in the consolidation prompt
+    expect(prompt).not.toContain('op-1')
+    expect(prompt).not.toContain('man-1')
+    // extraction docs should be in the prompt
+    expect(prompt).toContain('ext-1')
+    expect(prompt).toContain('ext-2')
+  })
+
+  it('stages: orient → gather → consolidate → prune', async () => {
+    // Verify the worker uses a staged approach by tracking calls
+    const doc1 = makeDoc({ id: 's-1', source: 'extraction', type: 'plot' })
+    const doc2 = makeDoc({ id: 's-2', source: 'extraction', type: 'plot' })
+    await memdirStore.putDocument(doc1)
+    await memdirStore.putDocument(doc2)
+
+    const callLog: string[] = []
+    const deps = makeDeps(memdirStore, {
+      log: vi.fn((msg: string) => callLog.push(msg)),
+      runConsolidationModel: vi.fn(async () =>
+        JSON.stringify({ merges: [], prunes: [], updates: [] }),
+      ),
+    })
+
+    const worker = createAutoDreamWorker(deps)
+    await worker.run()
+
+    // Verify staged execution is logged
+    expect(callLog.some((m) => m.includes('orient'))).toBe(true)
+    expect(callLog.some((m) => m.includes('gather'))).toBe(true)
+    expect(callLog.some((m) => m.includes('consolidate'))).toBe(true)
+    expect(callLog.some((m) => m.includes('prune'))).toBe(true)
+  })
+
+  it('does not call model when no consolidation-eligible docs exist', async () => {
+    // Only operator/manual docs
+    await memdirStore.putDocument(
+      makeDoc({ id: 'op-only', source: 'operator' }),
+    )
+
+    const modelFn = vi.fn(async () =>
+      JSON.stringify({ merges: [], prunes: [], updates: [] }),
+    )
+    const deps = makeDeps(memdirStore, { runConsolidationModel: modelFn })
+
+    const worker = createAutoDreamWorker(deps)
+    const result = await worker.run()
+
+    expect(result.skipped).toBe(true)
+    expect(modelFn).not.toHaveBeenCalled()
+  })
+})
