@@ -9,6 +9,7 @@ import type {
 } from '../contracts/types.js'
 import { DEFAULT_DIRECTOR_SETTINGS } from '../contracts/types.js'
 import { injectDirectorBrief } from '../adapter/universalPromptAdapter.js'
+import type { ExtractionContext } from '../memory/extractMemories.js'
 import { TurnCache } from '../memory/turnCache.js'
 import { registerPluginUi, showSettingsOverlay } from '../ui/settings.js'
 
@@ -51,6 +52,8 @@ export interface BootstrapOptions {
   outputDebounceMs?: number
   turnCache?: TurnCache
   openSettings?: () => Promise<void> | void
+  /** Called after a turn is finalized, for background extraction. */
+  onTurnFinalized?: (ctx: ExtractionContext) => Promise<void> | void
 }
 
 // ---------------------------------------------------------------------------
@@ -80,9 +83,11 @@ export async function bootstrapPlugin(
   const turnCache = options.turnCache ?? new TurnCache()
   const openSettings =
     options.openSettings ?? (async () => showSettingsOverlay(api))
+  const onTurnFinalized = options.onTurnFinalized ?? null
 
   let currentTurnId: string | null = null
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
+  let turnIndex = 0
 
   // ── helpers ──────────────────────────────────────────────────────────
 
@@ -100,6 +105,8 @@ export async function bootstrapPlugin(
   async function finalizeTurn(content?: string): Promise<void> {
     const activeTurn = getCurrentTurn()
     if (!activeTurn || activeTurn.finalized) return
+
+    turnIndex += 1
 
     try {
       const finalizePatch: { finalized: true; lastOutputText?: string } = {
@@ -131,6 +138,22 @@ export async function bootstrapPlugin(
 
       await director.postResponse(postInput)
       circuitBreaker?.recordSuccess()
+
+      // Notify housekeeping for background extraction
+      if (onTurnFinalized && finalizedTurn.brief) {
+        try {
+          await onTurnFinalized({
+            turnId: finalizedTurn.turnId,
+            turnIndex,
+            type: finalizedTurn.type,
+            content: postInput.content,
+            messages: postInput.messages,
+            brief: finalizedTurn.brief,
+          })
+        } catch (hkErr) {
+          await safeLog(api, `Housekeeping afterTurn failed: ${hkErr}`)
+        }
+      }
     } catch (err) {
       await safeLog(api, `Director postResponse failed: ${err}`)
       circuitBreaker?.recordFailure(String(err))

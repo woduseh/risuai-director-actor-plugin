@@ -118,4 +118,52 @@ describe('registerDirectorActorPlugin', () => {
     expect(request?.messages[0]?.content).toContain('Custom runtime preset system.')
     expect(state.settings.promptPresetId).not.toBe(BUILTIN_PROMPT_PRESET_ID)
   })
+
+  test('afterRequest stores extraction cursor in safeLocalStorage', async () => {
+    const api = createMockRisuaiApi()
+
+    api.enqueueLlmResult({
+      type: 'success',
+      result: JSON.stringify({
+        confidence: 0.93,
+        pacing: 'steady',
+        beats: [{ goal: 'Escalate', reason: 'Needed' }],
+        continuityLocks: [],
+        ensembleWeights: {},
+        styleInheritance: {},
+        forbiddenMoves: [],
+        memoryHints: [],
+      }),
+    })
+    // postResponse result (Director compatibility path)
+    api.enqueueLlmResult({
+      type: 'success',
+      result: JSON.stringify({
+        status: 'pass',
+        turnScore: 0.8,
+        violations: [],
+        durableFacts: ['Something happened.'],
+        sceneDelta: {},
+        entityUpdates: [],
+        relationUpdates: [],
+        memoryOps: [],
+      }),
+    })
+
+    await registerDirectorActorPlugin(api)
+
+    await api.runBeforeRequest([
+      { role: 'system', content: 'Rules.' },
+      { role: 'user', content: 'Go.' },
+    ])
+    await api.runAfterRequest('The actor responds.')
+
+    // Let microtask/housekeeping drain
+    await new Promise((r) => setTimeout(r, 50))
+
+    // The extraction cursor should be stored in safeLocalStorage
+    const cursor = await api.safeLocalStorage.getItem<number>('director:extraction:cursor')
+    // Cursor should be set (≥1) after the turn was finalized
+    expect(cursor).toBeGreaterThanOrEqual(1)
+  })
 })
