@@ -422,4 +422,163 @@ describe('autoDream — consolidation worker', () => {
     expect(result.skipped).toBe(true)
     expect(modelFn).not.toHaveBeenCalled()
   })
+
+  it('update does not resurrect a merged source doc', async () => {
+    const doc1 = makeDoc({
+      id: 'merge-src-1',
+      type: 'character',
+      title: 'Alice',
+      description: 'Alice v1',
+      source: 'extraction',
+    })
+    const doc2 = makeDoc({
+      id: 'merge-src-2',
+      type: 'character',
+      title: 'Alice',
+      description: 'Alice v2',
+      source: 'extraction',
+    })
+    await memdirStore.putDocument(doc1)
+    await memdirStore.putDocument(doc2)
+
+    // Model returns merge + overlapping update on a source doc
+    const deps = makeDeps(memdirStore, {
+      runConsolidationModel: vi.fn(async () =>
+        JSON.stringify({
+          merges: [
+            {
+              sourceIds: ['merge-src-1', 'merge-src-2'],
+              mergedDoc: {
+                type: 'character',
+                title: 'Alice (merged)',
+                description: 'Alice combined',
+                tags: [],
+              },
+            },
+          ],
+          prunes: [],
+          updates: [
+            { id: 'merge-src-1', description: 'Should not resurrect' },
+          ],
+        }),
+      ),
+    })
+
+    const worker = createAutoDreamWorker(deps)
+    const result = await worker.run()
+
+    expect(result.merged).toBe(2)
+    // The update should be skipped, not applied
+    expect(result.updated).toBe(0)
+
+    const remaining = await memdirStore.listDocuments()
+    expect(remaining.length).toBe(1)
+    expect(remaining[0]!.title).toBe('Alice (merged)')
+  })
+
+  it('update does not resurrect a pruned doc', async () => {
+    const doc1 = makeDoc({
+      id: 'prune-target',
+      type: 'plot',
+      title: 'Old event',
+      description: 'Stale content',
+      source: 'extraction',
+    })
+    const doc2 = makeDoc({
+      id: 'keep-me',
+      type: 'plot',
+      title: 'Current event',
+      description: 'Fresh content',
+      source: 'extraction',
+    })
+    await memdirStore.putDocument(doc1)
+    await memdirStore.putDocument(doc2)
+
+    // Model returns prune + overlapping update on the pruned doc
+    const deps = makeDeps(memdirStore, {
+      runConsolidationModel: vi.fn(async () =>
+        JSON.stringify({
+          merges: [],
+          prunes: ['prune-target'],
+          updates: [
+            { id: 'prune-target', description: 'Should not resurrect' },
+          ],
+        }),
+      ),
+    })
+
+    const worker = createAutoDreamWorker(deps)
+    const result = await worker.run()
+
+    expect(result.pruned).toBe(1)
+    expect(result.updated).toBe(0)
+
+    const remaining = await memdirStore.listDocuments()
+    expect(remaining.length).toBe(1)
+    expect(remaining[0]!.id).toBe('keep-me')
+  })
+
+  it('creates merged doc before removing sources (safe ordering)', async () => {
+    const doc1 = makeDoc({
+      id: 'order-1',
+      type: 'character',
+      title: 'X',
+      description: 'X desc',
+      source: 'extraction',
+    })
+    const doc2 = makeDoc({
+      id: 'order-2',
+      type: 'character',
+      title: 'X',
+      description: 'X alt',
+      source: 'extraction',
+    })
+    await memdirStore.putDocument(doc1)
+    await memdirStore.putDocument(doc2)
+
+    // Track the order of put vs remove calls
+    const opLog: string[] = []
+    const origPut = memdirStore.putDocument.bind(memdirStore)
+    const origRemove = memdirStore.removeDocument.bind(memdirStore)
+
+    vi.spyOn(memdirStore, 'putDocument').mockImplementation(async (doc) => {
+      opLog.push(`put:${doc.id}`)
+      return origPut(doc)
+    })
+    vi.spyOn(memdirStore, 'removeDocument').mockImplementation(async (id) => {
+      opLog.push(`remove:${id}`)
+      return origRemove(id)
+    })
+
+    const deps = makeDeps(memdirStore, {
+      runConsolidationModel: vi.fn(async () =>
+        JSON.stringify({
+          merges: [
+            {
+              sourceIds: ['order-1', 'order-2'],
+              mergedDoc: {
+                type: 'character',
+                title: 'X merged',
+                description: 'X combined',
+                tags: [],
+              },
+            },
+          ],
+          prunes: [],
+          updates: [],
+        }),
+      ),
+    })
+
+    const worker = createAutoDreamWorker(deps)
+    await worker.run()
+
+    // The merged doc put should come before any source removal
+    const putIdx = opLog.findIndex((o) => o.startsWith('put:dream-merged-'))
+    const removeIdx1 = opLog.indexOf('remove:order-1')
+    const removeIdx2 = opLog.indexOf('remove:order-2')
+    expect(putIdx).toBeGreaterThanOrEqual(0)
+    expect(removeIdx1).toBeGreaterThan(putIdx)
+    expect(removeIdx2).toBeGreaterThan(putIdx)
+  })
 })

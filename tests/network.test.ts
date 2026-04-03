@@ -2,8 +2,10 @@ import { describe, test, expect, vi, beforeEach } from 'vitest'
 import {
   createBackgroundHousekeeping,
   type HousekeepingDeps,
+  type DreamHousekeepingDeps,
 } from '../src/runtime/backgroundHousekeeping.js'
 import { makeRecallRequest } from '../src/runtime/network.js'
+import type { DreamCadenceGate, DreamResult } from '../src/memory/autoDream.js'
 import type { ExtractionContext } from '../src/memory/extractMemories.js'
 
 // ---------------------------------------------------------------------------
@@ -110,6 +112,60 @@ describe('backgroundHousekeeping', () => {
     expect(deps.log).toHaveBeenCalledWith(
       expect.stringContaining('storage full'),
     )
+  })
+
+  test('tryDream reads fresh settings via async buildCadenceGate', async () => {
+    const deps = makeDeps()
+
+    // Simulate settings that change between calls
+    let dreamEnabled = false
+    const dreamRunFn = vi.fn(async (): Promise<DreamResult> => ({
+      merged: 1,
+      pruned: 0,
+      updated: 0,
+      skipped: false,
+    }))
+
+    const dreamDeps: DreamHousekeepingDeps = {
+      async buildCadenceGate(): Promise<DreamCadenceGate> {
+        // Reads "live" value — simulates store.load()
+        return {
+          enabled: dreamEnabled,
+          lastDreamTs: 0,
+          dreamMinHoursElapsed: 0,
+          turnsSinceLastDream: 100,
+          dreamMinTurnsElapsed: 1,
+          sessionsSinceLastDream: 100,
+          dreamMinSessionsElapsed: 1,
+          userInteractionGuardMs: 0,
+          lastUserInteractionTs: 0,
+        }
+      },
+      dreamWorker: {
+        shouldRun: (gate: DreamCadenceGate) => gate.enabled,
+        run: dreamRunFn,
+      },
+      consolidationLock: {
+        withLock: async <T>(fn: () => Promise<T>) => fn(),
+      } as any,
+      onDreamComplete: vi.fn(async () => {}),
+      log: vi.fn(),
+    }
+
+    const hk = createBackgroundHousekeeping(deps, dreamDeps)
+
+    // First call — disabled, dream should NOT run
+    const r1 = await hk.tryDream()
+    expect(r1).toBeNull()
+    expect(dreamRunFn).not.toHaveBeenCalled()
+
+    // "Dashboard changes" enable dream
+    dreamEnabled = true
+
+    // Second call — enabled, dream SHOULD run without restart
+    const r2 = await hk.tryDream()
+    expect(r2).not.toBeNull()
+    expect(dreamRunFn).toHaveBeenCalledTimes(1)
   })
 })
 

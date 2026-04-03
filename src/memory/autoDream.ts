@@ -180,7 +180,10 @@ export function createAutoDreamWorker(deps: AutoDreamDeps): AutoDreamWorker {
     const prunes = Array.isArray(response.prunes) ? response.prunes : []
     const updates = Array.isArray(response.updates) ? response.updates : []
 
-    // Apply merges
+    // Track IDs consumed by merges/prunes so updates cannot resurrect them
+    const consumedIds = new Set<string>()
+
+    // Apply merges — create merged doc first, then remove sources
     for (const merge of merges) {
       if (!Array.isArray(merge.sourceIds) || merge.sourceIds.length === 0) continue
       if (!merge.mergedDoc || typeof merge.mergedDoc.title !== 'string') continue
@@ -195,12 +198,7 @@ export function createAutoDreamWorker(deps: AutoDreamDeps): AutoDreamWorker {
         continue
       }
 
-      // Remove source docs
-      for (const sourceId of merge.sourceIds) {
-        await deps.memdirStore.removeDocument(sourceId)
-      }
-
-      // Create merged doc
+      // Create merged doc before removing sources to avoid data loss on failure
       const now = Date.now()
       const mergedDoc: MemdirDocument = {
         id: `dream-merged-${now}-${Math.random().toString(36).slice(2, 8)}`,
@@ -214,6 +212,12 @@ export function createAutoDreamWorker(deps: AutoDreamDeps): AutoDreamWorker {
         tags: Array.isArray(merge.mergedDoc.tags) ? merge.mergedDoc.tags : [],
       }
       await deps.memdirStore.putDocument(mergedDoc)
+
+      // Remove source docs after merged doc is persisted
+      for (const sourceId of merge.sourceIds) {
+        await deps.memdirStore.removeDocument(sourceId)
+        consumedIds.add(sourceId)
+      }
       result.merged += merge.sourceIds.length
     }
 
@@ -230,12 +234,17 @@ export function createAutoDreamWorker(deps: AutoDreamDeps): AutoDreamWorker {
       }
 
       await deps.memdirStore.removeDocument(pruneId)
+      consumedIds.add(pruneId)
       result.pruned += 1
     }
 
-    // Apply updates
+    // Apply updates — skip IDs already consumed by merges or prunes
     for (const update of updates) {
       if (typeof update.id !== 'string') continue
+      if (consumedIds.has(update.id)) {
+        deps.log(`[dream] update: skipping consumed doc ${update.id}`)
+        continue
+      }
       const doc = docMap.get(update.id)
       if (doc == null) continue
 

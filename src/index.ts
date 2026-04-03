@@ -283,15 +283,16 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
       },
     },
     {
-      buildCadenceGate() {
+      async buildCadenceGate() {
+        const freshState = await store.load()
         return {
-          enabled: initialState.settings.enabled && initialState.settings.postReviewEnabled,
+          enabled: freshState.settings.enabled && freshState.settings.postReviewEnabled,
           lastDreamTs: dreamState.lastDreamTs,
-          dreamMinHoursElapsed: initialState.settings.dreamMinHoursElapsed,
+          dreamMinHoursElapsed: freshState.settings.dreamMinHoursElapsed,
           turnsSinceLastDream: dreamState.turnsSinceLastDream,
-          dreamMinTurnsElapsed: initialState.settings.extractionMinTurnInterval * 3,
+          dreamMinTurnsElapsed: freshState.settings.extractionMinTurnInterval * 3,
           sessionsSinceLastDream: dreamState.sessionsSinceLastDream,
-          dreamMinSessionsElapsed: initialState.settings.dreamMinSessionsElapsed,
+          dreamMinSessionsElapsed: freshState.settings.dreamMinSessionsElapsed,
           userInteractionGuardMs: 10_000,
           lastUserInteractionTs,
         }

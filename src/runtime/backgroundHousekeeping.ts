@@ -19,7 +19,7 @@ export interface HousekeepingDeps {
 
 export interface DreamHousekeepingDeps {
   /** Build the cadence gate snapshot from current runtime state. */
-  buildCadenceGate(): DreamCadenceGate
+  buildCadenceGate(): DreamCadenceGate | Promise<DreamCadenceGate>
   /** The dream consolidation worker. */
   dreamWorker: AutoDreamWorker
   /** Cooperative lock for the consolidation scope. */
@@ -76,7 +76,7 @@ export function createBackgroundHousekeeping(
   async function tryDream(): Promise<DreamResult | null> {
     if (!dreamDeps) return null
 
-    const gate = dreamDeps.buildCadenceGate()
+    const gate = await dreamDeps.buildCadenceGate()
     if (!dreamDeps.dreamWorker.shouldRun(gate)) return null
 
     const result = await dreamDeps.consolidationLock.withLock(async () => {
