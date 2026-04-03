@@ -2253,6 +2253,189 @@ ${MEMORY_UPDATE_SCHEMA}`
     );
   }
 
+  // src/ui/dashboardModel.ts
+  var DIRECTOR_PROVIDER_CATALOG = [
+    {
+      id: "openai",
+      label: "OpenAI",
+      baseUrl: "https://api.openai.com/v1",
+      manualModelOnly: false,
+      authMode: "api-key",
+      curatedModels: ["gpt-4.1-mini", "gpt-4.1", "gpt-5.4-mini", "gpt-5.4"]
+    },
+    {
+      id: "anthropic",
+      label: "Anthropic",
+      baseUrl: "https://api.anthropic.com/v1",
+      manualModelOnly: true,
+      authMode: "api-key",
+      curatedModels: [
+        "claude-3-5-haiku-latest",
+        "claude-3-5-sonnet-latest",
+        "claude-3-7-sonnet-latest",
+        "claude-sonnet-4-20250514",
+        "claude-opus-4-6"
+      ]
+    },
+    {
+      id: "google",
+      label: "Google",
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      manualModelOnly: true,
+      authMode: "api-key",
+      curatedModels: [
+        "gemini-2.0-flash",
+        "gemini-2.5-flash-preview-04-17",
+        "gemini-2.5-pro-preview-05-06",
+        "gemini-3.1-pro-preview"
+      ]
+    },
+    {
+      id: "copilot",
+      label: "GitHub Copilot",
+      baseUrl: "https://api.githubcopilot.com/v1",
+      manualModelOnly: true,
+      authMode: "oauth-device-flow",
+      curatedModels: ["gpt-4.1", "claude-sonnet-4-20250514"]
+    },
+    {
+      id: "vertex",
+      label: "Google Vertex AI",
+      baseUrl: "",
+      manualModelOnly: true,
+      authMode: "manual-advanced",
+      curatedModels: [
+        "gemini-2.5-pro-preview-05-06",
+        "gemini-3.1-pro-preview"
+      ]
+    },
+    {
+      id: "custom",
+      label: "Custom (OpenAI-compatible)",
+      baseUrl: "",
+      manualModelOnly: false,
+      authMode: "api-key",
+      curatedModels: []
+    }
+  ];
+  var EMBEDDING_PROVIDER_CATALOG = [
+    {
+      id: "openai",
+      baseUrl: "https://api.openai.com/v1",
+      authMode: "api-key"
+    },
+    {
+      id: "voyageai",
+      baseUrl: "https://api.voyageai.com/v1",
+      authMode: "api-key"
+    },
+    {
+      id: "google",
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      authMode: "api-key"
+    },
+    {
+      id: "vertex",
+      baseUrl: "",
+      authMode: "manual-advanced"
+    },
+    {
+      id: "custom",
+      baseUrl: "",
+      authMode: "api-key"
+    }
+  ];
+  function resolveProviderDefaults(providerId) {
+    const entry = DIRECTOR_PROVIDER_CATALOG.find((e) => e.id === providerId);
+    if (entry) return { ...entry };
+    return {
+      id: providerId,
+      label: providerId,
+      baseUrl: "",
+      manualModelOnly: true,
+      authMode: "api-key",
+      curatedModels: []
+    };
+  }
+  function resolveEmbeddingDefaults(providerId) {
+    const entry = EMBEDDING_PROVIDER_CATALOG.find((e) => e.id === providerId);
+    if (entry) return { ...entry };
+    return {
+      id: providerId,
+      baseUrl: "",
+      authMode: "api-key"
+    };
+  }
+  async function loadProviderModels(api, settings) {
+    const provider = settings.directorProvider;
+    const catalogEntry = DIRECTOR_PROVIDER_CATALOG.find((e) => e.id === provider);
+    if (catalogEntry?.manualModelOnly) {
+      return [...catalogEntry.curatedModels];
+    }
+    const baseUrl = settings.directorBaseUrl;
+    if (!baseUrl) {
+      throw new Error("Base URL is required for model listing");
+    }
+    if (!settings.directorApiKey) {
+      throw new Error("API key is required for model listing");
+    }
+    const response = await api.nativeFetch(`${baseUrl}/models`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${settings.directorApiKey}`,
+        "Content-Type": "application/json"
+      }
+    });
+    if (!response.ok) {
+      throw new Error(
+        `Model listing failed (HTTP ${String(response.status)})`
+      );
+    }
+    const json = await response.json();
+    const entries = json.data ?? [];
+    const ids = entries.map((entry) => entry.id);
+    return [...new Set(ids)].sort();
+  }
+  async function testDirectorConnection(api, settings) {
+    try {
+      const provider = settings.directorProvider;
+      const catalogEntry = DIRECTOR_PROVIDER_CATALOG.find((e) => e.id === provider);
+      if (catalogEntry?.manualModelOnly) {
+        if (catalogEntry.authMode === "api-key" && !settings.directorApiKey) {
+          return { ok: false, error: "API key is not configured" };
+        }
+        return { ok: true, models: [...catalogEntry.curatedModels] };
+      }
+      if (!settings.directorApiKey) {
+        return { ok: false, error: "API key is not configured" };
+      }
+      const baseUrl = settings.directorBaseUrl;
+      if (!baseUrl) {
+        return { ok: false, error: "Base URL is not configured" };
+      }
+      const response = await api.nativeFetch(`${baseUrl}/models`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${settings.directorApiKey}`,
+          "Content-Type": "application/json"
+        }
+      });
+      if (!response.ok) {
+        return {
+          ok: false,
+          error: `Server returned HTTP ${String(response.status)}`
+        };
+      }
+      const json = await response.json();
+      const entries = json.data ?? [];
+      const models = [...new Set(entries.map((e) => e.id))].sort();
+      return { ok: true, models };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown connection error";
+      return { ok: false, error: message };
+    }
+  }
+
   // src/ui/i18n.ts
   var activeLocale = "en";
   function getLocale() {
@@ -2580,6 +2763,16 @@ ${MEMORY_UPDATE_SCHEMA}`
     const key = SIDEBAR_GROUP_KEY_MAP[groupId];
     return key ? t(key) : groupId;
   }
+  var EMBEDDING_PROVIDER_KEY_MAP = {
+    openai: "option.embedding.openai",
+    voyageai: "option.embedding.voyageai",
+    google: "option.embedding.google",
+    vertex: "option.embedding.vertex",
+    custom: "option.embedding.custom"
+  };
+  function embeddingProviderLabel(providerId) {
+    return t(EMBEDDING_PROVIDER_KEY_MAP[providerId]);
+  }
   var BUILTIN_PROFILE_KEY_MAP = {
     "builtin-balanced": "profile.balanced",
     "builtin-gentle": "profile.gentle",
@@ -2747,6 +2940,9 @@ ${MEMORY_UPDATE_SCHEMA}`
   function buildModelSettingsPage(input) {
     const { settings, modelOptions } = input;
     const modelOptionEls = modelOptions.map((m) => `<option value="${m}"${m === settings.directorModel ? " selected" : ""}>${m}</option>`).join("");
+    const embeddingProviderOptionEls = EMBEDDING_PROVIDER_CATALOG.map(
+      (entry) => `<option value="${entry.id}"${settings.embeddingProvider === entry.id ? " selected" : ""}>${embeddingProviderLabel(entry.id)}</option>`
+    ).join("");
     const embeddingSection = `
         <section class="da-card">
           <div class="da-card-header">
@@ -2758,13 +2954,7 @@ ${MEMORY_UPDATE_SCHEMA}`
           <div class="da-form-grid">
             <label class="da-label">
               <span class="da-label-text">${t("label.embeddingProvider")}</span>
-              <select class="da-select" data-da-field="embeddingProvider">
-                <option value="openai"${settings.embeddingProvider === "openai" ? " selected" : ""}>${t("option.embedding.openai")}</option>
-                <option value="voyageai"${settings.embeddingProvider === "voyageai" ? " selected" : ""}>${t("option.embedding.voyageai")}</option>
-                <option value="google"${settings.embeddingProvider === "google" ? " selected" : ""}>${t("option.embedding.google")}</option>
-                <option value="vertex"${settings.embeddingProvider === "vertex" ? " selected" : ""}>${t("option.embedding.vertex")}</option>
-                <option value="custom"${settings.embeddingProvider === "custom" ? " selected" : ""}>${t("option.embedding.custom")}</option>
-              </select>
+              <select class="da-select" data-da-field="embeddingProvider">${embeddingProviderOptionEls}</select>
             </label>
             <label class="da-label">
               <span class="da-label-text">${t("label.embeddingBaseUrl")}</span>
@@ -2993,150 +3183,6 @@ ${MEMORY_UPDATE_SCHEMA}`
       ...state,
       settings: { ...state.settings, ...dashboardSettings }
     };
-  }
-
-  // src/ui/dashboardModel.ts
-  var DIRECTOR_PROVIDER_CATALOG = [
-    {
-      id: "openai",
-      label: "OpenAI",
-      baseUrl: "https://api.openai.com/v1",
-      manualModelOnly: false,
-      authMode: "api-key",
-      curatedModels: ["gpt-4.1-mini", "gpt-4.1", "gpt-5.4-mini", "gpt-5.4"]
-    },
-    {
-      id: "anthropic",
-      label: "Anthropic",
-      baseUrl: "https://api.anthropic.com/v1",
-      manualModelOnly: true,
-      authMode: "api-key",
-      curatedModels: [
-        "claude-3-5-haiku-latest",
-        "claude-3-5-sonnet-latest",
-        "claude-3-7-sonnet-latest",
-        "claude-sonnet-4-20250514",
-        "claude-opus-4-6"
-      ]
-    },
-    {
-      id: "google",
-      label: "Google",
-      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-      manualModelOnly: true,
-      authMode: "api-key",
-      curatedModels: [
-        "gemini-2.0-flash",
-        "gemini-2.5-flash-preview-04-17",
-        "gemini-2.5-pro-preview-05-06",
-        "gemini-3.1-pro-preview"
-      ]
-    },
-    {
-      id: "copilot",
-      label: "GitHub Copilot",
-      baseUrl: "https://api.githubcopilot.com/v1",
-      manualModelOnly: true,
-      authMode: "oauth-device-flow",
-      curatedModels: ["gpt-4.1", "claude-sonnet-4-20250514"]
-    },
-    {
-      id: "vertex",
-      label: "Google Vertex AI",
-      baseUrl: "",
-      manualModelOnly: true,
-      authMode: "manual-advanced",
-      curatedModels: [
-        "gemini-2.5-pro-preview-05-06",
-        "gemini-3.1-pro-preview"
-      ]
-    },
-    {
-      id: "custom",
-      label: "Custom (OpenAI-compatible)",
-      baseUrl: "",
-      manualModelOnly: false,
-      authMode: "api-key",
-      curatedModels: []
-    }
-  ];
-  function resolveProviderDefaults(providerId) {
-    const entry = DIRECTOR_PROVIDER_CATALOG.find((e) => e.id === providerId);
-    if (entry) return { ...entry };
-    return {
-      id: providerId,
-      label: providerId,
-      baseUrl: "",
-      manualModelOnly: true,
-      authMode: "api-key",
-      curatedModels: []
-    };
-  }
-  async function loadProviderModels(api, settings) {
-    const provider = settings.directorProvider;
-    const catalogEntry = DIRECTOR_PROVIDER_CATALOG.find((e) => e.id === provider);
-    if (catalogEntry?.manualModelOnly) {
-      return [...catalogEntry.curatedModels];
-    }
-    const baseUrl = settings.directorBaseUrl;
-    if (!baseUrl) {
-      throw new Error("Base URL is required for model listing");
-    }
-    if (!settings.directorApiKey) {
-      throw new Error("API key is required for model listing");
-    }
-    const response = await api.nativeFetch(`${baseUrl}/models`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${settings.directorApiKey}`,
-        "Content-Type": "application/json"
-      }
-    });
-    if (!response.ok) {
-      throw new Error(
-        `Model listing failed (HTTP ${String(response.status)})`
-      );
-    }
-    const json = await response.json();
-    const entries = json.data ?? [];
-    const ids = entries.map((entry) => entry.id);
-    return [...new Set(ids)].sort();
-  }
-  async function testDirectorConnection(api, settings) {
-    try {
-      const provider = settings.directorProvider;
-      if (!settings.directorApiKey) {
-        return { ok: false, error: "API key is not configured" };
-      }
-      const catalogEntry = DIRECTOR_PROVIDER_CATALOG.find((e) => e.id === provider);
-      if (catalogEntry?.manualModelOnly) {
-        return { ok: true, models: [...catalogEntry.curatedModels] };
-      }
-      const baseUrl = settings.directorBaseUrl;
-      if (!baseUrl) {
-        return { ok: false, error: "Base URL is not configured" };
-      }
-      const response = await api.nativeFetch(`${baseUrl}/models`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${settings.directorApiKey}`,
-          "Content-Type": "application/json"
-        }
-      });
-      if (!response.ok) {
-        return {
-          ok: false,
-          error: `Server returned HTTP ${String(response.status)}`
-        };
-      }
-      const json = await response.json();
-      const entries = json.data ?? [];
-      const models = [...new Set(entries.map((e) => e.id))].sort();
-      return { ok: true, models };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown connection error";
-      return { ok: false, error: message };
-    }
   }
 
   // src/ui/dashboardApp.ts
@@ -3471,6 +3517,19 @@ ${MEMORY_UPDATE_SCHEMA}`
         this.draft.isDirty = true;
         const baseUrlInput = this.root?.querySelector(
           '[data-da-field="directorBaseUrl"]'
+        );
+        if (baseUrlInput) {
+          baseUrlInput.value = providerDefaults.baseUrl;
+        }
+      }
+      if (key === "embeddingProvider") {
+        const providerDefaults = resolveEmbeddingDefaults(
+          value
+        );
+        this.draft.settings.embeddingBaseUrl = providerDefaults.baseUrl;
+        this.draft.isDirty = true;
+        const baseUrlInput = this.root?.querySelector(
+          '[data-da-field="embeddingBaseUrl"]'
         );
         if (baseUrlInput) {
           baseUrlInput.value = providerDefaults.baseUrl;

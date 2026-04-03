@@ -1,3 +1,5 @@
+import type { EmbeddingProvider } from '../contracts/types.js'
+
 // ---------------------------------------------------------------------------
 // Dashboard i18n – bilingual localization (English + Korean)
 // ---------------------------------------------------------------------------
@@ -416,6 +418,18 @@ const SIDEBAR_GROUP_KEY_MAP: Record<string, TranslationKey> = {
 export function sidebarGroupLabel(groupId: string): string {
   const key = SIDEBAR_GROUP_KEY_MAP[groupId]
   return key ? t(key) : groupId
+}
+
+const EMBEDDING_PROVIDER_KEY_MAP: Record<EmbeddingProvider, TranslationKey> = {
+  openai: 'option.embedding.openai',
+  voyageai: 'option.embedding.voyageai',
+  google: 'option.embedding.google',
+  vertex: 'option.embedding.vertex',
+  custom: 'option.embedding.custom',
+}
+
+export function embeddingProviderLabel(providerId: EmbeddingProvider): string {
+  return t(EMBEDDING_PROVIDER_KEY_MAP[providerId])
 }
 
 // ---------------------------------------------------------------------------

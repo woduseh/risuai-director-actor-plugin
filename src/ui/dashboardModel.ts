@@ -1,5 +1,9 @@
 import type { RisuaiApi } from '../contracts/risuai.js'
-import type { DirectorProvider, DirectorSettings } from '../contracts/types.js'
+import type {
+  DirectorProvider,
+  DirectorSettings,
+  EmbeddingProvider,
+} from '../contracts/types.js'
 
 /* ------------------------------------------------------------------ */
 /*  Provider catalog                                                  */
@@ -14,6 +18,12 @@ export interface ProviderCatalogEntry {
   manualModelOnly: boolean
   authMode: ProviderAuthMode
   curatedModels: string[]
+}
+
+export interface EmbeddingProviderCatalogEntry {
+  id: EmbeddingProvider
+  baseUrl: string
+  authMode: ProviderAuthMode
 }
 
 export const DIRECTOR_PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
@@ -81,6 +91,34 @@ export const DIRECTOR_PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
   }
 ] as const
 
+export const EMBEDDING_PROVIDER_CATALOG: readonly EmbeddingProviderCatalogEntry[] = [
+  {
+    id: 'openai',
+    baseUrl: 'https://api.openai.com/v1',
+    authMode: 'api-key',
+  },
+  {
+    id: 'voyageai',
+    baseUrl: 'https://api.voyageai.com/v1',
+    authMode: 'api-key',
+  },
+  {
+    id: 'google',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    authMode: 'api-key',
+  },
+  {
+    id: 'vertex',
+    baseUrl: '',
+    authMode: 'manual-advanced',
+  },
+  {
+    id: 'custom',
+    baseUrl: '',
+    authMode: 'api-key',
+  },
+] as const
+
 /* ------------------------------------------------------------------ */
 /*  Provider defaults resolver                                        */
 /* ------------------------------------------------------------------ */
@@ -97,6 +135,18 @@ export function resolveProviderDefaults(
     manualModelOnly: true,
     authMode: 'api-key',
     curatedModels: []
+  }
+}
+
+export function resolveEmbeddingDefaults(
+  providerId: EmbeddingProvider
+): EmbeddingProviderCatalogEntry {
+  const entry = EMBEDDING_PROVIDER_CATALOG.find((e) => e.id === providerId)
+  if (entry) return { ...entry }
+  return {
+    id: providerId,
+    baseUrl: '',
+    authMode: 'api-key',
   }
 }
 
@@ -181,17 +231,20 @@ export async function testDirectorConnection(
 ): Promise<ConnectionTestResult> {
   try {
     const provider = settings.directorProvider
-
-    if (!settings.directorApiKey) {
-      return { ok: false, error: 'API key is not configured' }
-    }
-
     const catalogEntry = DIRECTOR_PROVIDER_CATALOG.find((e) => e.id === provider)
 
     if (catalogEntry?.manualModelOnly) {
+      if (catalogEntry.authMode === 'api-key' && !settings.directorApiKey) {
+        return { ok: false, error: 'API key is not configured' }
+      }
+
       // No live listing endpoint – return the curated list as a
       // "connection ok" signal.
       return { ok: true, models: [...catalogEntry.curatedModels] }
+    }
+
+    if (!settings.directorApiKey) {
+      return { ok: false, error: 'API key is not configured' }
     }
 
     // openai / custom

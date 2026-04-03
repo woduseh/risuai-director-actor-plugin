@@ -111,4 +111,21 @@ describe('dashboardModel', () => {
     if (!result.ok) return
     expect(result.models).toContain('gpt-4.1-mini')
   })
+
+  test('returns curated models for oauth-based providers without requiring an API key', async () => {
+    const api = createMockRisuaiApi()
+
+    const result = await testDirectorConnection(
+      api,
+      normalizePersistedSettings({
+        directorProvider: 'copilot',
+        directorApiKey: '',
+        directorBaseUrl: 'https://api.githubcopilot.com/v1'
+      })
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.models).toEqual(expect.arrayContaining(['gpt-4.1']))
+  })
 })

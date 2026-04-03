@@ -1,7 +1,15 @@
 import type { DirectorSettings, DirectorPluginState } from '../contracts/types.js'
 import type { ProfileManifest } from './dashboardState.js'
 import { DASHBOARD_ROOT_CLASS } from './dashboardCss.js'
-import { t, tabLabel, sidebarGroupLabel, profileDisplayName, getLocale } from './i18n.js'
+import { EMBEDDING_PROVIDER_CATALOG } from './dashboardModel.js'
+import {
+  t,
+  tabLabel,
+  sidebarGroupLabel,
+  profileDisplayName,
+  embeddingProviderLabel,
+  getLocale,
+} from './i18n.js'
 import type { DashboardLocale } from './i18n.js'
 
 // ---------------------------------------------------------------------------
@@ -208,6 +216,12 @@ function buildModelSettingsPage(input: DashboardMarkupInput): string {
   const modelOptionEls = modelOptions
     .map((m) => `<option value="${m}"${m === settings.directorModel ? ' selected' : ''}>${m}</option>`)
     .join('')
+  const embeddingProviderOptionEls = EMBEDDING_PROVIDER_CATALOG
+    .map(
+      (entry) =>
+        `<option value="${entry.id}"${settings.embeddingProvider === entry.id ? ' selected' : ''}>${embeddingProviderLabel(entry.id)}</option>`
+    )
+    .join('')
 
   const embeddingSection = `
         <section class="da-card">
@@ -220,13 +234,7 @@ function buildModelSettingsPage(input: DashboardMarkupInput): string {
           <div class="da-form-grid">
             <label class="da-label">
               <span class="da-label-text">${t('label.embeddingProvider')}</span>
-              <select class="da-select" data-da-field="embeddingProvider">
-                <option value="openai"${settings.embeddingProvider === 'openai' ? ' selected' : ''}>${t('option.embedding.openai')}</option>
-                <option value="voyageai"${settings.embeddingProvider === 'voyageai' ? ' selected' : ''}>${t('option.embedding.voyageai')}</option>
-                <option value="google"${settings.embeddingProvider === 'google' ? ' selected' : ''}>${t('option.embedding.google')}</option>
-                <option value="vertex"${settings.embeddingProvider === 'vertex' ? ' selected' : ''}>${t('option.embedding.vertex')}</option>
-                <option value="custom"${settings.embeddingProvider === 'custom' ? ' selected' : ''}>${t('option.embedding.custom')}</option>
-              </select>
+              <select class="da-select" data-da-field="embeddingProvider">${embeddingProviderOptionEls}</select>
             </label>
             <label class="da-label">
               <span class="da-label-text">${t('label.embeddingBaseUrl')}</span>

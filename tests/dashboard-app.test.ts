@@ -190,6 +190,30 @@ describe('openDashboard', () => {
     expect(dimensionsInput?.value).toBe('1024')
   })
 
+  test('changing embedding provider applies provider default base URL', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const modelBtn = root.querySelector('[data-da-target="model-settings"]') as HTMLElement
+    modelBtn.click()
+
+    const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const providerSelect = updatedRoot.querySelector(
+      '[data-da-field="embeddingProvider"]',
+    ) as HTMLSelectElement
+    const baseUrlInput = updatedRoot.querySelector(
+      '[data-da-field="embeddingBaseUrl"]',
+    ) as HTMLInputElement
+
+    providerSelect.value = 'voyageai'
+    providerSelect.dispatchEvent(new Event('change', { bubbles: true }))
+    expect(baseUrlInput.value).toBe('https://api.voyageai.com/v1')
+
+    providerSelect.value = 'custom'
+    providerSelect.dispatchEvent(new Event('change', { bubbles: true }))
+    expect(baseUrlInput.value).toBe('')
+  })
+
   test('save persists draft to pluginStorage', async () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement

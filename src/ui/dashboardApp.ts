@@ -23,6 +23,7 @@ import type {
 } from './dashboardState.js'
 import {
   resolveProviderDefaults,
+  resolveEmbeddingDefaults,
   testDirectorConnection,
   loadProviderModels,
 } from './dashboardModel.js'
@@ -459,6 +460,21 @@ class DashboardInstance {
 
       const baseUrlInput = this.root?.querySelector(
         '[data-da-field="directorBaseUrl"]',
+      ) as HTMLInputElement | null
+      if (baseUrlInput) {
+        baseUrlInput.value = providerDefaults.baseUrl
+      }
+    }
+
+    if (key === 'embeddingProvider') {
+      const providerDefaults = resolveEmbeddingDefaults(
+        value as DirectorSettings['embeddingProvider'],
+      )
+      this.draft.settings.embeddingBaseUrl = providerDefaults.baseUrl
+      this.draft.isDirty = true
+
+      const baseUrlInput = this.root?.querySelector(
+        '[data-da-field="embeddingBaseUrl"]',
       ) as HTMLInputElement | null
       if (baseUrlInput) {
         baseUrlInput.value = providerDefaults.baseUrl
