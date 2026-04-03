@@ -1,7 +1,7 @@
 //@name risuai-director-actor-plugin
 //@display-name RisuAI Director Actor
 //@api 3.0
-//@version 0.4.2
+//@version 0.4.3
 //@description Director-Actor collaborative long-memory plugin for RisuAI Plugin V3
 
 "use strict";
@@ -3109,6 +3109,7 @@ ${lines.join("\n").trimEnd()}`;
     "toast.noProfileSelected": "No profile selected",
     "toast.invalidProfileFormat": "Invalid profile format",
     "toast.failedParseProfile": "Failed to parse profile JSON",
+    "toast.settingsExported": "Settings exported",
     "toast.backfillCompleted": "Chat extraction completed ({{count}} updates)",
     "toast.backfillSkipped": "No chat memories were extracted",
     "error.backfillScopeMismatch": "The active chat changed while the dashboard was open. Return to the original chat and try again.",
@@ -3138,6 +3139,11 @@ ${lines.join("\n").trimEnd()}`;
     "guard.blockedStartup": "Please wait \u2014 the plugin is still starting up.",
     "guard.blockedShutdown": "Please wait \u2014 the plugin is shutting down.",
     "guard.blockedMaintenance": "Please wait \u2014 another maintenance task is still running.",
+    // Destructive confirmation arming
+    "confirm.deleteMemory": "Confirm Delete?",
+    "confirm.bulkDeleteMemory": "Confirm Delete Selected?",
+    "confirm.regenerateCurrentChat": "Confirm Regenerate?",
+    "confirm.deletePromptPreset": "Confirm Delete Preset?",
     // Language selector
     "lang.label": "Language",
     "lang.en": "English",
@@ -3332,6 +3338,7 @@ ${lines.join("\n").trimEnd()}`;
     "toast.noProfileSelected": "\uC120\uD0DD\uB41C \uD504\uB85C\uD544\uC774 \uC5C6\uC2B5\uB2C8\uB2E4",
     "toast.invalidProfileFormat": "\uC798\uBABB\uB41C \uD504\uB85C\uD544 \uD615\uC2DD\uC785\uB2C8\uB2E4",
     "toast.failedParseProfile": "\uD504\uB85C\uD544 JSON \uD30C\uC2F1\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4",
+    "toast.settingsExported": "\uC124\uC815\uC774 \uB0B4\uBCF4\uB0B4\uC84C\uC2B5\uB2C8\uB2E4",
     "toast.backfillCompleted": "\uCC44\uD305 \uCD94\uCD9C\uC774 \uC644\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4 ({{count}}\uAC1C \uC5C5\uB370\uC774\uD2B8)",
     "toast.backfillSkipped": "\uCD94\uCD9C\uB41C \uCC44\uD305 \uBA54\uBAA8\uB9AC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4",
     "error.backfillScopeMismatch": "\uB300\uC2DC\uBCF4\uB4DC\uB97C \uC5F0 \uB4A4 \uD65C\uC131 \uCC44\uD305\uC774 \uBC14\uB00C\uC5C8\uC2B5\uB2C8\uB2E4. \uC6D0\uB798 \uCC44\uD305\uC73C\uB85C \uB3CC\uC544\uAC04 \uB4A4 \uB2E4\uC2DC \uC2DC\uB3C4\uD558\uC138\uC694.",
@@ -3361,6 +3368,11 @@ ${lines.join("\n").trimEnd()}`;
     "guard.blockedStartup": "\uC7A0\uC2DC \uAE30\uB2E4\uB824 \uC8FC\uC138\uC694 \u2014 \uD50C\uB7EC\uADF8\uC778\uC774 \uC544\uC9C1 \uC2DC\uC791 \uC911\uC785\uB2C8\uB2E4.",
     "guard.blockedShutdown": "\uC7A0\uC2DC \uAE30\uB2E4\uB824 \uC8FC\uC138\uC694 \u2014 \uD50C\uB7EC\uADF8\uC778\uC774 \uC885\uB8CC \uC911\uC785\uB2C8\uB2E4.",
     "guard.blockedMaintenance": "\uC7A0\uC2DC \uAE30\uB2E4\uB824 \uC8FC\uC138\uC694 \u2014 \uB2E4\uB978 \uC720\uC9C0\uBCF4\uC218 \uC791\uC5C5\uC774 \uC544\uC9C1 \uC2E4\uD589 \uC911\uC785\uB2C8\uB2E4.",
+    // Destructive confirmation arming
+    "confirm.deleteMemory": "\uC0AD\uC81C \uD655\uC778?",
+    "confirm.bulkDeleteMemory": "\uC120\uD0DD \uC0AD\uC81C \uD655\uC778?",
+    "confirm.regenerateCurrentChat": "\uC7AC\uC0DD\uC131 \uD655\uC778?",
+    "confirm.deletePromptPreset": "\uD504\uB9AC\uC14B \uC0AD\uC81C \uD655\uC778?",
     // Language selector
     "lang.label": "\uC5B8\uC5B4",
     "lang.en": "English",
@@ -3534,6 +3546,16 @@ ${lines.join("\n").trimEnd()}`;
       schema: "director-actor-dashboard-profile",
       version: 1,
       profile: { ...profile }
+    };
+  }
+  function createSettingsExportPayload(settings, profiles, locale) {
+    return {
+      schema: "director-actor-dashboard-settings",
+      version: 1,
+      exportedAt: Date.now(),
+      locale,
+      settings: structuredClone(settings),
+      profiles: structuredClone(profiles)
     };
   }
   var DASHBOARD_DREAM_STATE_KEY = "dashboard-dream-state-v1";
@@ -4393,6 +4415,18 @@ ${lines.join("\n").trimEnd()}`;
   border-color: color-mix(in srgb, var(--da-danger) 32%, var(--da-border));
 }
 
+.da-btn--armed {
+  background: var(--da-danger);
+  color: #fff;
+  border-color: var(--da-danger);
+  animation: da-armed-pulse 1s ease-in-out infinite;
+}
+
+@keyframes da-armed-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .78; }
+}
+
 .da-close-btn {
   align-self: flex-start;
 }
@@ -4707,7 +4741,7 @@ ${lines.join("\n").trimEnd()}`;
   padding: 12px 18px;
   border: 1px solid color-mix(in srgb, var(--da-accent) 38%, var(--da-border));
   border-radius: 999px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--da-accent) 76%, white 6%), color-mix(in srgb, var(--da-accent) 62%, black));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--da-accent) 93%, white 7%), color-mix(in srgb, var(--da-accent) 62%, black));
   box-shadow: var(--da-shadow);
   color: #09111f;
   font-size: 14px;
@@ -4821,22 +4855,22 @@ ${lines.join("\n").trimEnd()}`;
 
 .da-toast--success {
   border-color: color-mix(in srgb, #25c281 48%, var(--da-border));
-  background: linear-gradient(180deg, color-mix(in srgb, #25c281 76%, white 6%), color-mix(in srgb, #25c281 62%, black));
+  background: linear-gradient(180deg, color-mix(in srgb, #25c281 93%, white 7%), color-mix(in srgb, #25c281 62%, black));
 }
 
 .da-toast--info {
   border-color: color-mix(in srgb, var(--da-accent) 38%, var(--da-border));
-  background: linear-gradient(180deg, color-mix(in srgb, var(--da-accent) 76%, white 6%), color-mix(in srgb, var(--da-accent) 62%, black));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--da-accent) 93%, white 7%), color-mix(in srgb, var(--da-accent) 62%, black));
 }
 
 .da-toast--warning {
   border-color: color-mix(in srgb, #f4c95d 48%, var(--da-border));
-  background: linear-gradient(180deg, color-mix(in srgb, #f4c95d 76%, white 6%), color-mix(in srgb, #f4c95d 62%, black));
+  background: linear-gradient(180deg, color-mix(in srgb, #f4c95d 93%, white 7%), color-mix(in srgb, #f4c95d 62%, black));
 }
 
 .da-toast--error {
   border-color: color-mix(in srgb, var(--da-danger) 48%, var(--da-border));
-  background: linear-gradient(180deg, color-mix(in srgb, var(--da-danger) 76%, white 6%), color-mix(in srgb, var(--da-danger) 62%, black));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--da-danger) 93%, white 7%), color-mix(in srgb, var(--da-danger) 62%, black));
 }
 
 @keyframes da-toast-fade-in {
@@ -5804,6 +5838,17 @@ ${lines.join("\n").trimEnd()}`;
   var TOAST_DURATION_ERROR_MS = 5e3;
   var PROFILE_ID_PREFIX = "user-profile-";
   var IMPORT_STAGING_KEY = "dashboard-profile-import-staging";
+  var ARM_TIMEOUT_MS = 3e3;
+  var DESTRUCTIVE_ACTIONS = /* @__PURE__ */ new Map([
+    ["delete-summary", "confirm.deleteMemory"],
+    ["delete-continuity-fact", "confirm.deleteMemory"],
+    ["delete-world-fact", "confirm.deleteMemory"],
+    ["delete-entity", "confirm.deleteMemory"],
+    ["delete-relation", "confirm.deleteMemory"],
+    ["bulk-delete-memory", "confirm.bulkDeleteMemory"],
+    ["regenerate-current-chat", "confirm.regenerateCurrentChat"],
+    ["delete-prompt-preset", "confirm.deletePromptPreset"]
+  ]);
   var activeInstance = null;
   function createDashboardStore(api, canonicalWriteFirst, stateStorageKey) {
     const store = {
@@ -5885,7 +5930,7 @@ ${lines.join("\n").trimEnd()}`;
         return t("guard.blockedMaintenance");
     }
   }
-  var DashboardInstance = class {
+  var DashboardInstance = class _DashboardInstance {
     api;
     store;
     lifecycle = new DashboardLifecycle();
@@ -5900,8 +5945,19 @@ ${lines.join("\n").trimEnd()}`;
     selectedMemoryKeys = /* @__PURE__ */ new Set();
     editingMemory = null;
     memoryOpsStatus;
-    /** Action names currently in flight (used by async busy guards). */
-    busyActions = /* @__PURE__ */ new Set();
+    /**
+     * Action names currently in flight (used by async busy guards).
+     * Key = canonical busy key, value = UI action to disable (may differ
+     * for aliased actions like save-settings → save).
+     */
+    busyActions = /* @__PURE__ */ new Map();
+    /**
+     * Tracks armed destructive actions.  Key = composite arm key
+     * (action + optional item id), value = original button text.
+     * A second click while armed executes the action; timeout or
+     * rerender clears the map.
+     */
+    armedActions = /* @__PURE__ */ new Map();
     constructor(api, store, doc, draft, profiles, modelOptions, canonicalState, memoryOpsStatus) {
       this.api = api;
       this.store = store;
@@ -5922,6 +5978,7 @@ ${lines.join("\n").trimEnd()}`;
       await this.api.showContainer("fullscreen");
     }
     async close() {
+      this.clearArmedState();
       this.lifecycle.teardown();
       this.removeDom();
       await this.api.hideContainer();
@@ -6008,6 +6065,7 @@ ${lines.join("\n").trimEnd()}`;
       if (!this.root) return;
       const parent = this.root.parentNode;
       if (!parent) return;
+      this.clearArmedState();
       this.root.remove();
       const container = this.doc.createElement("div");
       container.innerHTML = buildDashboardMarkup(this.buildMarkupInput());
@@ -6081,16 +6139,20 @@ ${lines.join("\n").trimEnd()}`;
      * first promise settles.  The triggering button is disabled for
      * the duration so the user gets visible feedback via the CSS
      * disabled-state rule from UI-1.
+     *
+     * @param uiAction — the `data-da-action` of the button that was
+     *   actually clicked (may differ from `actionName` for aliased
+     *   actions, e.g. `save-settings` routed through busy key `save`).
      */
-    async withBusyGuard(actionName, fn) {
+    async withBusyGuard(actionName, fn, uiAction) {
       if (this.busyActions.has(actionName)) return;
-      this.busyActions.add(actionName);
-      this.setBusyDisabled(actionName, true);
+      this.busyActions.set(actionName, uiAction ?? actionName);
+      this.setBusyDisabled(uiAction ?? actionName, true);
       try {
         await fn();
       } finally {
         this.busyActions.delete(actionName);
-        this.setBusyDisabled(actionName, false);
+        this.setBusyDisabled(uiAction ?? actionName, false);
       }
     }
     /**
@@ -6120,9 +6182,79 @@ ${lines.join("\n").trimEnd()}`;
      * Called after `fullReRender()` replaces the DOM tree.
      */
     applyAllBusyStates() {
-      for (const actionName of this.busyActions) {
-        this.setBusyDisabled(actionName, true);
+      for (const uiAction of this.busyActions.values()) {
+        this.setBusyDisabled(uiAction, true);
       }
+    }
+    // ── Destructive-action arming ─────────────────────────────────────────
+    /**
+     * Build a composite key that uniquely identifies an armed action.
+     * For per-item buttons (e.g. delete-summary) the key includes the
+     * item id so arming one row does not arm all rows.
+     */
+    static armKey(action, btn) {
+      const itemId = btn.getAttribute("data-da-item-id");
+      return itemId ? `${action}::${itemId}` : action;
+    }
+    /** Clear all armed states and restore original button text in the DOM. */
+    clearArmedState() {
+      if (this.armedActions.size === 0) return;
+      for (const [key, originalText] of this.armedActions) {
+        const btn = this.findArmedBtn(key);
+        if (btn) {
+          btn.textContent = originalText;
+          btn.classList.remove("da-btn--armed");
+        }
+      }
+      this.armedActions.clear();
+    }
+    /** Locate a DOM button from its arm-key (action + optional item id). */
+    findArmedBtn(armKey) {
+      if (!this.root) return null;
+      const sepIdx = armKey.indexOf("::");
+      if (sepIdx === -1) {
+        return this.root.querySelector(`[data-da-action="${armKey}"]`);
+      }
+      const action = armKey.slice(0, sepIdx);
+      const itemId = armKey.slice(sepIdx + 2);
+      return this.root.querySelector(
+        `[data-da-action="${action}"][data-da-item-id="${itemId}"]`
+      );
+    }
+    /**
+     * Two-click arming gate for destructive actions.
+     *
+     * - First click: arms the button (changes text, adds armed CSS class,
+     *   starts auto-reset timer).
+     * - Second click while armed: returns `true` so the caller can proceed
+     *   with the actual mutation.
+     *
+     * Arming state is tracked in the controller (survives in-place DOM
+     * mutations) and cleared on `fullReRender()` / `close()`.
+     */
+    armOrExecute(action, btn) {
+      const key = _DashboardInstance.armKey(action, btn);
+      if (this.armedActions.has(key)) {
+        btn.textContent = this.armedActions.get(key) ?? "";
+        this.armedActions.delete(key);
+        btn.classList.remove("da-btn--armed");
+        return true;
+      }
+      const confirmKey = DESTRUCTIVE_ACTIONS.get(action);
+      if (!confirmKey) return true;
+      this.armedActions.set(key, btn.textContent ?? "");
+      btn.textContent = t(confirmKey);
+      btn.classList.add("da-btn--armed");
+      this.lifecycle.setTimeout(() => {
+        if (!this.armedActions.has(key)) return;
+        const domBtn = this.findArmedBtn(key);
+        if (domBtn) {
+          domBtn.textContent = this.armedActions.get(key) ?? "";
+          domBtn.classList.remove("da-btn--armed");
+        }
+        this.armedActions.delete(key);
+      }, ARM_TIMEOUT_MS);
+      return false;
     }
     // ── Event binding ─────────────────────────────────────────────────────
     bindEvents() {
@@ -6165,6 +6297,7 @@ ${lines.join("\n").trimEnd()}`;
       if (!btn) return;
       const tabId = btn.getAttribute("data-da-target");
       if (!tabId) return;
+      this.clearArmedState();
       this.activeTab = tabId;
       if (this.root) {
         for (const b of Array.from(this.root.querySelectorAll(".da-sidebar-btn"))) {
@@ -6185,15 +6318,24 @@ ${lines.join("\n").trimEnd()}`;
       const btn = target.closest("[data-da-action]");
       if (!btn) return;
       const action = btn.getAttribute("data-da-action");
+      if (action && DESTRUCTIVE_ACTIONS.has(action)) {
+        if (!this.armOrExecute(action, btn)) return;
+      }
       switch (action) {
         case "close":
+        case "close-dashboard":
           await this.close();
           break;
         case "save":
-          await this.withBusyGuard("save", () => this.handleSave());
+        case "save-settings":
+          await this.withBusyGuard("save", () => this.handleSave(), action);
           break;
         case "discard":
-          await this.withBusyGuard("discard", () => this.handleDiscard());
+        case "reset-settings":
+          await this.withBusyGuard("discard", () => this.handleDiscard(), action);
+          break;
+        case "export-settings":
+          await this.handleExportSettings();
           break;
         case "test-connection":
           await this.withBusyGuard("test-connection", () => this.handleTestConnection());
@@ -6469,6 +6611,16 @@ ${lines.join("\n").trimEnd()}`;
       const json = JSON.stringify(payload, null, 2);
       await this.api.alert(json);
       this.showToast(t("toast.profileExported"), "success");
+    }
+    async handleExportSettings() {
+      const payload = createSettingsExportPayload(
+        this.draft.settings,
+        this.profiles,
+        getLocale()
+      );
+      const json = JSON.stringify(payload, null, 2);
+      await this.api.alert(json);
+      this.showToast(t("toast.settingsExported"), "success");
     }
     async handleImportProfile() {
       const raw = await this.store.storage.getItem(IMPORT_STAGING_KEY);

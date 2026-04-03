@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.4.3] - 2026-04-04
+
+### Added
+
+- Severity-aware dashboard toasts with ARIA status/alert semantics and longer-lived error messages
+- Async busy guards for high-risk dashboard actions to prevent duplicate clicks while operations are in flight
+- Plugin-native destructive-action arming flow for single memory delete, bulk delete, regenerate current chat, and prompt preset delete
+- Dashboard settings export payload for current settings, profiles, and locale
+
+### Changed
+
+- Dashboard now styles diagnostics, warnings, recalled-doc lists, breadcrumbs, disabled controls, and armed destructive buttons consistently with the fullscreen theme
+- Toolbar and sidebar dashboard action buttons now route to real save, discard, close, and settings-export flows instead of inert controls
+
+### Fixed
+
+- Armed destructive buttons now restore their original text on early-return paths and are cleared on tab switch
+- Busy disabled-state wiring now targets the correct aliased toolbar buttons
+- Toast gradients now use fully opaque color mixes instead of unintentionally transparent top stops
+
 ## [0.4.2] - 2026-04-04
 
 ### Added

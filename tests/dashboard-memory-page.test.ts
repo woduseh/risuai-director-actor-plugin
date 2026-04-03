@@ -1873,7 +1873,7 @@ describe('destructive-action arming', () => {
       },
       checkRefreshGuard: () => ({
         blocked: guardBlocked,
-        reason: guardBlocked ? 'test-guard' : undefined,
+        reason: guardBlocked ? 'maintenance' : null,
       }),
     }
 
@@ -2071,7 +2071,7 @@ describe('destructive-action arming', () => {
     freshBtn.click()
     expect(freshBtn.classList.contains('da-btn--armed')).toBe(true)
     // Verify no deletion occurred — the summary should still exist
-    const latestState = await store.readCanonical()
+    const latestState = await store.readCanonical!()
     expect(latestState.memory.summaries.some((s: { id: string }) => s.id === 'sum-1')).toBe(true)
   })
 

@@ -1204,7 +1204,7 @@ describe('openDashboard', () => {
   })
 
   test('discard button is disabled while in flight and recovers', async () => {
-    let resolveGet!: (v: unknown) => void
+    let resolveGet!: () => void
     let interceptGetItem = false
 
     // Open with normal store first, then install the intercept
@@ -1214,11 +1214,11 @@ describe('openDashboard', () => {
     const slowStore: DashboardStore = {
       storage: {
         ...api.pluginStorage,
-        getItem: (k: string) => {
+        getItem: <T>(k: string) => {
           if (interceptGetItem && k === DASHBOARD_SETTINGS_KEY) {
-            return new Promise((r) => { resolveGet = r })
+            return new Promise<T | null>((r) => { resolveGet = () => r(null) })
           }
-          return api.pluginStorage.getItem(k)
+          return api.pluginStorage.getItem<T>(k)
         },
         setItem: (k: string, v: unknown) => api.pluginStorage.setItem(k, v),
         removeItem: (k: string) => api.pluginStorage.removeItem(k),
@@ -1242,7 +1242,7 @@ describe('openDashboard', () => {
     await new Promise((r) => { setTimeout(r, 10) })
     expect(discardBtn.disabled).toBe(true)
 
-    resolveGet(null)
+    resolveGet()
     await new Promise((r) => { setTimeout(r, 50) })
 
     const newDiscardBtn = document.querySelector('[data-da-action="discard"]') as HTMLButtonElement
@@ -1290,7 +1290,7 @@ describe('openDashboard', () => {
   })
 
   test('reset-settings toolbar button is disabled during discard (not footer discard)', async () => {
-    let resolveGet!: (v: unknown) => void
+    let resolveGet!: () => void
     let interceptGetItem = false
 
     await openDashboard(api, store)
@@ -1298,11 +1298,11 @@ describe('openDashboard', () => {
     const slowStore: DashboardStore = {
       storage: {
         ...api.pluginStorage,
-        getItem: (k: string) => {
+        getItem: <T>(k: string) => {
           if (interceptGetItem && k === DASHBOARD_SETTINGS_KEY) {
-            return new Promise((r) => { resolveGet = r })
+            return new Promise<T | null>((r) => { resolveGet = () => r(null) })
           }
-          return api.pluginStorage.getItem(k)
+          return api.pluginStorage.getItem<T>(k)
         },
         setItem: (k: string, v: unknown) => api.pluginStorage.setItem(k, v),
         removeItem: (k: string) => api.pluginStorage.removeItem(k),
@@ -1330,7 +1330,7 @@ describe('openDashboard', () => {
     // The footer button should NOT be disabled
     if (footerDiscardBtn) expect(footerDiscardBtn.disabled).toBe(false)
 
-    resolveGet(null)
+    resolveGet()
     await new Promise((r) => { setTimeout(r, 50) })
 
     const newResetBtn = document.querySelector('[data-da-action="reset-settings"]') as HTMLButtonElement
@@ -1396,7 +1396,7 @@ describe('openDashboard', () => {
       updatedAt: Date.now(),
     } as any)
 
-    let resolveWrite!: (v: DirectorPluginState) => void
+    let resolveWrite!: () => void
     let currentState = structuredClone(state)
     const storeWithWrite: DashboardStore = {
       storage: api.pluginStorage,

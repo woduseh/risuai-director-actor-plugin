@@ -9,11 +9,11 @@ Director-Actor collaborative long-memory plugin for **RisuAI Plugin V3**.
 - Reviews completed responses with a post-response Director pass
 - Persists scoped canonical memory per character/chat in `pluginStorage`
 - Survives streaming output with debounce-safe finalization
-- Opens a fullscreen bilingual dashboard UI (`en` / `ko`) with sidebar navigation, modern theme-aware styling, and profile management
+- Opens a fullscreen bilingual dashboard UI (`en` / `ko`) with sidebar navigation, modern theme-aware styling, severity-aware status toasts, and profile management
 - Supports director model provider settings for OpenAI, Anthropic, Google, GitHub Copilot, Vertex AI, and custom OpenAI-compatible endpoints
 - Includes latest curated model catalogs such as `GPT-5.4`, `Claude Opus 4.6`, `Claude Sonnet 4.6`, and `Gemini 3.1 Pro Preview`
 - Exposes prompt preset management for director pre-request and post-response templates
-- Includes a scoped memory workbench for summaries, continuity facts, world facts, entities, and relations with live filtering, manual add/edit/delete, and bulk delete
+- Includes a scoped memory workbench for summaries, continuity facts, world facts, entities, and relations with live filtering, manual add/edit/delete, bulk delete, and two-step destructive arming safeguards
 - Can backfill or fully regenerate memory from the current active chat into the scoped store
 - Stores embedding provider/model settings for VoyageAI, OpenAI, Google, Vertex AI, and custom endpoints
 
@@ -58,6 +58,7 @@ The dashboard Memory Operations card provides operator controls:
 - **Run Dream Now** — Force an immediate consolidation pass
 - **Inspect Recalled Docs** — View the last recall result
 - **Toggle Fallback Retrieval** — Switch between model-based and keyword-based recall
+- **Settings Export** — Export the current dashboard settings, profiles, and locale as structured JSON from the fullscreen dashboard
 
 ## Project layout
 
