@@ -350,6 +350,88 @@ describe('RecallCache', () => {
     expect(result.source).toBe('cache')
   })
 
+  test('repeated model failures within cooldown reuse cached fallback (response.ok=false)', async () => {
+    const cache = new RecallCache(10_000)
+    const docs = [makeDoc({ id: 'doc-1', title: 'Alice' })]
+
+    const deps = makeDeps({
+      runRecallModel: vi.fn(async () => ({ ok: false, text: 'rate limited' })),
+    })
+
+    // First call — model fails, returns fallback and caches it
+    const r1 = await findRelevantMemories(
+      deps,
+      { docs, recentText: 'q', memoryMdContent: 'md', nowMs: 1000 },
+      cache,
+    )
+    expect(r1.source).toBe('fallback')
+    expect(deps.runRecallModel).toHaveBeenCalledTimes(1)
+
+    // Second call within cooldown — should reuse cache, no model call
+    const r2 = await findRelevantMemories(
+      deps,
+      { docs, recentText: 'q2', memoryMdContent: 'md', nowMs: 5000 },
+      cache,
+    )
+    expect(deps.runRecallModel).toHaveBeenCalledTimes(1)
+    expect(r2.source).toBe('cache')
+  })
+
+  test('repeated model failures within cooldown reuse cached fallback (malformed response)', async () => {
+    const cache = new RecallCache(10_000)
+    const docs = [makeDoc({ id: 'doc-1', title: 'Alice' })]
+
+    const deps = makeDeps({
+      runRecallModel: vi.fn(async () => ({
+        ok: true,
+        text: 'not valid json',
+      })),
+    })
+
+    const r1 = await findRelevantMemories(
+      deps,
+      { docs, recentText: 'q', memoryMdContent: 'md', nowMs: 1000 },
+      cache,
+    )
+    expect(r1.source).toBe('fallback')
+    expect(deps.runRecallModel).toHaveBeenCalledTimes(1)
+
+    const r2 = await findRelevantMemories(
+      deps,
+      { docs, recentText: 'q2', memoryMdContent: 'md', nowMs: 5000 },
+      cache,
+    )
+    expect(deps.runRecallModel).toHaveBeenCalledTimes(1)
+    expect(r2.source).toBe('cache')
+  })
+
+  test('repeated model failures within cooldown reuse cached fallback (thrown error)', async () => {
+    const cache = new RecallCache(10_000)
+    const docs = [makeDoc({ id: 'doc-1', title: 'Alice' })]
+
+    const deps = makeDeps({
+      runRecallModel: vi.fn(async () => {
+        throw new Error('network error')
+      }),
+    })
+
+    const r1 = await findRelevantMemories(
+      deps,
+      { docs, recentText: 'q', memoryMdContent: 'md', nowMs: 1000 },
+      cache,
+    )
+    expect(r1.source).toBe('fallback')
+    expect(deps.runRecallModel).toHaveBeenCalledTimes(1)
+
+    const r2 = await findRelevantMemories(
+      deps,
+      { docs, recentText: 'q2', memoryMdContent: 'md', nowMs: 5000 },
+      cache,
+    )
+    expect(deps.runRecallModel).toHaveBeenCalledTimes(1)
+    expect(r2.source).toBe('cache')
+  })
+
   test('findRelevantMemories makes fresh call after cooldown expires', async () => {
     const cache = new RecallCache(10_000)
     const docs = [makeDoc({ id: 'doc-1' })]

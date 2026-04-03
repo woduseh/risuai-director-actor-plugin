@@ -208,23 +208,27 @@ export async function findRelevantMemories(
 
     if (!response.ok) {
       deps.log(`Recall model failed: ${response.text}`)
-      return buildFallbackResult(
+      const fallback = buildFallbackResult(
         input.docs,
         input.recentText,
         input.memoryMdContent,
         maxResults,
       )
+      if (cache) cache.set(fallback, input.nowMs)
+      return fallback
     }
 
     const selectedIds = parseRecallResponse(response.text)
     if (!selectedIds) {
       deps.log(`Recall model returned malformed response: ${response.text}`)
-      return buildFallbackResult(
+      const fallback = buildFallbackResult(
         input.docs,
         input.recentText,
         input.memoryMdContent,
         maxResults,
       )
+      if (cache) cache.set(fallback, input.nowMs)
+      return fallback
     }
 
     // Filter to selected IDs, bounded by maxResults
@@ -243,12 +247,14 @@ export async function findRelevantMemories(
     return result
   } catch (err) {
     deps.log(`Recall model threw: ${err}`)
-    return buildFallbackResult(
+    const fallback = buildFallbackResult(
       input.docs,
       input.recentText,
       input.memoryMdContent,
       maxResults,
     )
+    if (cache) cache.set(fallback, input.nowMs)
+    return fallback
   }
 }
 
