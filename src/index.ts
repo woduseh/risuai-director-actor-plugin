@@ -26,7 +26,7 @@ import {
   RecallCache,
   type RecallDeps,
 } from './memory/findRelevantMemories.js'
-import { makeRecallRequest } from './runtime/network.js'
+import { makeRecallRequest, isTransientError } from './runtime/network.js'
 import { SessionNotebook, formatNotebookBlock } from './memory/sessionMemory.js'
 import { createBackgroundHousekeeping } from './runtime/backgroundHousekeeping.js'
 import { createAutoDreamWorker, type DreamResult } from './memory/autoDream.js'
@@ -169,6 +169,9 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
         })
 
         if (!result.ok) {
+          if (isTransientError(result.error)) {
+            throw new Error(result.error)
+          }
           return { applied: false, memoryUpdate: null }
         }
 
@@ -342,10 +345,12 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
         log: (msg) => api.log(msg),
       }
 
+      const recallAbort = new AbortController()
       const recallPromise = findRelevantMemories(
         recallDeps,
         { docs: memDocs, recentText, memoryMdContent },
         recallCache,
+        { signal: recallAbort.signal },
       )
 
       // ── Join recall with timeout / fallback budget ─────────────────
@@ -353,7 +358,10 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
       try {
         const recallResult = await Promise.race([
           recallPromise,
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), RECALL_TIMEOUT_MS)),
+          new Promise<null>((resolve) => setTimeout(() => {
+            recallAbort.abort()
+            resolve(null)
+          }, RECALL_TIMEOUT_MS)),
         ])
 
         if (recallResult) {

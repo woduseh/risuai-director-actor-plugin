@@ -354,4 +354,28 @@ describe('withRetry', () => {
     expect(result).toBe('ok')
     expect(fn).toHaveBeenCalledTimes(2)
   })
+
+  test('stops scheduling more retries after the retry signal aborts', async () => {
+    vi.useFakeTimers()
+    const ac = new AbortController()
+    const fn = vi.fn(async () => {
+      throw new Error('503 Service Unavailable')
+    })
+
+    const promise = withRetry(fn, {
+      baseDelayMs: 1000,
+      maxRetries: 2,
+      signal: ac.signal,
+    })
+
+    await Promise.resolve()
+    expect(fn).toHaveBeenCalledTimes(1)
+
+    ac.abort()
+    await vi.runAllTimersAsync()
+
+    await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
+    expect(fn).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
 })

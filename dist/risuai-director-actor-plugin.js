@@ -1,7 +1,7 @@
 //@name risuai-director-actor-plugin
 //@display-name RisuAI Director Actor
 //@api 3.0
-//@version 0.4.0
+//@version 0.4.1
 //@description Director-Actor collaborative long-memory plugin for RisuAI Plugin V3
 
 "use strict";
@@ -1817,6 +1817,126 @@
     }
   };
 
+  // src/runtime/network.ts
+  var FNV_OFFSET = 2166136261;
+  var FNV_PRIME = 16777619;
+  function fnv1aHash(input) {
+    let hash = FNV_OFFSET;
+    for (let i = 0; i < input.length; i++) {
+      hash ^= input.charCodeAt(i);
+      hash = Math.imul(hash, FNV_PRIME);
+    }
+    return (hash >>> 0).toString(16).padStart(8, "0");
+  }
+  function hashExtractionContext(ctx) {
+    const contentPrefix = ctx.content.slice(0, 200);
+    const raw = `${ctx.turnId}|${ctx.type}|${ctx.messages.length}|${contentPrefix}`;
+    return fnv1aHash(raw);
+  }
+  var TRANSIENT_STATUS_CODES = [429, 502, 503, 504, 524];
+  var TRANSIENT_KEYWORDS = ["rate limit", "timeout", "overloaded"];
+  var DEFAULT_MAX_RETRIES = 2;
+  var DEFAULT_BASE_DELAY_MS = 1500;
+  function isTransientError(error) {
+    const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+    for (const code of TRANSIENT_STATUS_CODES) {
+      if (message.includes(String(code))) return true;
+    }
+    for (const keyword of TRANSIENT_KEYWORDS) {
+      if (message.includes(keyword)) return true;
+    }
+    return false;
+  }
+  function withRetry(fn, options) {
+    const p = _withRetryImpl(fn, options);
+    if (options?.signal) p.catch(() => {
+    });
+    return p;
+  }
+  async function _withRetryImpl(fn, options) {
+    const maxRetries = options?.maxRetries ?? DEFAULT_MAX_RETRIES;
+    const baseDelayMs = options?.baseDelayMs ?? DEFAULT_BASE_DELAY_MS;
+    const isRetryable = options?.isRetryable ?? isTransientError;
+    const log = options?.log;
+    const signal = options?.signal;
+    function throwIfAborted() {
+      if (signal?.aborted) {
+        const err = new Error("Retry aborted");
+        err.name = "AbortError";
+        throw err;
+      }
+    }
+    let lastError;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      throwIfAborted();
+      try {
+        const result = await fn();
+        throwIfAborted();
+        return result;
+      } catch (err) {
+        lastError = err;
+        if (attempt < maxRetries && isRetryable(err)) {
+          const delay = baseDelayMs * Math.pow(2, attempt);
+          if (log) {
+            const msg = err instanceof Error ? err.message : String(err);
+            log(`Retrying (${attempt + 1}/${maxRetries}) after ${delay}ms: ${msg}`);
+          }
+          await new Promise((resolve) => {
+            if (signal?.aborted) {
+              resolve();
+              return;
+            }
+            const timer = setTimeout(() => {
+              signal?.removeEventListener("abort", onAbort);
+              resolve();
+            }, delay);
+            function onAbort() {
+              clearTimeout(timer);
+              resolve();
+            }
+            signal?.addEventListener("abort", onAbort, { once: true });
+          });
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw lastError;
+  }
+  var RECALL_SYSTEM_PROMPT = [
+    "You are a memory retrieval assistant for collaborative fiction.",
+    "Given a manifest of memory documents (headers only) and recent conversation context,",
+    "select the IDs of the most relevant documents.",
+    "",
+    "Rules:",
+    '- Return ONLY a JSON array of document ID strings, e.g.: ["doc-1", "doc-3"]',
+    "- Select only documents directly relevant to the current conversation",
+    "- Prefer documents about active characters, ongoing plot points, or referenced world elements",
+    "- If nothing is relevant, return an empty array: []"
+  ].join("\n");
+  async function makeRecallRequest(api, manifest, recentText, options) {
+    const messages = [
+      { role: "system", content: RECALL_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `## Memory Manifest
+${manifest}
+
+## Recent Conversation
+${recentText}`
+      }
+    ];
+    const result = await api.runLLMModel({
+      messages,
+      ...options?.model ? { staticModel: options.model } : {},
+      mode: options?.mode ?? "otherAx"
+    });
+    if (result.type === "fail") {
+      return { ok: false, text: result.result };
+    }
+    return { ok: true, text: result.result };
+  }
+
   // src/memory/extractMemories.ts
   var MAX_SEEN_HASHES = 200;
   function createExtractionWorker(deps, options) {
@@ -1835,7 +1955,14 @@
         return;
       }
       try {
-        const result = await deps.runExtraction(ctx);
+        const retryOpts = {
+          ...options.retryOptions,
+          log: (msg) => deps.log(`[extraction-worker] ${msg}`)
+        };
+        const result = await withRetry(
+          () => deps.runExtraction(ctx),
+          retryOpts
+        );
         if (result.applied && result.memoryUpdate) {
           await deps.persistDocuments(result.memoryUpdate, ctx);
         }
@@ -2058,7 +2185,7 @@
       memoryMdBlock: memoryMdContent
     };
   }
-  async function findRelevantMemories(deps, input, cache) {
+  async function findRelevantMemories(deps, input, cache, retryOptions) {
     const maxResults = input.maxResults ?? DEFAULT_MAX_RESULTS;
     if (cache) {
       const cached = cache.get(input.nowMs);
@@ -2078,7 +2205,17 @@
     }
     const manifest = formatManifest(input.docs);
     try {
-      const response = await deps.runRecallModel(manifest, input.recentText);
+      const recallRetryOpts = {
+        ...retryOptions,
+        log: (msg) => deps.log(`[recall] ${msg}`)
+      };
+      const response = await withRetry(async () => {
+        const resp = await deps.runRecallModel(manifest, input.recentText);
+        if (!resp.ok && isTransientError(resp.text)) {
+          throw new Error(resp.text);
+        }
+        return resp;
+      }, recallRetryOpts);
       if (!response.ok) {
         deps.log(`Recall model failed: ${response.text}`);
         const fallback = buildFallbackResult(
@@ -2141,56 +2278,6 @@
       }
     }
     return lines.join("\n");
-  }
-
-  // src/runtime/network.ts
-  var FNV_OFFSET = 2166136261;
-  var FNV_PRIME = 16777619;
-  function fnv1aHash(input) {
-    let hash = FNV_OFFSET;
-    for (let i = 0; i < input.length; i++) {
-      hash ^= input.charCodeAt(i);
-      hash = Math.imul(hash, FNV_PRIME);
-    }
-    return (hash >>> 0).toString(16).padStart(8, "0");
-  }
-  function hashExtractionContext(ctx) {
-    const contentPrefix = ctx.content.slice(0, 200);
-    const raw = `${ctx.turnId}|${ctx.type}|${ctx.messages.length}|${contentPrefix}`;
-    return fnv1aHash(raw);
-  }
-  var RECALL_SYSTEM_PROMPT = [
-    "You are a memory retrieval assistant for collaborative fiction.",
-    "Given a manifest of memory documents (headers only) and recent conversation context,",
-    "select the IDs of the most relevant documents.",
-    "",
-    "Rules:",
-    '- Return ONLY a JSON array of document ID strings, e.g.: ["doc-1", "doc-3"]',
-    "- Select only documents directly relevant to the current conversation",
-    "- Prefer documents about active characters, ongoing plot points, or referenced world elements",
-    "- If nothing is relevant, return an empty array: []"
-  ].join("\n");
-  async function makeRecallRequest(api, manifest, recentText, options) {
-    const messages = [
-      { role: "system", content: RECALL_SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: `## Memory Manifest
-${manifest}
-
-## Recent Conversation
-${recentText}`
-      }
-    ];
-    const result = await api.runLLMModel({
-      messages,
-      ...options?.model ? { staticModel: options.model } : {},
-      mode: options?.mode ?? "otherAx"
-    });
-    if (result.type === "fail") {
-      return { ok: false, text: result.result };
-    }
-    return { ok: true, text: result.result };
   }
 
   // src/memory/sessionMemory.ts
@@ -6760,6 +6847,9 @@ ${lines.join("\n").trimEnd()}`;
             promptPreset
           });
           if (!result.ok) {
+            if (isTransientError(result.error)) {
+              throw new Error(result.error);
+            }
             return { applied: false, memoryUpdate: null };
           }
           return { applied: true, memoryUpdate: result.update };
@@ -6908,16 +6998,21 @@ ${lines.join("\n").trimEnd()}`;
           }),
           log: (msg) => api.log(msg)
         };
+        const recallAbort = new AbortController();
         const recallPromise = findRelevantMemories(
           recallDeps,
           { docs: memDocs, recentText, memoryMdContent },
-          recallCache
+          recallCache,
+          { signal: recallAbort.signal }
         );
         let recalledDocsBlock = memoryMdContent;
         try {
           const recallResult = await Promise.race([
             recallPromise,
-            new Promise((resolve) => setTimeout(() => resolve(null), RECALL_TIMEOUT_MS))
+            new Promise((resolve) => setTimeout(() => {
+              recallAbort.abort();
+              resolve(null);
+            }, RECALL_TIMEOUT_MS))
           ]);
           if (recallResult) {
             recalledDocsBlock = formatRecalledDocsBlock(recallResult);

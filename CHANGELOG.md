@@ -12,6 +12,11 @@
 - Optional `retryOptions` on `ExtractionWorkerOptions` and `findRelevantMemories` for caller control
 - Comprehensive test coverage for retry, non-retry, and exhaustion paths
 
+### Fixed
+
+- Background extraction now promotes transient host `ok:false` failures into retryable errors instead of swallowing them as no-op results
+- Recall prefetch timeout now aborts retry backoff after the request budget expires, preventing orphaned retry scheduling after fallback
+
 ## [0.4.0] - 2026-04-03
 
 ### Added

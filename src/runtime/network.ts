@@ -57,6 +57,7 @@ export interface RetryOptions {
   baseDelayMs?: number
   isRetryable?: (error: unknown) => boolean
   log?: (message: string) => void
+  signal?: AbortSignal
 }
 
 /**
@@ -84,7 +85,18 @@ export function isTransientError(error: unknown): boolean {
  *
  * Non-retryable errors are re-thrown immediately.
  */
-export async function withRetry<T>(
+export function withRetry<T>(
+  fn: () => Promise<T>,
+  options?: RetryOptions,
+): Promise<T> {
+  const p = _withRetryImpl(fn, options)
+  // Prevent transient unhandled-rejection when an abort signal cancels
+  // the backoff before the caller's await/catch processes the rejection.
+  if (options?.signal) p.catch(() => {})
+  return p
+}
+
+async function _withRetryImpl<T>(
   fn: () => Promise<T>,
   options?: RetryOptions,
 ): Promise<T> {
@@ -92,11 +104,23 @@ export async function withRetry<T>(
   const baseDelayMs = options?.baseDelayMs ?? DEFAULT_BASE_DELAY_MS
   const isRetryable = options?.isRetryable ?? isTransientError
   const log = options?.log
+  const signal = options?.signal
+
+  function throwIfAborted(): void {
+    if (signal?.aborted) {
+      const err = new Error('Retry aborted')
+      err.name = 'AbortError'
+      throw err
+    }
+  }
 
   let lastError: unknown
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    throwIfAborted()
     try {
-      return await fn()
+      const result = await fn()
+      throwIfAborted()
+      return result
     } catch (err) {
       lastError = err
       if (attempt < maxRetries && isRetryable(err)) {
@@ -105,7 +129,18 @@ export async function withRetry<T>(
           const msg = err instanceof Error ? err.message : String(err)
           log(`Retrying (${attempt + 1}/${maxRetries}) after ${delay}ms: ${msg}`)
         }
-        await new Promise((resolve) => setTimeout(resolve, delay))
+        await new Promise<void>((resolve) => {
+          if (signal?.aborted) { resolve(); return }
+          const timer = setTimeout(() => {
+            signal?.removeEventListener('abort', onAbort)
+            resolve()
+          }, delay)
+          function onAbort(): void {
+            clearTimeout(timer)
+            resolve()
+          }
+          signal?.addEventListener('abort', onAbort, { once: true })
+        })
         continue
       }
       throw err

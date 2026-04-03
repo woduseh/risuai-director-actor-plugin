@@ -167,6 +167,69 @@ describe('registerDirectorActorPlugin', () => {
     // Cursor should be set (≥1) after the turn was finalized
     expect(cursor).toBeGreaterThanOrEqual(1)
   })
+
+  test('background extraction retries transient fail responses and persists memdir docs on recovery', async () => {
+    const api = createMockRisuaiApi()
+
+    api.enqueueLlmResult({
+      type: 'success',
+      result: JSON.stringify({
+        confidence: 0.93,
+        pacing: 'steady',
+        beats: [{ goal: 'Escalate', reason: 'Needed' }],
+        continuityLocks: [],
+        ensembleWeights: {},
+        styleInheritance: {},
+        forbiddenMoves: [],
+        memoryHints: [],
+      }),
+    })
+    api.enqueueLlmResult({
+      type: 'success',
+      result: JSON.stringify({
+        status: 'pass',
+        turnScore: 0.8,
+        violations: [],
+        durableFacts: ['Immediate post-response write.'],
+        sceneDelta: {},
+        entityUpdates: [],
+        relationUpdates: [],
+        memoryOps: [],
+      }),
+    })
+    api.enqueueLlmResult({
+      type: 'fail',
+      result: '429 Too Many Requests',
+    })
+    api.enqueueLlmResult({
+      type: 'success',
+      result: JSON.stringify({
+        status: 'pass',
+        turnScore: 0.8,
+        violations: [],
+        durableFacts: ['Recovered extraction memory.'],
+        sceneDelta: {},
+        entityUpdates: [],
+        relationUpdates: [],
+        memoryOps: [],
+      }),
+    })
+
+    await registerDirectorActorPlugin(api)
+
+    await api.runBeforeRequest([
+      { role: 'system', content: 'Rules.' },
+      { role: 'user', content: 'Go.' },
+    ])
+    await api.runAfterRequest('The actor responds.')
+    await api.runUnload()
+
+    const memdirStore = new MemdirStore(api.pluginStorage, 'default')
+    const docs = await memdirStore.listDocuments()
+
+    expect(docs.some((doc) => doc.description.includes('Recovered extraction memory.'))).toBe(true)
+    expect(api.__logs.some((entry) => entry.includes('Retrying'))).toBe(true)
+  })
 })
 
 // ---------------------------------------------------------------------------
