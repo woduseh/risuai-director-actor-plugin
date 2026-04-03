@@ -51,6 +51,7 @@ import { resolveScopeStorageKey } from '../memory/scopeResolver.js'
 import { createDefaultDiagnosticsSnapshot } from '../runtime/diagnostics.js'
 import { deleteSummary, deleteContinuityFact, upsertSummary, upsertContinuityFact, deleteWorldFact, upsertWorldFact, deleteEntity, upsertEntity, deleteRelation, upsertRelation } from '../memory/memoryMutations.js'
 import { escapeXml } from '../utils/xml.js'
+import type { BlockReason } from '../runtime/refreshGuard.js'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -94,6 +95,10 @@ export interface DashboardStore {
   isMemoryLocked?: () => Promise<boolean>
   /** Optional callback to load the runtime diagnostics snapshot. */
   loadDiagnostics?: () => Promise<import('../runtime/diagnostics.js').DiagnosticsSnapshot>
+  /** Optional callback to check whether the refresh guard is currently blocking heavy maintenance. */
+  checkRefreshGuard?: () => import('../runtime/refreshGuard.js').BlockStatus
+  /** Optional callback to stamp a maintenance window in the refresh guard. */
+  markMaintenance?: (kind: import('../runtime/refreshGuard.js').MaintenanceKind) => Promise<void>
 }
 
 /**
@@ -234,6 +239,19 @@ async function buildMemoryOpsStatus(
     staleWarnings: buildStaleWarnings(latestMemoryTs, dreamState.lastDreamTs),
     recalledDocs: [],
     diagnostics,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Refresh guard helpers
+// ---------------------------------------------------------------------------
+
+function guardReasonToast(reason: BlockReason): string {
+  switch (reason) {
+    case 'startup': return t('guard.blockedStartup')
+    case 'shutdown': return t('guard.blockedShutdown')
+    case 'maintenance': return t('guard.blockedMaintenance')
+    default: return t('guard.blockedMaintenance')
   }
 }
 
@@ -996,6 +1014,17 @@ class DashboardInstance {
   }
 
   private async handleBackfillCurrentChat(): Promise<void> {
+    if (this.store.checkRefreshGuard) {
+      const status = this.store.checkRefreshGuard()
+      if (status.blocked) {
+        this.showToast(guardReasonToast(status.reason!))
+        return
+      }
+    }
+    if (this.store.markMaintenance) {
+      await this.store.markMaintenance('backfill-current-chat')
+    }
+
     const resolution = await resolveScopeStorageKey(this.api)
     if (resolution.storageKey !== this.resolveStateKey()) {
       await this.api.alertError(t('error.backfillScopeMismatch'))
@@ -1032,6 +1061,17 @@ class DashboardInstance {
   }
 
   private async handleRegenerateCurrentChat(): Promise<void> {
+    if (this.store.checkRefreshGuard) {
+      const status = this.store.checkRefreshGuard()
+      if (status.blocked) {
+        this.showToast(guardReasonToast(status.reason!))
+        return
+      }
+    }
+    if (this.store.markMaintenance) {
+      await this.store.markMaintenance('regenerate-current-chat')
+    }
+
     const resolution = await resolveScopeStorageKey(this.api)
     if (resolution.storageKey !== this.resolveStateKey()) {
       await this.api.alertError(t('error.backfillScopeMismatch'))
@@ -1189,6 +1229,17 @@ class DashboardInstance {
 
   private async handleBulkDeleteMemory(): Promise<void> {
     if (this.selectedMemoryKeys.size === 0) return
+
+    if (this.store.checkRefreshGuard) {
+      const status = this.store.checkRefreshGuard()
+      if (status.blocked) {
+        this.showToast(guardReasonToast(status.reason!))
+        return
+      }
+    }
+    if (this.store.markMaintenance) {
+      await this.store.markMaintenance('bulk-delete-memory')
+    }
 
     const applyDelete = (state: DirectorPluginState): void => {
       for (const itemKey of Array.from(this.selectedMemoryKeys)) {
@@ -1366,6 +1417,17 @@ class DashboardInstance {
   }
 
   private async handleForceDream(): Promise<void> {
+    if (this.store.checkRefreshGuard) {
+      const status = this.store.checkRefreshGuard()
+      if (status.blocked) {
+        this.showToast(guardReasonToast(status.reason!))
+        return
+      }
+    }
+    if (this.store.markMaintenance) {
+      await this.store.markMaintenance('force-dream')
+    }
+
     if (!this.store.forceDream) {
       this.showToast(t('toast.noCallback'))
       return

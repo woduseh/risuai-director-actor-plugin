@@ -48,6 +48,7 @@ import {
   attemptStartupRecovery,
 } from './runtime/turnRecovery.js'
 import { DiagnosticsManager } from './runtime/diagnostics.js'
+import { RefreshGuard } from './runtime/refreshGuard.js'
 import { openDashboard, createDashboardStore } from './ui/dashboardApp.js'
 
 function createId(prefix: string): string {
@@ -260,9 +261,17 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
     },
   )
 
-  // ── Background housekeeping ───────────────────────────────────────
+   // ── Background housekeeping ───────────────────────────────────────
   const dreamState: DreamRuntimeState = await loadDreamState(api.pluginStorage)
   let lastUserInteractionTs = Date.now()
+
+  // ── Refresh guard ─────────────────────────────────────────────────
+  const refreshGuard = new RefreshGuard(
+    api.safeLocalStorage,
+    scopeResolution.storageKey,
+  )
+  await refreshGuard.load()
+  await refreshGuard.markStartup()
 
   const dreamWorker = createAutoDreamWorker({
     memdirStore,
@@ -313,7 +322,7 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
           sessionsSinceLastDream: dreamState.sessionsSinceLastDream,
           dreamMinSessionsElapsed: freshState.settings.dreamMinSessionsElapsed,
           userInteractionGuardMs: 10_000,
-          lastUserInteractionTs,
+          lastUserInteractionTs: Math.max(lastUserInteractionTs, refreshGuard.latestGuardTs()),
         }
       },
       dreamWorker,
@@ -483,7 +492,10 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
       dreamState.turnsSinceLastDream += 1
       return housekeeping.afterTurn(ctx)
     },
-    onShutdown: () => housekeeping.shutdown(),
+    onShutdown: async () => {
+      await refreshGuard.markShutdown()
+      await housekeeping.shutdown()
+    },
     openSettings: async () => {
       const dashboardStore = createDashboardStore(
         api,
@@ -494,6 +506,10 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
         await extractionWorker.flush()
       }
       dashboardStore.forceDream = async () => {
+        const blockStatus = refreshGuard.checkBlocked()
+        if (blockStatus.blocked) {
+          throw new Error(`blocked:${blockStatus.reason}`)
+        }
         const result = await consolidationLock.withLock(() => dreamWorker.run())
         if (result == null) {
           throw new Error('Consolidation lock is held by another worker')
@@ -510,6 +526,8 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
       }
       dashboardStore.isMemoryLocked = () => consolidationLock.isHeld()
       dashboardStore.loadDiagnostics = () => diagnostics.loadSnapshot()
+      dashboardStore.checkRefreshGuard = () => refreshGuard.checkBlocked()
+      dashboardStore.markMaintenance = (kind) => refreshGuard.markMaintenance(kind)
       await openDashboard(api, dashboardStore)
     }
   })

@@ -264,6 +264,11 @@ const EN_CATALOG = {
   'fallback.briefCap': 'Brief cap',
   'fallback.briefCapUnit': 'tokens',
 
+  // Refresh guard
+  'guard.blockedStartup': 'Please wait — the plugin is still starting up.',
+  'guard.blockedShutdown': 'Please wait — the plugin is shutting down.',
+  'guard.blockedMaintenance': 'Please wait — another maintenance task is still running.',
+
   // Language selector
   'lang.label': 'Language',
   'lang.en': 'English',
@@ -510,6 +515,11 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'fallback.postReview': '사후 리뷰',
   'fallback.briefCap': '브리프 상한',
   'fallback.briefCapUnit': '토큰',
+
+  // Refresh guard
+  'guard.blockedStartup': '잠시 기다려 주세요 — 플러그인이 아직 시작 중입니다.',
+  'guard.blockedShutdown': '잠시 기다려 주세요 — 플러그인이 종료 중입니다.',
+  'guard.blockedMaintenance': '잠시 기다려 주세요 — 다른 유지보수 작업이 아직 실행 중입니다.',
 
   // Language selector
   'lang.label': '언어',

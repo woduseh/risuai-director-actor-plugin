@@ -12,6 +12,7 @@ import {
   diagnosticsStorageKey,
   type DiagnosticsSnapshot,
 } from '../src/runtime/diagnostics.js'
+import { refreshGuardStorageKey } from '../src/runtime/refreshGuard.js'
 
 describe('registerDirectorActorPlugin', () => {
   test('wires the live plugin, injects via author-note routing, and persists memory updates', async () => {
@@ -366,5 +367,64 @@ describe('composition root wiring', () => {
     // Since we don't have a real DOM, calling the setting will attempt openDashboard
     // which needs the container API. We verify it at least doesn't crash on init.
     // The full E2E is better tested by the dashboard tests.
+  })
+
+  test('startup stamps the refresh guard in safeLocalStorage', async () => {
+    const api = createMockRisuaiApi()
+
+    api.enqueueLlmResult({
+      type: 'success',
+      result: JSON.stringify({
+        confidence: 0.9,
+        pacing: 'steady',
+        beats: [],
+        continuityLocks: [],
+        ensembleWeights: {},
+        styleInheritance: {},
+        forbiddenMoves: [],
+        memoryHints: [],
+      }),
+    })
+
+    const beforeTs = Date.now()
+    await registerDirectorActorPlugin(api)
+
+    // The scope resolves to DIRECTOR_STATE_STORAGE_KEY in tests (fallback)
+    const guardKey = refreshGuardStorageKey(DIRECTOR_STATE_STORAGE_KEY)
+    const guardData = await api.safeLocalStorage.getItem<{
+      startupTs: number
+    }>(guardKey)
+    expect(guardData).not.toBeNull()
+    expect(guardData!.startupTs).toBeGreaterThanOrEqual(beforeTs)
+  })
+
+  test('shutdown stamps the refresh guard in safeLocalStorage', async () => {
+    const api = createMockRisuaiApi()
+
+    api.enqueueLlmResult({
+      type: 'success',
+      result: JSON.stringify({
+        confidence: 0.9,
+        pacing: 'steady',
+        beats: [],
+        continuityLocks: [],
+        ensembleWeights: {},
+        styleInheritance: {},
+        forbiddenMoves: [],
+        memoryHints: [],
+      }),
+    })
+
+    await registerDirectorActorPlugin(api)
+    const beforeShutdown = Date.now()
+    await api.runUnload()
+
+    const guardKey = refreshGuardStorageKey(DIRECTOR_STATE_STORAGE_KEY)
+    const guardData = await api.safeLocalStorage.getItem<{
+      startupTs: number
+      shutdownTs: number
+    }>(guardKey)
+    expect(guardData).not.toBeNull()
+    expect(guardData!.shutdownTs).toBeGreaterThanOrEqual(beforeShutdown)
   })
 })

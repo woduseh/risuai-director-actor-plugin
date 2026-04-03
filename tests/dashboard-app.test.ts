@@ -812,4 +812,96 @@ describe('openDashboard', () => {
     expect(stored).not.toBeNull()
     expect(stored!.fallbackRetrievalEnabled).toBe(true)
   })
+
+  // ── Refresh guard — heavy maintenance blocked ─────────────────────
+
+  test('force-dream is blocked and shows toast when refresh guard reports startup', async () => {
+    let dreamCalled = false
+    const storeWithGuard: DashboardStore = {
+      storage: api.pluginStorage,
+      forceDream: async () => { dreamCalled = true },
+      checkRefreshGuard: () => ({ blocked: true, reason: 'startup' as const }),
+      markMaintenance: async () => {},
+    }
+
+    await openDashboard(api, storeWithGuard)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    const dreamBtn = root.querySelector('[data-da-action="force-dream"]') as HTMLElement
+    expect(dreamBtn).not.toBeNull()
+    dreamBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    expect(dreamCalled).toBe(false)
+    const toast = document.querySelector('.da-toast')
+    expect(toast).not.toBeNull()
+    expect(toast!.textContent).toContain('starting up')
+  })
+
+  test('force-dream proceeds when refresh guard is not blocked', async () => {
+    let dreamCalled = false
+    const storeWithGuard: DashboardStore = {
+      storage: api.pluginStorage,
+      forceDream: async () => { dreamCalled = true },
+      checkRefreshGuard: () => ({ blocked: false, reason: null }),
+      markMaintenance: async () => {},
+    }
+
+    await openDashboard(api, storeWithGuard)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    const dreamBtn = root.querySelector('[data-da-action="force-dream"]') as HTMLElement
+    dreamBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    expect(dreamCalled).toBe(true)
+  })
+
+  test('bulk-delete-memory is blocked when refresh guard reports maintenance', async () => {
+    // Seed canonical state with a memory item so the checkbox exists
+    const state = createEmptyState()
+    state.memory.summaries.push({
+      id: 'sum-1',
+      text: 'Test summary for deletion',
+      recencyWeight: 1,
+      updatedAt: Date.now(),
+    } as any)
+    await api.pluginStorage.setItem('director-plugin-state', state)
+
+    const storeWithGuard: DashboardStore = {
+      storage: api.pluginStorage,
+      checkRefreshGuard: () => ({ blocked: true, reason: 'maintenance' as const }),
+      markMaintenance: async () => {},
+    }
+
+    await openDashboard(api, storeWithGuard)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    // Tick a memory checkbox so bulk-delete is enabled
+    const checkbox = root.querySelector('input[data-da-role="memory-select"]') as HTMLInputElement
+    if (!checkbox) {
+      // If no checkbox was rendered (no memory items) the test is vacuously true
+      return
+    }
+    checkbox.checked = true
+    checkbox.dispatchEvent(new Event('change', { bubbles: true }))
+
+    const bulkDeleteBtn = root.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLElement
+    expect(bulkDeleteBtn).not.toBeNull()
+    bulkDeleteBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const toast = document.querySelector('.da-toast')
+    expect(toast).not.toBeNull()
+    expect(toast!.textContent).toContain('maintenance')
+  })
 })

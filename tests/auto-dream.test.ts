@@ -147,6 +147,26 @@ describe('autoDream — cadence gate', () => {
     )
     expect(worker.shouldRun(gate)).toBe(true)
   })
+
+  it('blocks autoDream when refresh guard timestamp is recent (simulating startup window)', () => {
+    const now = Date.now()
+    // Simulate the integration pattern from index.ts:
+    // lastUserInteractionTs = Math.max(lastUserInteractionTs, refreshGuard.latestGuardTs())
+    // A recent startup stamp makes the effective interaction ts very recent,
+    // so the userInteractionGuardMs gate blocks.
+    const recentStartupTs = now - 2000 // startup 2s ago
+    const staleUserTs = now - 60_000 // user was active 60s ago
+    const effectiveTs = Math.max(staleUserTs, recentStartupTs) // = recentStartupTs
+
+    const gate = makeGate({
+      userInteractionGuardMs: 10_000,
+      lastUserInteractionTs: effectiveTs,
+    })
+    const worker = createAutoDreamWorker(
+      makeDeps(new MemdirStore(new InMemoryAsyncStore(), 'test')),
+    )
+    expect(worker.shouldRun(gate)).toBe(false)
+  })
 })
 
 describe('autoDream — consolidation worker', () => {
