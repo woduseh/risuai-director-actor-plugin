@@ -5,7 +5,9 @@ import type {
   OpenAIChat
 } from './contracts/types.js'
 import { createDirectorService } from './director/service.js'
+import { resolvePromptPreset } from './director/prompt.js'
 import { CanonicalStore } from './memory/canonicalStore.js'
+import { resolveScopeStorageKey } from './memory/scopeResolver.js'
 import { applyMemoryUpdate } from './memory/applyUpdate.js'
 import { retrieveMemory } from './memory/retrieval.js'
 import { TurnCache } from './memory/turnCache.js'
@@ -15,7 +17,7 @@ import {
   type DirectorPostResponseInput,
   type DirectorPreRequestInput
 } from './runtime/plugin.js'
-import { showSettingsOverlay } from './ui/settings.js'
+import { openDashboard, createDashboardStore } from './ui/dashboardApp.js'
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -85,7 +87,11 @@ function recordDirectorSuccess(
 }
 
 export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void> {
-  const store = new CanonicalStore(api.pluginStorage)
+  const scopeResolution = await resolveScopeStorageKey(api)
+  const store = new CanonicalStore(api.pluginStorage, {
+    storageKey: scopeResolution.storageKey,
+    migrateFromFlatKey: !scopeResolution.isFallback,
+  })
   const turnCache = new TurnCache()
   const initialState = await store.load()
   const circuitBreaker = new CircuitBreaker(
@@ -103,6 +109,7 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
         messages: input.messages
       })
       turnCache.patch(input.turnId, { retrieval: retrieved })
+      const promptPreset = resolvePromptPreset(state.settings)
 
       const service = createDirectorService(api, state.settings)
       const result = await service.preRequest({
@@ -110,7 +117,8 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
         directorState: state.director,
         memory: projectRetrievedMemory(state, retrieved),
         assertiveness: state.settings.assertiveness,
-        briefTokenCap: state.settings.briefTokenCap
+        briefTokenCap: state.settings.briefTokenCap,
+        promptPreset,
       })
 
       if (!result.ok) {
@@ -126,6 +134,7 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
       const state = await store.load()
       if (!state.settings.postReviewEnabled) return null
 
+      const promptPreset = resolvePromptPreset(state.settings)
       const service = createDirectorService(api, state.settings)
       const result = await service.postResponse({
         responseText: input.content,
@@ -133,7 +142,8 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
         messages: input.messages,
         directorState: state.director,
         memory: state.memory,
-        assertiveness: state.settings.assertiveness
+        assertiveness: state.settings.assertiveness,
+        promptPreset,
       })
 
       if (!result.ok) {
@@ -170,8 +180,12 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
     circuitBreaker,
     turnCache,
     openSettings: async () => {
-      const current = await store.load()
-      await showSettingsOverlay(api, current.settings)
+      const dashboardStore = createDashboardStore(
+        api,
+        (mutator) => store.writeFirst(mutator),
+        store.stateStorageKey,
+      )
+      await openDashboard(api, dashboardStore)
     }
   })
 }

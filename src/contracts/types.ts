@@ -13,6 +13,8 @@ export type HookRequestType = 'model' | 'display' | 'emotion' | 'memory' | strin
 export type ScriptMode = 'display' | 'output' | 'input' | 'process'
 export type ReplacerType = 'beforeRequest' | 'afterRequest'
 export type DirectorAssertiveness = 'light' | 'standard' | 'firm'
+export type DirectorProvider = 'openai' | 'anthropic' | 'google' | 'copilot' | 'vertex' | 'custom'
+export type EmbeddingProvider = 'voyageai' | 'openai' | 'google' | 'vertex' | 'custom'
 export type InjectionMode =
   | 'auto'
   | 'author-note'
@@ -41,9 +43,31 @@ export type BriefPacing = 'breathe' | 'steady' | 'tight' | 'accelerate'
 export type MemoryOpKind = 'insert' | 'update' | 'merge' | 'archive' | 'drop'
 export type ValidationStatus = 'pass' | 'soft-fail' | 'hard-fail'
 
+export interface DirectorPromptPreset {
+  preRequestSystemTemplate: string
+  preRequestUserTemplate: string
+  postResponseSystemTemplate: string
+  postResponseUserTemplate: string
+  assertivenessDirectives: Record<DirectorAssertiveness, string>
+  sceneBriefSchema: string
+  memoryUpdateSchema: string
+  maxRecentMessages: number
+}
+
+export interface StoredDirectorPromptPreset {
+  id: string
+  name: string
+  createdAt: number
+  updatedAt: number
+  preset: DirectorPromptPreset
+}
+
 export interface DirectorSettings {
   enabled: boolean
   assertiveness: DirectorAssertiveness
+  directorProvider: DirectorProvider
+  directorBaseUrl: string
+  directorApiKey: string
   directorModel: string
   directorMode: 'otherAx' | 'model'
   briefTokenCap: number
@@ -54,6 +78,13 @@ export interface DirectorSettings {
   cooldownFailureThreshold: number
   cooldownMs: number
   outputDebounceMs: number
+  embeddingProvider: EmbeddingProvider
+  embeddingBaseUrl: string
+  embeddingApiKey: string
+  embeddingModel: string
+  embeddingDimensions: number
+  promptPresetId: string
+  promptPresets: Record<string, StoredDirectorPromptPreset>
 }
 
 export interface ContinuityFact {
@@ -83,13 +114,20 @@ export interface DirectorState {
   pacingMode: BriefPacing
   registerLock: string | null
   povLock: string | null
+  /**
+   * @deprecated Prefer `CanonicalMemory.continuityFacts` as the persistent
+   * source of truth. This field is kept for runtime/transient scene locks
+   * only. Future code should read from `state.memory.continuityFacts` and
+   * avoid writing new facts here. Will be removed once the scoped-store
+   * migration is complete.
+   */
   continuityFacts: ContinuityFact[]
   activeArcs: ArcState[]
   ensembleWeights: Record<string, number>
   failureHistory: QualityFailure[]
   cooldown: {
     failures: number
-    untilTs: number | null
+    untilTs: null | number
   }
 }
 
@@ -156,6 +194,7 @@ export interface CanonicalMemory {
   worldFacts: WorldFact[]
   sceneLedger: SceneLedgerEntry[]
   turnArchive: TurnArchiveEntry[]
+  continuityFacts: ContinuityFact[]
 }
 
 export interface RuntimeMetrics {
@@ -275,6 +314,9 @@ export interface TurnContext {
 export const DEFAULT_DIRECTOR_SETTINGS: DirectorSettings = {
   enabled: true,
   assertiveness: 'standard',
+  directorProvider: 'openai',
+  directorBaseUrl: 'https://api.openai.com/v1',
+  directorApiKey: '',
   directorModel: 'gpt-4.1-mini',
   directorMode: 'otherAx',
   briefTokenCap: 320,
@@ -284,7 +326,14 @@ export const DEFAULT_DIRECTOR_SETTINGS: DirectorSettings = {
   includeTypes: ['model'],
   cooldownFailureThreshold: 3,
   cooldownMs: 60_000,
-  outputDebounceMs: 400
+  outputDebounceMs: 400,
+  embeddingProvider: 'openai',
+  embeddingBaseUrl: 'https://api.openai.com/v1',
+  embeddingApiKey: '',
+  embeddingModel: 'text-embedding-3-small',
+  embeddingDimensions: 1536,
+  promptPresetId: 'builtin-default',
+  promptPresets: {}
 }
 
 export function createEmptyState(seed?: Partial<Pick<DirectorPluginState, 'projectKey' | 'characterKey' | 'sessionKey'>>): DirectorPluginState {
@@ -324,7 +373,8 @@ export function createEmptyState(seed?: Partial<Pick<DirectorPluginState, 'proje
       relations: [],
       worldFacts: [],
       sceneLedger: [],
-      turnArchive: []
+      turnArchive: [],
+      continuityFacts: []
     },
     metrics: {
       totalDirectorCalls: 0,

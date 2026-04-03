@@ -1,6 +1,10 @@
 import { describe, test, expect, vi } from 'vitest'
 import { createMockRisuaiApi } from './helpers/mockRisuai.js'
-import { buildPreRequestPrompt, buildPostResponsePrompt } from '../src/director/prompt.js'
+import {
+  DEFAULT_DIRECTOR_PROMPT_PRESET,
+  buildPreRequestPrompt,
+  buildPostResponsePrompt,
+} from '../src/director/prompt.js'
 import type { DirectorContext, PostReviewContext } from '../src/director/prompt.js'
 import { createDirectorService } from '../src/director/service.js'
 import type { PreRequestResult, PostResponseResult } from '../src/director/service.js'
@@ -246,6 +250,26 @@ describe('DirectorService', () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.brief.confidence).toBe(0.85)
+    })
+
+    test('passes custom prompt preset content through to the LLM call', async () => {
+      const api = createMockRisuaiApi()
+      api.enqueueLlmResult({ type: 'success', result: VALID_BRIEF_JSON })
+      const spy = vi.spyOn(api, 'runLLMModel')
+      const svc = createDirectorService(api, settings)
+
+      await svc.preRequest(
+        makeDirectorContext({
+          promptPreset: {
+            ...DEFAULT_DIRECTOR_PROMPT_PRESET,
+            preRequestSystemTemplate: 'Preset override.\n{{assertivenessDirective}}',
+          },
+        }),
+      )
+
+      expect(spy).toHaveBeenCalledOnce()
+      const llmMessages = spy.mock.calls[0]![0].messages
+      expect(llmMessages[0]?.content).toContain('Preset override.')
     })
   })
 

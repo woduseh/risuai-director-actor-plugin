@@ -58,16 +58,23 @@ export interface RuntimeInfo {
   saveMethod: string
 }
 
+export type ContainerMode = 'fullscreen'
+
 export interface RisuaiApi {
   apiVersion: string
   apiVersionCompatibleWith: string[]
   pluginStorage: AsyncKeyValueStore
   safeLocalStorage: AsyncKeyValueStore
+  showContainer(mode: ContainerMode): Promise<void>
+  hideContainer(): Promise<void>
   addRisuReplacer(type: 'beforeRequest', fn: BeforeRequestHandler): Promise<void>
   addRisuReplacer(type: 'afterRequest', fn: AfterRequestHandler): Promise<void>
   addRisuScriptHandler(mode: ScriptMode, fn: ScriptHandler): Promise<void>
   registerBodyIntercepter(fn: BodyIntercepter): Promise<void>
   runLLMModel(input: RunLLMModelInput): Promise<RunLLMModelResult>
+  nativeFetch(url: string, options?: RequestInit): Promise<Response>
+  getArgument(key: string): Promise<string | number | undefined>
+  setArgument(key: string, value: string | number): Promise<void>
   registerSetting(
     name: string,
     callback: () => Promise<void> | void,
@@ -79,6 +86,7 @@ export interface RisuaiApi {
     options: RegisterButtonOptions,
     callback: () => Promise<void> | void
   ): Promise<RegisterUiResponse>
+  unregisterUIPart(id: string): Promise<void>
   onUnload(fn: () => Promise<void> | void): Promise<void>
   log(message: string): Promise<void> | void
   alertError(message: string): Promise<void>
@@ -94,5 +102,29 @@ export interface DirectorCallArtifacts {
 export interface PostReviewArtifacts {
   update: MemoryUpdate
   raw: string
+}
+
+// ── Host-snapshot contracts for scoped resolution ─────────────────
+
+/** Minimal character snapshot as provided by the RisuAI host runtime. */
+export interface RisuCharacterSnapshot {
+  /** Host character ID (chaId) */
+  chaId: string
+  /** Character display name */
+  name: string
+  /** Character description, if available */
+  description?: string
+}
+
+/** Minimal chat snapshot as provided by the RisuAI host runtime. */
+export interface RisuChatSnapshot {
+  /** Host chat ID, when the host provides one */
+  chatId?: string
+  /** Chat display name */
+  name: string
+  /** Last-activity timestamp (epoch ms) */
+  lastDate: number
+  /** First N messages in the chat for fingerprinting */
+  messages: ReadonlyArray<{ role: string; content: string }>
 }
 

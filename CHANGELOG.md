@@ -1,5 +1,46 @@
 # Changelog
 
+## [Unreleased]
+
+## [0.3.0] - 2026-04-03
+
+### Added
+
+- Bilingual dashboard localization with persisted `en` / `ko` language switching
+- Scoped canonical storage keys per character/chat with legacy flat-key migration
+- Prompt preset persistence and editing for director pre-request and post-response templates
+- Current-chat memory backfill using the Director post-response review pipeline
+- Current-chat memory regeneration that resets the active scoped store before re-extracting
+- Manual memory workbench coverage for summaries, continuity facts, world facts, entities, and relations
+- Inline memory editing plus cross-domain bulk delete actions in the dashboard
+- Expanded provider catalogs for GitHub Copilot and Google Vertex AI
+- Refreshed curated model catalogs including GPT-5.4, Claude 4.6, and Gemini 3.1 variants
+- Embedding provider settings for VoyageAI, OpenAI, Google, Vertex AI, and custom endpoints
+
+### Fixed
+
+- Dashboard memory deletes now prefer the live canonical write path to avoid runtime cache desync
+- Memory dashboard rendering now escapes summary and continuity text/id values before HTML injection
+- Scoped resolver no longer drifts as no-id chats gain opening turns
+- Scoped resolver no longer merges different stable chat IDs that share the same default name/opening messages
+- Prompt template rendering now preserves literal `{{token}}` text inside dynamic conversation, memory, and response content
+- Current-chat extraction now guards against host scope drift before writing into scoped storage
+
+### Changed
+
+- Memory workbench now loads curated model lists on open even for provider-managed catalogs such as Copilot
+- Model refresh actions now repopulate the selector instead of leaving the button inert
+
+## [0.2.0] - 2026-04-03
+
+### Added
+
+- Fullscreen dashboard UI with sidebar navigation, card-based panels, and theme-aware `.da-` namespaced styling
+- Director model provider controls, provider-based model loading, and connection testing helpers
+- Dashboard profile management plus settings JSON import/export
+- Lifecycle-managed dashboard controller with cleanup-safe open/close behavior
+- Focused dashboard test coverage for CSS, DOM, state, lifecycle, and model helpers
+
 ## [0.1.0]
 
 ### Added

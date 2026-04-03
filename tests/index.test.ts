@@ -1,5 +1,11 @@
+import { vi } from 'vitest'
 import { registerDirectorActorPlugin } from '../src/index.js'
+import { createEmptyState } from '../src/contracts/types.js'
 import { DIRECTOR_STATE_STORAGE_KEY } from '../src/memory/canonicalStore.js'
+import {
+  BUILTIN_PROMPT_PRESET_ID,
+  DEFAULT_DIRECTOR_PROMPT_PRESET,
+} from '../src/director/prompt.js'
 import { createMockRisuaiApi } from './helpers/mockRisuai.js'
 
 describe('registerDirectorActorPlugin', () => {
@@ -64,5 +70,52 @@ describe('registerDirectorActorPlugin', () => {
     expect(state.metrics.totalDirectorCalls).toBe(1)
     expect(state.memory.summaries.some((entry) => entry.text.includes('hidden key'))).toBe(true)
     expect(state.director.scenePhase).toBe('aftermath')
+  })
+
+  test('uses the selected stored prompt preset for the live pre-request call', async () => {
+    const api = createMockRisuaiApi()
+    const state = createEmptyState()
+    state.settings.promptPresetId = 'custom-runtime'
+    state.settings.promptPresets = {
+      'custom-runtime': {
+        id: 'custom-runtime',
+        name: 'Custom Runtime',
+        createdAt: 1,
+        updatedAt: 1,
+        preset: {
+          ...DEFAULT_DIRECTOR_PROMPT_PRESET,
+          preRequestSystemTemplate:
+            'Custom runtime preset system.\nSchema:\n{{sceneBriefSchema}}',
+        },
+      },
+    }
+
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    api.enqueueLlmResult({
+      type: 'success',
+      result: JSON.stringify({
+        confidence: 0.93,
+        pacing: 'steady',
+        beats: [{ goal: 'Escalate the choice', reason: 'The arc needs pressure' }],
+        continuityLocks: ['A still hides the key.'],
+        ensembleWeights: { A: 1 },
+        styleInheritance: { genre: 'mythic', register: 'literary' },
+        forbiddenMoves: ['Do not reveal the king yet.'],
+        memoryHints: ['key'],
+      }),
+    })
+
+    const spy = vi.spyOn(api, 'runLLMModel')
+
+    await registerDirectorActorPlugin(api)
+    await api.runBeforeRequest([
+      { role: 'system', content: 'Main prompt rules.' },
+      { role: 'user', content: 'Continue the scene.' },
+    ])
+
+    expect(spy).toHaveBeenCalled()
+    const request = spy.mock.calls[0]?.[0]
+    expect(request?.messages[0]?.content).toContain('Custom runtime preset system.')
+    expect(state.settings.promptPresetId).not.toBe(BUILTIN_PROMPT_PRESET_ID)
   })
 })

@@ -54,10 +54,9 @@ describe('registerPluginUi', () => {
 
     await registerPluginUi(api, { onOpen })
 
-    // Internally registerSetting stores the callback; we invoke it via the mock
-    // The mock doesn't call the callback, so we test indirectly by verifying
-    // the setting was registered (callback wiring is structural).
-    expect(api.__registerCalls.find(c => c.kind === 'setting')).toBeDefined()
+    await api.runRegistered('setting')
+
+    expect(opened).toBe(true)
   })
 
   test('button callback invokes onOpen', async () => {
@@ -67,7 +66,9 @@ describe('registerPluginUi', () => {
 
     await registerPluginUi(api, { onOpen })
 
-    expect(api.__registerCalls.find(c => c.kind === 'button')).toBeDefined()
+    await api.runRegistered('button')
+
+    expect(opened).toBe(true)
   })
 
   test('does not throw when called multiple times', async () => {
