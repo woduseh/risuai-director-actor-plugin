@@ -48,6 +48,7 @@ import { BUILTIN_PROMPT_PRESET_ID } from '../director/prompt.js'
 import { backfillCurrentChat } from '../director/backfill.js'
 import { DIRECTOR_STATE_STORAGE_KEY, patchLegacyMemory } from '../memory/canonicalStore.js'
 import { resolveScopeStorageKey } from '../memory/scopeResolver.js'
+import { createDefaultDiagnosticsSnapshot } from '../runtime/diagnostics.js'
 import { deleteSummary, deleteContinuityFact, upsertSummary, upsertContinuityFact, deleteWorldFact, upsertWorldFact, deleteEntity, upsertEntity, deleteRelation, upsertRelation } from '../memory/memoryMutations.js'
 import { escapeXml } from '../utils/xml.js'
 
@@ -91,6 +92,8 @@ export interface DashboardStore {
   getRecalledDocs?: () => Promise<Array<{ id: string; title: string; freshness: 'current' | 'stale' | 'archived' }>>
   /** Optional callback to check if a consolidation lock is held. */
   isMemoryLocked?: () => Promise<boolean>
+  /** Optional callback to load the runtime diagnostics snapshot. */
+  loadDiagnostics?: () => Promise<import('../runtime/diagnostics.js').DiagnosticsSnapshot>
 }
 
 /**
@@ -217,6 +220,9 @@ async function buildMemoryOpsStatus(
     ? await store.isMemoryLocked()
     : false
   const latestMemoryTs = computeLatestMemoryTs(canonicalState)
+  const diagnostics = store.loadDiagnostics
+    ? await store.loadDiagnostics()
+    : createDefaultDiagnosticsSnapshot()
 
   return {
     lastExtractTs: latestMemoryTs,
@@ -227,6 +233,7 @@ async function buildMemoryOpsStatus(
     isMemoryLocked: isLocked,
     staleWarnings: buildStaleWarnings(latestMemoryTs, dreamState.lastDreamTs),
     recalledDocs: [],
+    diagnostics,
   }
 }
 
@@ -1413,6 +1420,9 @@ class DashboardInstance {
       ? await this.store.isMemoryLocked()
       : false
     const latestMemoryTs = computeLatestMemoryTs(canonicalState)
+    const diagnostics = this.store.loadDiagnostics
+      ? await this.store.loadDiagnostics()
+      : createDefaultDiagnosticsSnapshot()
 
     this.memoryOpsStatus = {
       lastExtractTs: latestMemoryTs,
@@ -1423,6 +1433,7 @@ class DashboardInstance {
       isMemoryLocked: isLocked,
       staleWarnings: buildStaleWarnings(latestMemoryTs, dreamState.lastDreamTs),
       recalledDocs: this.memoryOpsStatus.recalledDocs,
+      diagnostics,
     }
   }
 

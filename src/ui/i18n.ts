@@ -194,6 +194,21 @@ const EN_CATALOG = {
   'btn.forceDream': 'Run Dream Now',
   'btn.inspectRecalled': 'Inspect Recalled',
   'btn.toggleFallback': 'Toggle Fallback Retrieval',
+
+  // Diagnostics
+  'diag.title': 'Runtime Diagnostics',
+  'diag.lastHook': 'Last Hook',
+  'diag.lastError': 'Last Error',
+  'diag.noError': 'None',
+  'diag.extraction': 'Extraction Worker',
+  'diag.dream': 'Dream Worker',
+  'diag.recovery': 'Startup Recovery',
+  'diag.breadcrumbs': 'Recent Activity',
+  'diag.health.idle': 'Idle',
+  'diag.health.ok': 'OK',
+  'diag.health.error': 'Error',
+  'diag.noBreadcrumbs': 'No recent activity',
+
   'toast.extractStarted': 'Extraction started',
   'toast.dreamStarted': 'Consolidation started',
   'toast.extractFailed': 'Extraction failed: {{error}}',
@@ -426,6 +441,21 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'btn.forceDream': '지금 통합 실행',
   'btn.inspectRecalled': '회상 문서 확인',
   'btn.toggleFallback': '대체 검색 토글',
+
+  // Diagnostics
+  'diag.title': '런타임 진단',
+  'diag.lastHook': '마지막 훅',
+  'diag.lastError': '마지막 오류',
+  'diag.noError': '없음',
+  'diag.extraction': '추출 워커',
+  'diag.dream': '통합 워커',
+  'diag.recovery': '시작 복구',
+  'diag.breadcrumbs': '최근 활동',
+  'diag.health.idle': '대기',
+  'diag.health.ok': '정상',
+  'diag.health.error': '오류',
+  'diag.noBreadcrumbs': '최근 활동 없음',
+
   'toast.extractStarted': '추출이 시작되었습니다',
   'toast.dreamStarted': '통합이 시작되었습니다',
   'toast.extractFailed': '추출 실패: {{error}}',

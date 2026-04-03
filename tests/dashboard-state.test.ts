@@ -129,4 +129,17 @@ describe('dashboardState', () => {
     expect(computeNotebookFreshness(now - 1000, now - 2000)).toBe('current')
     expect(computeNotebookFreshness(now - 25 * 3600_000, 0)).toBe('stale')
   })
+
+  // ── Diagnostics in MemoryOpsStatus ──────────────────────────────────
+
+  test('default memory ops status includes a default diagnostics snapshot', () => {
+    const status = createDefaultMemoryOpsStatus()
+    expect(status.diagnostics).toBeDefined()
+    expect(status.diagnostics.lastHookKind).toBeNull()
+    expect(status.diagnostics.lastErrorMessage).toBeNull()
+    expect(status.diagnostics.extraction.health).toBe('idle')
+    expect(status.diagnostics.dream.health).toBe('idle')
+    expect(status.diagnostics.recovery.health).toBe('idle')
+    expect(status.diagnostics.breadcrumbs).toEqual([])
+  })
 })

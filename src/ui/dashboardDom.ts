@@ -416,6 +416,8 @@ function buildMemoryOpsCard(status: MemoryOpsStatus): string {
     }).join('')}</ul>`
     : ''
 
+  const diagHtml = buildDiagnosticsSection(status)
+
   return `
         <section class="da-card" data-da-role="memory-ops-status">
           <div class="da-card-header">
@@ -439,7 +441,71 @@ function buildMemoryOpsCard(status: MemoryOpsStatus): string {
             <button class="da-btn da-btn--sm" data-da-action="toggle-fallback-retrieval">${t('btn.toggleFallback')}</button>
           </div>
           ${recalledHtml}
+          ${diagHtml}
         </section>`
+}
+
+// ---------------------------------------------------------------------------
+// Diagnostics subsection (rendered inside memory ops card)
+// ---------------------------------------------------------------------------
+
+function healthBadgeKind(health: 'idle' | 'ok' | 'error'): string {
+  switch (health) {
+    case 'ok': return 'success'
+    case 'error': return 'error'
+    default: return 'neutral'
+  }
+}
+
+function healthLabel(health: 'idle' | 'ok' | 'error'): string {
+  switch (health) {
+    case 'ok': return t('diag.health.ok')
+    case 'error': return t('diag.health.error')
+    default: return t('diag.health.idle')
+  }
+}
+
+function buildDiagnosticsSection(status: MemoryOpsStatus): string {
+  const diag = status.diagnostics
+  if (!diag) return ''
+
+  const lastHookLabel = diag.lastHookKind
+    ? `${diag.lastHookKind} @ ${formatTimestamp(diag.lastHookTs)}`
+    : t('memoryOps.neverRun')
+
+  const lastErrorLabel = diag.lastErrorMessage
+    ? `${escapeXml(diag.lastErrorMessage)} @ ${formatTimestamp(diag.lastErrorTs)}`
+    : t('diag.noError')
+
+  const workerRows = (['extraction', 'dream', 'recovery'] as const).map((kind) => {
+    const ws = diag[kind]
+    const labelKey = kind === 'extraction' ? 'diag.extraction'
+      : kind === 'dream' ? 'diag.dream'
+      : 'diag.recovery'
+    const badge = `<span class="da-badge da-badge--sm" data-kind="${healthBadgeKind(ws.health)}">${healthLabel(ws.health)}</span>`
+    const ts = ws.lastTs > 0 ? formatTimestamp(ws.lastTs) : ''
+    const detail = ws.lastDetail ? ` — ${escapeXml(ws.lastDetail)}` : ''
+    return `<li class="da-metric-item" data-da-role="diag-worker-${kind}"><span>${t(labelKey)}</span><strong>${badge} ${ts}${detail}</strong></li>`
+  }).join('')
+
+  const breadcrumbsHtml = diag.breadcrumbs.length > 0
+    ? `<ul class="da-breadcrumb-list" data-da-role="diag-breadcrumbs">${diag.breadcrumbs.slice().reverse().map((b) => {
+      const detail = b.detail ? ` — ${escapeXml(b.detail)}` : ''
+      return `<li class="da-breadcrumb-item">${formatTimestamp(b.ts)} <strong>${escapeXml(b.label)}</strong>${detail}</li>`
+    }).join('')}</ul>`
+    : `<p class="da-empty">${t('diag.noBreadcrumbs')}</p>`
+
+  return `
+          <div class="da-diag-section" data-da-role="diagnostics">
+            <h4 class="da-card-title">${t('diag.title')}</h4>
+            <ul class="da-metric-list">
+              <li class="da-metric-item" data-da-role="diag-last-hook"><span>${t('diag.lastHook')}</span><strong>${lastHookLabel}</strong></li>
+              <li class="da-metric-item" data-da-role="diag-last-error"><span>${t('diag.lastError')}</span><strong>${lastErrorLabel}</strong></li>
+              ${workerRows}
+            </ul>
+            <h4 class="da-card-title">${t('diag.breadcrumbs')}</h4>
+            ${breadcrumbsHtml}
+          </div>`
 }
 
 // ---------------------------------------------------------------------------

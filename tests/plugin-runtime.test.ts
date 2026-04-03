@@ -321,4 +321,84 @@ describe('bootstrapPlugin', () => {
     await expect(api.runUnload()).resolves.toBeUndefined()
     expect(api.__logs.some((l) => l.includes('shutdown'))).toBe(true)
   })
+
+  // ── Diagnostics integration ─────────────────────────────────────────
+
+  test('records diagnostics breadcrumbs on preRequest failure', async () => {
+    const api = createMockRisuaiApi()
+    const { DiagnosticsManager } = await import('../src/runtime/diagnostics.js')
+    const diagnostics = new DiagnosticsManager(api.pluginStorage, 'test-scope')
+
+    await bootstrapPlugin(api, {
+      director: {
+        async preRequest(): Promise<SceneBrief | null> {
+          throw new Error('model unavailable')
+        },
+        async postResponse(): Promise<MemoryUpdate | null> {
+          return null
+        }
+      },
+      diagnostics,
+    })
+
+    await api.runBeforeRequest([
+      { role: 'system', content: 'Rules.' },
+      { role: 'user', content: 'Continue.' }
+    ])
+
+    const snap = diagnostics.getSnapshot()
+    expect(snap.lastErrorMessage).toBe('model unavailable')
+    expect(snap.breadcrumbs.some((b) => b.label === 'error:preRequest')).toBe(true)
+  })
+
+  test('records diagnostics breadcrumbs on successful hook cycle', async () => {
+    const api = createMockRisuaiApi()
+    const { DiagnosticsManager } = await import('../src/runtime/diagnostics.js')
+    const diagnostics = new DiagnosticsManager(api.pluginStorage, 'test-scope')
+
+    await bootstrapPlugin(api, {
+      director: {
+        async preRequest(): Promise<SceneBrief> {
+          return makeBrief()
+        },
+        async postResponse(): Promise<MemoryUpdate | null> {
+          return makeUpdate()
+        }
+      },
+      diagnostics,
+    })
+
+    await api.runBeforeRequest([
+      { role: 'system', content: 'Rules.' },
+      { role: 'user', content: 'Continue.' }
+    ])
+
+    const snap = diagnostics.getSnapshot()
+    expect(snap.lastHookKind).toBe('beforeRequest')
+    expect(snap.breadcrumbs.some((b) => b.label === 'hook:beforeRequest')).toBe(true)
+  })
+
+  test('records shutdown diagnostics on plugin unload', async () => {
+    const api = createMockRisuaiApi()
+    const { DiagnosticsManager } = await import('../src/runtime/diagnostics.js')
+    const diagnostics = new DiagnosticsManager(api.pluginStorage, 'test-scope')
+
+    await bootstrapPlugin(api, {
+      director: {
+        async preRequest(): Promise<SceneBrief | null> {
+          return null
+        },
+        async postResponse(): Promise<MemoryUpdate | null> {
+          return null
+        }
+      },
+      diagnostics,
+    })
+
+    await api.runUnload()
+
+    const snap = diagnostics.getSnapshot()
+    expect(snap.lastHookKind).toBe('shutdown')
+    expect(snap.breadcrumbs.some((b) => b.label === 'hook:shutdown')).toBe(true)
+  })
 })

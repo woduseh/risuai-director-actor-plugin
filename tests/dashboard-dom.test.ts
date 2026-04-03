@@ -6,8 +6,11 @@ import {
 } from '../src/ui/dashboardDom.js'
 import {
   createDefaultProfileManifest,
+  createDefaultMemoryOpsStatus,
   normalizePersistedSettings
 } from '../src/ui/dashboardState.js'
+import { createDefaultDiagnosticsSnapshot } from '../src/runtime/diagnostics.js'
+import type { DiagnosticsSnapshot } from '../src/runtime/diagnostics.js'
 import { setLocale } from '../src/ui/i18n.js'
 
 describe('buildDashboardMarkup', () => {
@@ -161,6 +164,7 @@ describe('buildDashboardMarkup', () => {
         isMemoryLocked: false,
         staleWarnings: [],
         recalledDocs: [],
+        diagnostics: createDefaultDiagnosticsSnapshot(),
       },
     })
 
@@ -188,6 +192,7 @@ describe('buildDashboardMarkup', () => {
         isMemoryLocked: false,
         staleWarnings: ['Memory "Character A" may be outdated'],
         recalledDocs: [],
+        diagnostics: createDefaultDiagnosticsSnapshot(),
       },
     })
 
@@ -212,6 +217,7 @@ describe('buildDashboardMarkup', () => {
         isMemoryLocked: true,
         staleWarnings: [],
         recalledDocs: [],
+        diagnostics: createDefaultDiagnosticsSnapshot(),
       },
     })
 
@@ -235,10 +241,109 @@ describe('buildDashboardMarkup', () => {
         isMemoryLocked: true,
         staleWarnings: [],
         recalledDocs: [],
+        diagnostics: createDefaultDiagnosticsSnapshot(),
       },
     })
 
     expect(markup).toContain('data-da-role="memory-locked"')
     expect(markup).not.toContain('data-da-role="stale-warnings"')
+  })
+
+  // ── Diagnostics section ─────────────────────────────────────────────
+
+  test('renders diagnostics section with default snapshot', () => {
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'memory-cache',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+      memoryOpsStatus: createDefaultMemoryOpsStatus(),
+    })
+
+    expect(markup).toContain('data-da-role="diagnostics"')
+    expect(markup).toContain('data-da-role="diag-last-hook"')
+    expect(markup).toContain('data-da-role="diag-last-error"')
+    expect(markup).toContain('data-da-role="diag-worker-extraction"')
+    expect(markup).toContain('data-da-role="diag-worker-dream"')
+    expect(markup).toContain('data-da-role="diag-worker-recovery"')
+    // Should show "No recent activity" when breadcrumbs are empty
+    expect(markup).not.toContain('data-da-role="diag-breadcrumbs"')
+  })
+
+  test('renders diagnostics with populated hook and error info', () => {
+    const diag: DiagnosticsSnapshot = {
+      ...createDefaultDiagnosticsSnapshot(),
+      lastHookKind: 'beforeRequest',
+      lastHookTs: 1700000000000,
+      lastErrorMessage: 'connection timeout',
+      lastErrorTs: 1700000100000,
+      extraction: { health: 'ok', lastTs: 1700000200000, lastDetail: 'applied=true' },
+      dream: { health: 'error', lastTs: 1700000300000, lastDetail: 'network fail' },
+      recovery: { health: 'ok', lastTs: 1700000400000 },
+    }
+
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'memory-cache',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+      memoryOpsStatus: { ...createDefaultMemoryOpsStatus(), diagnostics: diag },
+    })
+
+    expect(markup).toContain('beforeRequest')
+    expect(markup).toContain('connection timeout')
+    expect(markup).toContain('applied=true')
+    expect(markup).toContain('network fail')
+    expect(markup).toContain('data-kind="success"')
+    expect(markup).toContain('data-kind="error"')
+  })
+
+  test('renders breadcrumbs when present', () => {
+    const diag: DiagnosticsSnapshot = {
+      ...createDefaultDiagnosticsSnapshot(),
+      breadcrumbs: [
+        { ts: 1700000000000, label: 'hook:beforeRequest', detail: 'normal' },
+        { ts: 1700000001000, label: 'error:preRequest', detail: 'timeout' },
+      ],
+    }
+
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'memory-cache',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+      memoryOpsStatus: { ...createDefaultMemoryOpsStatus(), diagnostics: diag },
+    })
+
+    expect(markup).toContain('data-da-role="diag-breadcrumbs"')
+    expect(markup).toContain('hook:beforeRequest')
+    expect(markup).toContain('error:preRequest')
+    expect(markup).toContain('timeout')
+  })
+
+  test('renders diagnostics labels in Korean when locale is ko', () => {
+    setLocale('ko')
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'memory-cache',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+      memoryOpsStatus: createDefaultMemoryOpsStatus(),
+    })
+
+    expect(markup).toContain('런타임 진단')
+    expect(markup).toContain('마지막 훅')
+    expect(markup).toContain('마지막 오류')
+    expect(markup).toContain('추출 워커')
+    expect(markup).toContain('통합 워커')
+    expect(markup).toContain('시작 복구')
   })
 })

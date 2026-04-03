@@ -7,6 +7,8 @@ import type {
   CanonicalMemory,
 } from '../contracts/types.js'
 import { DEFAULT_DIRECTOR_SETTINGS } from '../contracts/types.js'
+import type { DiagnosticsSnapshot } from '../runtime/diagnostics.js'
+import { createDefaultDiagnosticsSnapshot } from '../runtime/diagnostics.js'
 import {
   BUILTIN_PROMPT_PRESET_ID,
   BUILTIN_PROMPT_PRESET_NAME,
@@ -498,6 +500,7 @@ export interface MemoryOpsStatus {
   isMemoryLocked: boolean
   staleWarnings: string[]
   recalledDocs: RecalledDocEntry[]
+  diagnostics: DiagnosticsSnapshot
 }
 
 export interface MemoryOpsPrefs {
@@ -520,6 +523,7 @@ export function createDefaultMemoryOpsStatus(): MemoryOpsStatus {
     isMemoryLocked: false,
     staleWarnings: [],
     recalledDocs: [],
+    diagnostics: createDefaultDiagnosticsSnapshot(),
   }
 }
 

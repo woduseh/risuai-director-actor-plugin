@@ -47,6 +47,7 @@ import {
   createTurnRecoveryManager,
   attemptStartupRecovery,
 } from './runtime/turnRecovery.js'
+import { DiagnosticsManager } from './runtime/diagnostics.js'
 import { openDashboard, createDashboardStore } from './ui/dashboardApp.js'
 
 function createId(prefix: string): string {
@@ -162,23 +163,31 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
 
         const promptPreset = resolvePromptPreset(state.settings)
         const service = createDirectorService(api, state.settings)
-        const result = await service.postResponse({
-          responseText: ctx.content,
-          brief: ctx.brief,
-          messages: ctx.messages,
-          directorState: state.director,
-          memory: state.memory,
-          assertiveness: state.settings.assertiveness,
-          promptPreset,
-        })
+        let result
+        try {
+          result = await service.postResponse({
+            responseText: ctx.content,
+            brief: ctx.brief,
+            messages: ctx.messages,
+            directorState: state.director,
+            memory: state.memory,
+            assertiveness: state.settings.assertiveness,
+            promptPreset,
+          })
+        } catch (err) {
+          await diagnostics.recordWorkerFailure('extraction', err)
+          throw err
+        }
 
         if (!result.ok) {
           if (isTransientError(result.error)) {
+            await diagnostics.recordWorkerFailure('extraction', result.error)
             throw new Error(result.error)
           }
           return { applied: false, memoryUpdate: null }
         }
 
+        await diagnostics.recordWorkerSuccess('extraction', `applied=${true}`)
         return { applied: true, memoryUpdate: result.update }
       },
 
@@ -314,6 +323,7 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
         dreamState.turnsSinceLastDream = 0
         dreamState.sessionsSinceLastDream = 0
         await saveDreamState(api.pluginStorage, dreamState)
+        await diagnostics.recordWorkerSuccess('dream', `merged=${result.merged}`)
       },
       log(message: string): void {
         api.log(message)
@@ -326,6 +336,13 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
     api.pluginStorage,
     scopeResolution.storageKey,
   )
+
+  // ── Runtime diagnostics ───────────────────────────────────────────
+  const diagnostics = new DiagnosticsManager(
+    api.pluginStorage,
+    scopeResolution.storageKey,
+  )
+  await diagnostics.loadSnapshot()
 
   const director = {
     async preRequest(input: DirectorPreRequestInput) {
@@ -457,6 +474,7 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
     turnCache,
     sessionNotebook,
     turnRecovery,
+    diagnostics,
     onTurnFinalized: (ctx) => {
       lastUserInteractionTs = Date.now()
       dreamState.turnsSinceLastDream += 1
@@ -488,16 +506,22 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
         }))
       }
       dashboardStore.isMemoryLocked = () => consolidationLock.isHeld()
+      dashboardStore.loadDiagnostics = () => diagnostics.loadSnapshot()
       await openDashboard(api, dashboardStore)
     }
   })
 
   // ── Startup recovery ─────────────────────────────────────────────
-  await attemptStartupRecovery(turnRecovery, {
-    postResponse: (input) => director.postResponse(input).then(() => {}),
-    runHousekeeping: (ctx) => housekeeping.afterTurn(ctx),
-    log: (msg) => api.log(msg),
-  })
+  try {
+    await attemptStartupRecovery(turnRecovery, {
+      postResponse: (input) => director.postResponse(input).then(() => {}),
+      runHousekeeping: (ctx) => housekeeping.afterTurn(ctx),
+      log: (msg) => api.log(msg),
+    })
+    await diagnostics.recordRecovery('ok', 'startup recovery completed')
+  } catch (err) {
+    await diagnostics.recordRecovery('error', err instanceof Error ? err.message : String(err))
+  }
 }
 
 export default registerDirectorActorPlugin

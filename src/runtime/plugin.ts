@@ -13,6 +13,7 @@ import type { ExtractionContext } from '../memory/extractMemories.js'
 import { TurnCache } from '../memory/turnCache.js'
 import { registerPluginUi, showSettingsOverlay } from '../ui/settings.js'
 import type { TurnRecoveryManager } from './turnRecovery.js'
+import type { DiagnosticsManager } from './diagnostics.js'
 
 // ---------------------------------------------------------------------------
 // Public contracts
@@ -61,6 +62,8 @@ export interface BootstrapOptions {
   sessionNotebook?: { recordTurn(estimatedTokens: number): void }
   /** Optional durable turn recovery manager for crash-safe turn processing. */
   turnRecovery?: TurnRecoveryManager
+  /** Optional diagnostics manager for recording runtime breadcrumbs. */
+  diagnostics?: DiagnosticsManager
 }
 
 // ---------------------------------------------------------------------------
@@ -94,6 +97,7 @@ export async function bootstrapPlugin(
   const onShutdown = options.onShutdown ?? null
   const sessionNotebook = options.sessionNotebook ?? null
   const turnRecovery = options.turnRecovery ?? null
+  const diagnostics = options.diagnostics ?? null
 
   let currentTurnId: string | null = null
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -224,6 +228,8 @@ export async function bootstrapPlugin(
         messages
       })
 
+      await diagnostics?.recordHook('beforeRequest', type)
+
       if (!brief) {
         clearActiveTurn()
         return messages
@@ -239,6 +245,7 @@ export async function bootstrapPlugin(
     } catch (err) {
       clearActiveTurn()
       await safeLog(api, `Director preRequest failed: ${err}`)
+      await diagnostics?.recordError('preRequest', err)
       circuitBreaker?.recordFailure(String(err))
       return messages
     }
@@ -251,6 +258,7 @@ export async function bootstrapPlugin(
 
     if (getCurrentTurn()) {
       clearDebounce()
+      await diagnostics?.recordHook('afterRequest', type)
       await finalizeTurn(content)
     }
     return content
@@ -266,6 +274,7 @@ export async function bootstrapPlugin(
       lastOutputText: content
     })
     clearDebounce()
+    await diagnostics?.recordHook('output')
 
     debounceTimer = setTimeout(() => {
       void finalizeTurn()
@@ -283,6 +292,7 @@ export async function bootstrapPlugin(
   await api.onUnload(async () => {
     clearDebounce()
     clearActiveTurn()
+    await diagnostics?.recordHook('shutdown')
     if (onShutdown) {
       try {
         await onShutdown()
