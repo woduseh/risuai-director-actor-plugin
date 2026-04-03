@@ -377,3 +377,19 @@ export function sidebarGroupLabel(groupId: string): string {
   const key = SIDEBAR_GROUP_KEY_MAP[groupId]
   return key ? t(key) : groupId
 }
+
+// ---------------------------------------------------------------------------
+// Built-in profile display name mapping (used by dashboardDom)
+// ---------------------------------------------------------------------------
+
+const BUILTIN_PROFILE_KEY_MAP: Record<string, TranslationKey> = {
+  'builtin-balanced': 'profile.balanced',
+  'builtin-gentle': 'profile.gentle',
+  'builtin-strict': 'profile.strict',
+}
+
+/** Get the localized display name for a profile. Built-in profiles use i18n; custom profiles return the raw name. */
+export function profileDisplayName(id: string, fallbackName: string): string {
+  const key = BUILTIN_PROFILE_KEY_MAP[id]
+  return key ? t(key) : fallbackName
+}

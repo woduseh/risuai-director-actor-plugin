@@ -1,7 +1,7 @@
 import type { DirectorSettings, DirectorPluginState } from '../contracts/types.js'
 import type { ProfileManifest } from './dashboardState.js'
 import { DASHBOARD_ROOT_CLASS } from './dashboardCss.js'
-import { t, tabLabel, sidebarGroupLabel, getLocale } from './i18n.js'
+import { t, tabLabel, sidebarGroupLabel, profileDisplayName, getLocale } from './i18n.js'
 import type { DashboardLocale } from './i18n.js'
 
 // ---------------------------------------------------------------------------
@@ -275,7 +275,7 @@ function buildSettingsProfilesPage(input: DashboardMarkupInput): string {
   const profileItems = profiles.profiles
     .map((p) => {
       const active = p.id === profiles.activeProfileId ? ' da-profile--active' : ''
-      return `<li class="da-profile-item${active}" data-da-profile-id="${p.id}">${p.name}</li>`
+      return `<li class="da-profile-item${active}" data-da-profile-id="${p.id}">${profileDisplayName(p.id, p.name)}</li>`
     })
     .join('')
   return `

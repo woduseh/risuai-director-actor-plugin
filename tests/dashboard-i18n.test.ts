@@ -3,6 +3,7 @@ import {
   t,
   setLocale,
   getLocale,
+  profileDisplayName,
   CATALOGS,
 } from '../src/ui/i18n.js'
 
@@ -205,5 +206,26 @@ describe('i18n module', () => {
     setLocale('en')
     const result = t('connection.connected', { count: '5' })
     expect(result).toContain('5')
+  })
+
+  // ── profileDisplayName ──────────────────────────────────────────────
+
+  test('profileDisplayName returns localized name for built-in profiles', () => {
+    setLocale('ko')
+    expect(profileDisplayName('builtin-balanced', 'Balanced')).toBe('균형')
+    expect(profileDisplayName('builtin-gentle', 'Gentle')).toBe('부드러움')
+    expect(profileDisplayName('builtin-strict', 'Strict')).toBe('엄격')
+  })
+
+  test('profileDisplayName returns English name for built-in profiles in en locale', () => {
+    setLocale('en')
+    expect(profileDisplayName('builtin-balanced', 'Balanced')).toBe('Balanced')
+    expect(profileDisplayName('builtin-gentle', 'Gentle')).toBe('Gentle')
+    expect(profileDisplayName('builtin-strict', 'Strict')).toBe('Strict')
+  })
+
+  test('profileDisplayName returns fallback name for custom profiles', () => {
+    setLocale('ko')
+    expect(profileDisplayName('custom-abc', 'My Custom')).toBe('My Custom')
   })
 })
