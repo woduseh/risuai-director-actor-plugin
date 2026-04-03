@@ -81,6 +81,16 @@ describe('ScopeRegistry', () => {
     expect(registry.entries[0]!.label).toBe('Alice Chat')
   })
 
+  test('registerFingerprint uses custom ID generator when provided', () => {
+    const registry = createScopeRegistry()
+    let counter = 0
+    const idGen = () => `test-scope-${++counter}`
+    const scopeId = registerFingerprint(registry, 'fp-1', 'Label', { generateId: idGen })
+
+    expect(scopeId).toBe('test-scope-1')
+    expect(registry.entries[0]!.scopeId).toBe('test-scope-1')
+  })
+
   test('registerFingerprint returns existing scopeId for known fingerprint', () => {
     const registry = createScopeRegistry()
     const first = registerFingerprint(registry, 'fp-1', 'Alice Chat')

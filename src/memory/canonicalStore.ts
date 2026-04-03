@@ -5,6 +5,16 @@ import { createEmptyState } from '../contracts/types.js'
 export const DIRECTOR_STATE_STORAGE_KEY = 'director-plugin-state'
 
 /**
+ * Patch fields that may be absent in states persisted before the
+ * continuityFacts migration. Mutates `state` in place.
+ */
+function patchLegacyMemory(state: DirectorPluginState): void {
+  if (!Array.isArray(state.memory.continuityFacts)) {
+    state.memory.continuityFacts = []
+  }
+}
+
+/**
  * Validates that a value has the minimal shape of DirectorPluginState
  * to avoid undefined-property crashes at runtime.
  */
@@ -37,6 +47,7 @@ export class CanonicalStore {
     const raw = await this.storage.getItem<unknown>(DIRECTOR_STATE_STORAGE_KEY)
     if (isValidState(raw)) {
       this.current = structuredClone(raw)
+      patchLegacyMemory(this.current)
     } else {
       this.current = createEmptyState()
     }

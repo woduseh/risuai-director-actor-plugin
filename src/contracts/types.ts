@@ -87,13 +87,20 @@ export interface DirectorState {
   pacingMode: BriefPacing
   registerLock: string | null
   povLock: string | null
+  /**
+   * @deprecated Prefer `CanonicalMemory.continuityFacts` as the persistent
+   * source of truth. This field is kept for runtime/transient scene locks
+   * only. Future code should read from `state.memory.continuityFacts` and
+   * avoid writing new facts here. Will be removed once the scoped-store
+   * migration is complete.
+   */
   continuityFacts: ContinuityFact[]
   activeArcs: ArcState[]
   ensembleWeights: Record<string, number>
   failureHistory: QualityFailure[]
   cooldown: {
     failures: number
-    untilTs: number | null
+    untilTs: null | number
   }
 }
 

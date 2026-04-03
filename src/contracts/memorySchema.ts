@@ -1,4 +1,4 @@
-import type { CanonicalMemory, ContinuityFact } from './types.js'
+import type { CanonicalMemory } from './types.js'
 
 /** Current scoped-memory schema version for forward migration. */
 export const MEMORY_SCHEMA_VERSION = 1
@@ -101,6 +101,12 @@ export function createScopeRegistry(): ScopeRegistry {
   return { entries: [] }
 }
 
+/** Options for {@link registerFingerprint}. */
+export interface RegisterFingerprintOptions {
+  /** Injectable ID generator for testability. Defaults to {@link generateScopeId}. */
+  generateId?: () => string
+}
+
 function generateScopeId(): string {
   const ts = Date.now().toString(36)
   const rand = Math.random().toString(36).slice(2, 8)
@@ -111,20 +117,28 @@ function generateScopeId(): string {
  * Register a fingerprint in the registry.
  * If the fingerprint is already known, returns its existing scopeId.
  * Otherwise creates a new entry and returns the new scopeId.
+ *
+ * PERF: Lookup is a linear scan over `registry.entries` with a nested
+ * `.includes()` on each entry's `fingerprints` array — O(n × m).
+ * This is acceptable for the expected scale (tens of scopes per character).
+ * If registries grow to hundreds of entries, consider indexing fingerprints
+ * in a Map<string, string> (fingerprint → scopeId).
  */
 export function registerFingerprint(
   registry: ScopeRegistry,
   fingerprint: string,
-  label?: string
+  label?: string,
+  options?: RegisterFingerprintOptions
 ): string {
   const existing = registry.entries.find((e) =>
     e.fingerprints.includes(fingerprint)
   )
   if (existing) return existing.scopeId
 
+  const idFn = options?.generateId ?? generateScopeId
   const now = Date.now()
   const entry: ScopeRegistryEntry = {
-    scopeId: generateScopeId(),
+    scopeId: idFn(),
     fingerprints: [fingerprint],
     createdAt: now,
     updatedAt: now
@@ -139,6 +153,8 @@ export function registerFingerprint(
 /**
  * Resolve a fingerprint to its stable scopeId.
  * Returns `undefined` when the fingerprint is not registered.
+ *
+ * PERF: Same linear-scan cost as {@link registerFingerprint} — see note there.
  */
 export function resolveScope(
   registry: ScopeRegistry,

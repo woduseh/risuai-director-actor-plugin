@@ -125,6 +125,18 @@ describe('chatFingerprint', () => {
     const b = chatFingerprint('cha-123', 'Chat', 1700000099999, ['Hello'])
     expect(a).not.toBe(b)
   })
+
+  test('normalizes message content consistently', () => {
+    const a = chatFingerprint('cha-123', 'Chat', 1700000000000, ['  Hello   World  '])
+    const b = chatFingerprint('cha-123', 'Chat', 1700000000000, ['hello world'])
+    expect(a).toBe(b)
+  })
+
+  test('message normalization is case-insensitive', () => {
+    const a = chatFingerprint('cha-123', 'Chat', 1700000000000, ['HELLO'])
+    const b = chatFingerprint('cha-123', 'Chat', 1700000000000, ['hello'])
+    expect(a).toBe(b)
+  })
 })
 
 describe('composeScopeKey', () => {

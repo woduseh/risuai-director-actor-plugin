@@ -1,5 +1,4 @@
-import type { ContinuityFact } from '../contracts/types.js'
-import type { CharacterScopeIdentity, ChatScopeIdentity } from '../contracts/memorySchema.js'
+import type { CharacterScopeIdentity } from '../contracts/memorySchema.js'
 
 const MAX_CHAT_FINGERPRINT_MESSAGES = 3
 
@@ -42,6 +41,24 @@ export function characterScopeIdentity(
  * and the first 3 non-empty messages.
  * Returns an 8-char lowercase hex string.
  */
+/**
+ * Build a chat fingerprint from metadata and early messages.
+ *
+ * Callers should pass the `.content` string from each message in the chat's
+ * first few turns. Messages are normalized with the same
+ * {@link normalizeTextForFingerprint} helper used for names, so whitespace
+ * and casing differences between chat snapshots do not affect the result.
+ *
+ * @example
+ * ```ts
+ * const fp = chatFingerprint(
+ *   character.chaId,
+ *   chat.name,
+ *   chat.lastDate,
+ *   chat.messages.map(m => m.content),
+ * )
+ * ```
+ */
 export function chatFingerprint(
   chaId: string,
   chatName: string,
@@ -49,7 +66,7 @@ export function chatFingerprint(
   messages: readonly string[]
 ): string {
   const nonEmpty = messages
-    .map((m) => m.trim())
+    .map((m) => normalizeTextForFingerprint(m))
     .filter((m) => m.length > 0)
     .slice(0, MAX_CHAT_FINGERPRINT_MESSAGES)
 
