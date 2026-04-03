@@ -62,6 +62,24 @@ const TOAST_DURATION_ERROR_MS = 5000
 const PROFILE_ID_PREFIX = 'user-profile-'
 const IMPORT_STAGING_KEY = 'dashboard-profile-import-staging'
 
+/** Timeout (ms) after which an armed destructive action resets. */
+export const ARM_TIMEOUT_MS = 3000
+
+/**
+ * Actions that require a two-click arming confirmation before execution.
+ * The map value is the i18n key shown on the button while armed.
+ */
+export const DESTRUCTIVE_ACTIONS: ReadonlyMap<string, import('./i18n.js').TranslationKey> = new Map([
+  ['delete-summary', 'confirm.deleteMemory'],
+  ['delete-continuity-fact', 'confirm.deleteMemory'],
+  ['delete-world-fact', 'confirm.deleteMemory'],
+  ['delete-entity', 'confirm.deleteMemory'],
+  ['delete-relation', 'confirm.deleteMemory'],
+  ['bulk-delete-memory', 'confirm.bulkDeleteMemory'],
+  ['regenerate-current-chat', 'confirm.regenerateCurrentChat'],
+  ['delete-prompt-preset', 'confirm.deletePromptPreset'],
+])
+
 /**
  * Action names that must not be double-fired while a previous
  * invocation is still in flight.
@@ -306,6 +324,14 @@ class DashboardInstance {
   /** Action names currently in flight (used by async busy guards). */
   private readonly busyActions = new Set<string>()
 
+  /**
+   * Tracks armed destructive actions.  Key = composite arm key
+   * (action + optional item id), value = original button text.
+   * A second click while armed executes the action; timeout or
+   * rerender clears the map.
+   */
+  private readonly armedActions = new Map<string, string>()
+
   constructor(
     api: RisuaiApi,
     store: DashboardStore,
@@ -338,6 +364,7 @@ class DashboardInstance {
   }
 
   async close(): Promise<void> {
+    this.clearArmedState()
     this.lifecycle.teardown()
     this.removeDom()
     await this.api.hideContainer()
@@ -447,6 +474,7 @@ class DashboardInstance {
     const parent = this.root.parentNode
     if (!parent) return
 
+    this.clearArmedState()
     this.root.remove()
 
     const container = this.doc.createElement('div')
@@ -588,6 +616,87 @@ class DashboardInstance {
     }
   }
 
+  // ── Destructive-action arming ─────────────────────────────────────────
+
+  /**
+   * Build a composite key that uniquely identifies an armed action.
+   * For per-item buttons (e.g. delete-summary) the key includes the
+   * item id so arming one row does not arm all rows.
+   */
+  private static armKey(action: string, btn: HTMLElement): string {
+    const itemId = btn.getAttribute('data-da-item-id')
+    return itemId ? `${action}::${itemId}` : action
+  }
+
+  /** Clear all armed states and restore original button text in the DOM. */
+  private clearArmedState(): void {
+    if (this.armedActions.size === 0) return
+    for (const [key, originalText] of this.armedActions) {
+      const btn = this.findArmedBtn(key)
+      if (btn) {
+        btn.textContent = originalText
+        btn.classList.remove('da-btn--armed')
+      }
+    }
+    this.armedActions.clear()
+  }
+
+  /** Locate a DOM button from its arm-key (action + optional item id). */
+  private findArmedBtn(armKey: string): HTMLElement | null {
+    if (!this.root) return null
+    const sepIdx = armKey.indexOf('::')
+    if (sepIdx === -1) {
+      return this.root.querySelector(`[data-da-action="${armKey}"]`)
+    }
+    const action = armKey.slice(0, sepIdx)
+    const itemId = armKey.slice(sepIdx + 2)
+    return this.root.querySelector(
+      `[data-da-action="${action}"][data-da-item-id="${itemId}"]`,
+    )
+  }
+
+  /**
+   * Two-click arming gate for destructive actions.
+   *
+   * - First click: arms the button (changes text, adds armed CSS class,
+   *   starts auto-reset timer).
+   * - Second click while armed: returns `true` so the caller can proceed
+   *   with the actual mutation.
+   *
+   * Arming state is tracked in the controller (survives in-place DOM
+   * mutations) and cleared on `fullReRender()` / `close()`.
+   */
+  private armOrExecute(action: string, btn: HTMLElement): boolean {
+    const key = DashboardInstance.armKey(action, btn)
+
+    if (this.armedActions.has(key)) {
+      // Second click — disarm and signal "execute"
+      this.armedActions.delete(key)
+      btn.classList.remove('da-btn--armed')
+      return true
+    }
+
+    // First click — arm
+    const confirmKey = DESTRUCTIVE_ACTIONS.get(action)
+    if (!confirmKey) return true // not a destructive action
+
+    this.armedActions.set(key, btn.textContent ?? '')
+    btn.textContent = t(confirmKey)
+    btn.classList.add('da-btn--armed')
+
+    this.lifecycle.setTimeout(() => {
+      if (!this.armedActions.has(key)) return
+      const domBtn = this.findArmedBtn(key)
+      if (domBtn) {
+        domBtn.textContent = this.armedActions.get(key) ?? ''
+        domBtn.classList.remove('da-btn--armed')
+      }
+      this.armedActions.delete(key)
+    }, ARM_TIMEOUT_MS)
+
+    return false
+  }
+
   // ── Event binding ─────────────────────────────────────────────────────
 
   private bindEvents(): void {
@@ -676,6 +785,11 @@ class DashboardInstance {
     const btn = target.closest('[data-da-action]') as HTMLElement | null
     if (!btn) return
     const action = btn.getAttribute('data-da-action')
+
+    // Gate destructive actions through the two-click arming flow
+    if (action && DESTRUCTIVE_ACTIONS.has(action)) {
+      if (!this.armOrExecute(action, btn)) return
+    }
 
     switch (action) {
       case 'close':

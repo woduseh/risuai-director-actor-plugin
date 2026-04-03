@@ -269,6 +269,12 @@ const EN_CATALOG = {
   'guard.blockedShutdown': 'Please wait — the plugin is shutting down.',
   'guard.blockedMaintenance': 'Please wait — another maintenance task is still running.',
 
+  // Destructive confirmation arming
+  'confirm.deleteMemory': 'Confirm Delete?',
+  'confirm.bulkDeleteMemory': 'Confirm Delete Selected?',
+  'confirm.regenerateCurrentChat': 'Confirm Regenerate?',
+  'confirm.deletePromptPreset': 'Confirm Delete Preset?',
+
   // Language selector
   'lang.label': 'Language',
   'lang.en': 'English',
@@ -520,6 +526,12 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'guard.blockedStartup': '잠시 기다려 주세요 — 플러그인이 아직 시작 중입니다.',
   'guard.blockedShutdown': '잠시 기다려 주세요 — 플러그인이 종료 중입니다.',
   'guard.blockedMaintenance': '잠시 기다려 주세요 — 다른 유지보수 작업이 아직 실행 중입니다.',
+
+  // Destructive confirmation arming
+  'confirm.deleteMemory': '삭제 확인?',
+  'confirm.bulkDeleteMemory': '선택 삭제 확인?',
+  'confirm.regenerateCurrentChat': '재생성 확인?',
+  'confirm.deletePromptPreset': '프리셋 삭제 확인?',
 
   // Language selector
   'lang.label': '언어',

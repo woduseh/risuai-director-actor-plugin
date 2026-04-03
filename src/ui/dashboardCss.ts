@@ -389,6 +389,18 @@ export function buildDashboardCss(): string {
   border-color: color-mix(in srgb, var(--da-danger) 32%, var(--da-border));
 }
 
+.da-btn--armed {
+  background: var(--da-danger);
+  color: #fff;
+  border-color: var(--da-danger);
+  animation: da-armed-pulse 1s ease-in-out infinite;
+}
+
+@keyframes da-armed-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .78; }
+}
+
 .da-close-btn {
   align-self: flex-start;
 }

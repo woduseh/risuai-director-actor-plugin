@@ -9,9 +9,9 @@
  *
  * All tests are expected to FAIL against the current stub implementation.
  */
-import { beforeEach, afterEach } from 'vitest'
+import { beforeEach, afterEach, vi } from 'vitest'
 import { createMockRisuaiApi } from './helpers/mockRisuai.js'
-import { openDashboard, closeDashboard } from '../src/ui/dashboardApp.js'
+import { openDashboard, closeDashboard, ARM_TIMEOUT_MS } from '../src/ui/dashboardApp.js'
 import type { DashboardStore } from '../src/ui/dashboardApp.js'
 import { DASHBOARD_ROOT_CLASS } from '../src/ui/dashboardCss.js'
 import { createEmptyState } from '../src/contracts/types.js'
@@ -334,9 +334,10 @@ describe('dashboard app memory delete actions', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    // Click delete on sum-1
+    // Click delete on sum-1 (first click arms, second confirms)
     const delBtn = root.querySelector('[data-da-action="delete-summary"][data-da-item-id="sum-1"]') as HTMLElement
     expect(delBtn).not.toBeNull()
+    delBtn.click()
     delBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
@@ -364,9 +365,10 @@ describe('dashboard app memory delete actions', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    // Click delete on cf-1
+    // Click delete on cf-1 (first click arms, second confirms)
     const delBtn = root.querySelector('[data-da-action="delete-continuity-fact"][data-da-item-id="cf-1"]') as HTMLElement
     expect(delBtn).not.toBeNull()
+    delBtn.click()
     delBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
@@ -405,7 +407,8 @@ describe('dashboard app memory delete actions', () => {
       '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
     ) as HTMLElement
     expect(delBtn).not.toBeNull()
-    delBtn.click()
+    delBtn.click() // arm
+    delBtn.click() // confirm
     await new Promise((r) => {
       setTimeout(r, 50)
     })
@@ -466,7 +469,8 @@ describe('dashboard app memory edit and bulk delete actions', () => {
 
     const bulkDeleteBtn = root.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLButtonElement
     expect(bulkDeleteBtn.disabled).toBe(false)
-    bulkDeleteBtn.click()
+    bulkDeleteBtn.click() // arm
+    bulkDeleteBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 50) })
 
     const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
@@ -1144,7 +1148,8 @@ describe('memory-cache page world facts', () => {
 
     const delBtn = root.querySelector('[data-da-action="delete-world-fact"][data-da-item-id="wf-1"]') as HTMLElement
     expect(delBtn).not.toBeNull()
-    delBtn.click()
+    delBtn.click() // arm
+    delBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 50) })
 
     const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
@@ -1170,7 +1175,8 @@ describe('memory-cache page world facts', () => {
     navigateToMemoryTab(root)
 
     const delBtn = root.querySelector('[data-da-action="delete-world-fact"][data-da-item-id="wf-1"]') as HTMLElement
-    delBtn.click()
+    delBtn.click() // arm
+    delBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 50) })
 
     expect(writeCalls).toBe(1)
@@ -1313,7 +1319,8 @@ describe('memory-cache page entities', () => {
 
     const delBtn = root.querySelector('[data-da-action="delete-entity"][data-da-item-id="ent-1"]') as HTMLElement
     expect(delBtn).not.toBeNull()
-    delBtn.click()
+    delBtn.click() // arm
+    delBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 50) })
 
     const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
@@ -1339,7 +1346,8 @@ describe('memory-cache page entities', () => {
     navigateToMemoryTab(root)
 
     const delBtn = root.querySelector('[data-da-action="delete-entity"][data-da-item-id="ent-1"]') as HTMLElement
-    delBtn.click()
+    delBtn.click() // arm
+    delBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 50) })
 
     expect(writeCalls).toBe(1)
@@ -1505,7 +1513,8 @@ describe('memory-cache page relations', () => {
 
     const delBtn = root.querySelector('[data-da-action="delete-relation"][data-da-item-id="rel-1"]') as HTMLElement
     expect(delBtn).not.toBeNull()
-    delBtn.click()
+    delBtn.click() // arm
+    delBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 50) })
 
     const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
@@ -1531,7 +1540,8 @@ describe('memory-cache page relations', () => {
     navigateToMemoryTab(root)
 
     const delBtn = root.querySelector('[data-da-action="delete-relation"][data-da-item-id="rel-1"]') as HTMLElement
-    delBtn.click()
+    delBtn.click() // arm
+    delBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 50) })
 
     expect(writeCalls).toBe(1)
@@ -1664,5 +1674,333 @@ describe('memory-cache page empty state with new domains', () => {
     const emptyHint = memoryPage.querySelector('[data-da-role="memory-empty"]')
 
     expect(emptyHint).not.toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 12. Destructive-action arming (UI-3)
+// ---------------------------------------------------------------------------
+
+describe('destructive-action arming', () => {
+  let api: ReturnType<typeof createMockRisuaiApi>
+  let store: DashboardStore
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    api = createMockRisuaiApi()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  afterEach(async () => {
+    vi.useRealTimers()
+    await closeDashboard()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  // -- single memory delete ------------------------------------------------
+
+  test('first click on a memory delete button only arms — no state mutation', async () => {
+    let currentState = stateWithMemory()
+    const originalSummaryCount = currentState.memory.summaries.length
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const delBtn = root.querySelector(
+      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+    ) as HTMLElement
+    delBtn.click() // arm only
+
+    // State must NOT have changed
+    expect(currentState.memory.summaries.length).toBe(originalSummaryCount)
+    // Button should show confirm text and armed class
+    expect(delBtn.classList.contains('da-btn--armed')).toBe(true)
+    expect(delBtn.textContent).toBe('Confirm Delete?')
+  })
+
+  test('second click on an armed memory delete button executes the deletion', async () => {
+    let currentState = stateWithMemory()
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const delBtn = root.querySelector(
+      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+    ) as HTMLElement
+    delBtn.click() // arm
+    delBtn.click() // confirm
+
+    await vi.advanceTimersByTimeAsync(100)
+
+    expect(currentState.memory.summaries.some((s) => s.id === 'sum-1')).toBe(false)
+  })
+
+  test('arming one memory item does not arm a different item', async () => {
+    let currentState = stateWithMemory()
+    const originalCount = currentState.memory.summaries.length
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const delBtn1 = root.querySelector(
+      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+    ) as HTMLElement
+    const delBtn2 = root.querySelector(
+      '[data-da-action="delete-summary"][data-da-item-id="sum-2"]',
+    ) as HTMLElement
+
+    delBtn1.click() // arm sum-1
+    expect(delBtn1.classList.contains('da-btn--armed')).toBe(true)
+    expect(delBtn2.classList.contains('da-btn--armed')).toBe(false)
+
+    // Clicking sum-2 arms sum-2 but does NOT confirm sum-1
+    delBtn2.click() // arm sum-2
+
+    expect(currentState.memory.summaries.length).toBe(originalCount)
+  })
+
+  // -- armed state auto-reset after timeout --------------------------------
+
+  test('armed state auto-resets after timeout without executing', async () => {
+    let currentState = stateWithMemory()
+    const originalCount = currentState.memory.summaries.length
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const delBtn = root.querySelector(
+      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+    ) as HTMLElement
+    delBtn.click() // arm
+    expect(delBtn.classList.contains('da-btn--armed')).toBe(true)
+
+    // Advance past the arming timeout
+    vi.advanceTimersByTime(ARM_TIMEOUT_MS + 100)
+
+    // Armed state should have cleared
+    expect(delBtn.classList.contains('da-btn--armed')).toBe(false)
+    expect(delBtn.textContent).not.toBe('Confirm Delete?')
+    // State should NOT have mutated
+    expect(currentState.memory.summaries.length).toBe(originalCount)
+  })
+
+  // -- bulk delete ----------------------------------------------------------
+
+  test('first click on bulk-delete only arms, second click executes', async () => {
+    let currentState = stateWithFullMemory()
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    // Select an item
+    const checkbox = root.querySelector(
+      'input[data-da-role="memory-select"][data-da-item-key="summary:sum-1"]',
+    ) as HTMLInputElement
+    checkbox.checked = true
+    checkbox.dispatchEvent(new Event('change', { bubbles: true }))
+
+    const bulkBtn = root.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLButtonElement
+    bulkBtn.click() // arm
+    expect(bulkBtn.classList.contains('da-btn--armed')).toBe(true)
+    expect(currentState.memory.summaries.some((s) => s.id === 'sum-1')).toBe(true)
+
+    bulkBtn.click() // confirm
+    await vi.advanceTimersByTimeAsync(100)
+
+    expect(currentState.memory.summaries.some((s) => s.id === 'sum-1')).toBe(false)
+  })
+
+  // -- delete prompt preset -------------------------------------------------
+
+  test('first click on delete-prompt-preset only arms, second click executes', async () => {
+    vi.useRealTimers()
+
+    const { BUILTIN_PROMPT_PRESET_ID } = await import('../src/director/prompt.js')
+    const { DASHBOARD_SETTINGS_KEY, createPromptPresetFromSettings } = await import('../src/ui/dashboardState.js')
+    const { DEFAULT_DIRECTOR_SETTINGS } = await import('../src/contracts/types.js')
+
+    // Create a valid custom preset via the factory
+    const validPreset = createPromptPresetFromSettings(DEFAULT_DIRECTOR_SETTINGS)
+    const settings = {
+      ...DEFAULT_DIRECTOR_SETTINGS,
+      promptPresetId: validPreset.id,
+      promptPresets: { [validPreset.id]: validPreset },
+    }
+    await api.pluginStorage.setItem(DASHBOARD_SETTINGS_KEY, settings)
+    store = createTestStore(api)
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    // Navigate to prompt tuning tab
+    const tuningBtn = root.querySelector('[data-da-target="prompt-tuning"]') as HTMLElement
+    tuningBtn.click()
+
+    const deletePresetBtn = root.querySelector('[data-da-action="delete-prompt-preset"]') as HTMLButtonElement
+    expect(deletePresetBtn).not.toBeNull()
+    expect(deletePresetBtn.disabled).toBe(false)
+    deletePresetBtn.click() // arm
+    expect(deletePresetBtn.classList.contains('da-btn--armed')).toBe(true)
+
+    // The preset should still be selectable (not yet deleted)
+    const presetSelect = root.querySelector('[data-da-role="prompt-preset-select"]') as HTMLSelectElement
+    expect(presetSelect.value).toBe(validPreset.id)
+
+    deletePresetBtn.click() // confirm
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    // After confirmation, the preset should be deleted and selection should fall back to builtin
+    const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const updatedSelect = updatedRoot.querySelector('[data-da-role="prompt-preset-select"]') as HTMLSelectElement
+    expect(updatedSelect.value).toBe(BUILTIN_PROMPT_PRESET_ID)
+  })
+
+  // -- arming cleared on fullReRender --------------------------------------
+
+  test('armed state is cleared when dashboard re-renders', async () => {
+    let currentState = stateWithMemory()
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    let root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const delBtn = root.querySelector(
+      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+    ) as HTMLElement
+    delBtn.click() // arm
+    expect(delBtn.classList.contains('da-btn--armed')).toBe(true)
+
+    // Trigger a fullReRender via an add action (non-destructive mutation)
+    const addInput = root.querySelector('input[data-da-role="add-summary-text"]') as HTMLInputElement
+    addInput.value = 'Trigger rerender'
+    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    addBtn.click()
+    await vi.advanceTimersByTimeAsync(100)
+
+    // After re-render, the arming should be cleared — fresh delete button
+    root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const freshDelBtn = root.querySelector(
+      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+    ) as HTMLElement
+    expect(freshDelBtn).not.toBeNull()
+    expect(freshDelBtn.classList.contains('da-btn--armed')).toBe(false)
+    expect(freshDelBtn.textContent).not.toBe('Confirm Delete?')
+  })
+
+  // -- arming cleared on close ---------------------------------------------
+
+  test('armed state is cleaned up when dashboard closes', async () => {
+    let currentState = stateWithMemory()
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const delBtn = root.querySelector(
+      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+    ) as HTMLElement
+    delBtn.click() // arm
+
+    await closeDashboard()
+
+    // Re-open — should not carry over stale armed state
+    await openDashboard(api, store)
+    const root2 = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root2)
+    const freshBtn = root2.querySelector(
+      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+    ) as HTMLElement
+    expect(freshBtn).not.toBeNull()
+    expect(freshBtn.classList.contains('da-btn--armed')).toBe(false)
+  })
+
+  // -- Korean locale confirm text ------------------------------------------
+
+  test('armed state shows Korean confirm text when locale is ko', async () => {
+    setLocale('ko')
+    let currentState = stateWithMemory()
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const delBtn = root.querySelector(
+      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+    ) as HTMLElement
+    delBtn.click() // arm
+    expect(delBtn.textContent).toBe('삭제 확인?')
   })
 })

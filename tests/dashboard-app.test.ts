@@ -687,7 +687,8 @@ describe('openDashboard', () => {
 
     const regenerateBtn = root.querySelector('[data-da-action="regenerate-current-chat"]') as HTMLElement
     expect(regenerateBtn).not.toBeNull()
-    regenerateBtn.click()
+    regenerateBtn.click() // arm
+    regenerateBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 50) })
 
     root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
@@ -919,7 +920,8 @@ describe('openDashboard', () => {
 
     const bulkDeleteBtn = root.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLElement
     expect(bulkDeleteBtn).not.toBeNull()
-    bulkDeleteBtn.click()
+    bulkDeleteBtn.click() // arm
+    bulkDeleteBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 50) })
 
     const toast = document.querySelector('.da-toast')
@@ -1298,7 +1300,8 @@ describe('openDashboard', () => {
     const bulkDeleteBtn = root.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLButtonElement
     expect(bulkDeleteBtn.disabled).toBe(false)
 
-    bulkDeleteBtn.click()
+    bulkDeleteBtn.click() // arm
+    bulkDeleteBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 10) })
 
     // The button should be disabled during the operation
