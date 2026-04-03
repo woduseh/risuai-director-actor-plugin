@@ -58,6 +58,58 @@ describe('CanonicalStore', () => {
     expect(snapshotFromStorage).not.toBeNull()
     expect((snapshotFromStorage as { memory: { summaries: unknown[] } }).memory.summaries).toHaveLength(1)
   })
+
+  describe('snapshot()', () => {
+    test('returns a deep-cloned state after load()', async () => {
+      const api = createMockRisuaiApi()
+      const store = new CanonicalStore(api.pluginStorage)
+      await store.load()
+
+      const snap = (store as any).snapshot() as ReturnType<typeof createEmptyState>
+
+      expect(snap).toBeDefined()
+      expect(snap.schemaVersion).toBe(1)
+      expect(snap.projectKey).toBe('default-project')
+      expect(snap.memory.summaries).toEqual([])
+    })
+
+    test('mutating the returned snapshot does not affect internal state', async () => {
+      const api = createMockRisuaiApi()
+      const store = new CanonicalStore(api.pluginStorage)
+      await store.load()
+
+      const snap = (store as any).snapshot() as ReturnType<typeof createEmptyState>
+      snap.memory.summaries.push({
+        id: 'mutant',
+        text: 'Should not appear in store',
+        recencyWeight: 1,
+        updatedAt: Date.now()
+      })
+
+      const snap2 = (store as any).snapshot() as ReturnType<typeof createEmptyState>
+      expect(snap2.memory.summaries).toEqual([])
+    })
+  })
+
+  describe('legacy continuity sync', () => {
+    test('load() mirrors director.continuityFacts into memory.continuityFacts when memory field is missing', async () => {
+      const api = createMockRisuaiApi()
+      const legacyState = createEmptyState()
+      legacyState.director.continuityFacts = [
+        { id: 'cf-1', text: 'The castle was destroyed', priority: 0.9 }
+      ]
+      const legacyMemory = legacyState.memory as unknown as Record<string, unknown>
+      delete legacyMemory.continuityFacts
+      await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, legacyState)
+
+      const store = new CanonicalStore(api.pluginStorage)
+      const state = await store.load()
+
+      expect(state.memory.continuityFacts).toEqual([
+        { id: 'cf-1', text: 'The castle was destroyed', priority: 0.9 }
+      ])
+    })
+  })
 })
 
 describe('TurnCache', () => {

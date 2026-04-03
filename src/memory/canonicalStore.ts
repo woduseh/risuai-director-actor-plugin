@@ -10,7 +10,11 @@ export const DIRECTOR_STATE_STORAGE_KEY = 'director-plugin-state'
  */
 function patchLegacyMemory(state: DirectorPluginState): void {
   if (!Array.isArray(state.memory.continuityFacts)) {
-    state.memory.continuityFacts = []
+    if (Array.isArray(state.director.continuityFacts) && state.director.continuityFacts.length > 0) {
+      state.memory.continuityFacts = state.director.continuityFacts.map((f) => ({ ...f }))
+    } else {
+      state.memory.continuityFacts = []
+    }
   }
 }
 
@@ -41,6 +45,13 @@ export class CanonicalStore {
 
   constructor(storage: AsyncKeyValueStore) {
     this.storage = storage
+  }
+
+  snapshot(): DirectorPluginState {
+    if (this.current == null) {
+      throw new Error('CanonicalStore has not been loaded yet')
+    }
+    return structuredClone(this.current)
   }
 
   async load(): Promise<DirectorPluginState> {

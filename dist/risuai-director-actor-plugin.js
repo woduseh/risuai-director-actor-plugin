@@ -462,7 +462,11 @@ ${MEMORY_UPDATE_SCHEMA}`
   var DIRECTOR_STATE_STORAGE_KEY = "director-plugin-state";
   function patchLegacyMemory(state) {
     if (!Array.isArray(state.memory.continuityFacts)) {
-      state.memory.continuityFacts = [];
+      if (Array.isArray(state.director.continuityFacts) && state.director.continuityFacts.length > 0) {
+        state.memory.continuityFacts = state.director.continuityFacts.map((f) => ({ ...f }));
+      } else {
+        state.memory.continuityFacts = [];
+      }
     }
   }
   function isValidState(value) {
@@ -475,6 +479,12 @@ ${MEMORY_UPDATE_SCHEMA}`
     current = null;
     constructor(storage) {
       this.storage = storage;
+    }
+    snapshot() {
+      if (this.current == null) {
+        throw new Error("CanonicalStore has not been loaded yet");
+      }
+      return structuredClone(this.current);
     }
     async load() {
       const raw = await this.storage.getItem(DIRECTOR_STATE_STORAGE_KEY);
@@ -504,10 +514,54 @@ ${MEMORY_UPDATE_SCHEMA}`
     }
   };
 
+  // src/memory/memoryMutations.ts
+  function createId(prefix) {
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+  function uniqueStrings(values) {
+    return [...new Set(values.map((v) => v.trim()).filter(Boolean))];
+  }
+  function upsertContinuityFact(state, input) {
+    const { id, text, priority, sceneId, entityIds } = input;
+    const resolvedId = id ?? createId("continuity");
+    function upsertInto(arr) {
+      const existing = id ? arr.find((f) => f.id === id) : void 0;
+      if (existing) {
+        existing.text = text;
+        existing.priority = priority;
+        if (sceneId !== void 0) existing.sceneId = sceneId;
+        if (entityIds) {
+          existing.entityIds = uniqueStrings([...existing.entityIds ?? [], ...entityIds]);
+        }
+        return;
+      }
+      const entry = { id: resolvedId, text, priority };
+      if (sceneId !== void 0) entry.sceneId = sceneId;
+      if (entityIds && entityIds.length > 0) entry.entityIds = entityIds;
+      arr.push(entry);
+    }
+    upsertInto(state.memory.continuityFacts);
+    upsertInto(state.director.continuityFacts);
+  }
+  function deleteContinuityFact(state, id) {
+    const memIdx = state.memory.continuityFacts.findIndex((f) => f.id === id);
+    const dirIdx = state.director.continuityFacts.findIndex((f) => f.id === id);
+    let removed = false;
+    if (memIdx !== -1) {
+      state.memory.continuityFacts.splice(memIdx, 1);
+      removed = true;
+    }
+    if (dirIdx !== -1) {
+      state.director.continuityFacts.splice(dirIdx, 1);
+      removed = true;
+    }
+    return removed;
+  }
+
   // src/memory/applyUpdate.ts
   var MAX_FAILURE_HISTORY = 50;
   var MAX_SCENE_LEDGER = 200;
-  function createId(prefix) {
+  function createId2(prefix) {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
   function asRecord(value) {
@@ -526,7 +580,7 @@ ${MEMORY_UPDATE_SCHEMA}`
   function isScenePhase(value) {
     return value === "setup" || value === "pressure" || value === "turn" || value === "aftermath";
   }
-  function uniqueStrings(values) {
+  function uniqueStrings2(values) {
     return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
   }
   function upsertSummary(summaries, text, now, partial) {
@@ -537,7 +591,7 @@ ${MEMORY_UPDATE_SCHEMA}`
         existing.sceneId = partial.sceneId;
       }
       existing.recencyWeight = partial?.recencyWeight ?? Math.max(existing.recencyWeight, 1);
-      existing.entityIds = uniqueStrings([
+      existing.entityIds = uniqueStrings2([
         ...existing.entityIds ?? [],
         ...readStringArray(partial?.entityIds)
       ]);
@@ -545,7 +599,7 @@ ${MEMORY_UPDATE_SCHEMA}`
       return;
     }
     const next = {
-      id: partial?.id ?? createId("summary"),
+      id: partial?.id ?? createId2("summary"),
       text,
       recencyWeight: partial?.recencyWeight ?? 1,
       updatedAt: now
@@ -563,12 +617,12 @@ ${MEMORY_UPDATE_SCHEMA}`
     const existing = worldFacts.find((entry) => entry.text === text || entry.id === partial?.id);
     if (existing) {
       existing.text = text;
-      existing.tags = uniqueStrings([...existing.tags ?? [], ...readStringArray(partial?.tags)]);
+      existing.tags = uniqueStrings2([...existing.tags ?? [], ...readStringArray(partial?.tags)]);
       existing.updatedAt = now;
       return;
     }
     const next = {
-      id: partial?.id ?? createId("world"),
+      id: partial?.id ?? createId2("world"),
       text,
       updatedAt: now
     };
@@ -578,34 +632,15 @@ ${MEMORY_UPDATE_SCHEMA}`
     }
     worldFacts.push(next);
   }
-  function upsertContinuityFact(state, text, now, partial) {
-    const existing = state.director.continuityFacts.find(
-      (entry) => entry.text === text || entry.id === partial?.id
-    );
-    if (existing) {
-      existing.text = text;
-      existing.priority = partial?.priority ?? existing.priority;
-      if (partial?.sceneId !== void 0) {
-        existing.sceneId = partial.sceneId;
-      }
-      existing.entityIds = uniqueStrings([
-        ...existing.entityIds ?? [],
-        ...partial?.entityIds ?? []
-      ]);
-      return;
-    }
-    const next = {
-      id: partial?.id ?? createId("continuity"),
+  function upsertContinuityFact2(state, text, _now, partial) {
+    const input = {
       text,
       priority: partial?.priority ?? 0.8
     };
-    if (partial?.sceneId !== void 0) {
-      next.sceneId = partial.sceneId;
-    }
-    if (partial?.entityIds && partial.entityIds.length > 0) {
-      next.entityIds = partial.entityIds;
-    }
-    state.director.continuityFacts.push(next);
+    if (partial?.id != null) input.id = partial.id;
+    if (partial?.sceneId != null) input.sceneId = partial.sceneId;
+    if (partial?.entityIds != null) input.entityIds = partial.entityIds;
+    upsertContinuityFact(state, input);
   }
   function upsertEntity(entities, payload, now, warnings) {
     const id = readString(payload.id);
@@ -619,13 +654,13 @@ ${MEMORY_UPDATE_SCHEMA}`
     const tags = readStringArray(payload.tags);
     if (existing) {
       if (name) existing.name = name;
-      existing.facts = uniqueStrings([...existing.facts, ...facts]);
-      existing.tags = uniqueStrings([...existing.tags ?? [], ...tags]);
+      existing.facts = uniqueStrings2([...existing.facts, ...facts]);
+      existing.tags = uniqueStrings2([...existing.tags ?? [], ...tags]);
       existing.updatedAt = now;
       return;
     }
     entities.push({
-      id: id ?? createId("entity"),
+      id: id ?? createId2("entity"),
       name: name ?? `entity-${entities.length + 1}`,
       facts,
       tags,
@@ -646,12 +681,12 @@ ${MEMORY_UPDATE_SCHEMA}`
     );
     const facts = readStringArray(payload.facts);
     if (existing) {
-      existing.facts = uniqueStrings([...existing.facts ?? [], ...facts]);
+      existing.facts = uniqueStrings2([...existing.facts ?? [], ...facts]);
       existing.updatedAt = now;
       return;
     }
     relations.push({
-      id: id ?? createId("relation"),
+      id: id ?? createId2("relation"),
       sourceId: sourceId ?? "unknown-source",
       targetId: targetId ?? "unknown-target",
       label: label ?? "related",
@@ -676,7 +711,7 @@ ${MEMORY_UPDATE_SCHEMA}`
       return;
     }
     arcs.push({
-      id: id ?? createId("arc"),
+      id: id ?? createId2("arc"),
       label: label ?? `arc-${arcs.length + 1}`,
       status,
       weight
@@ -718,7 +753,7 @@ ${MEMORY_UPDATE_SCHEMA}`
             return;
           }
           state.memory.turnArchive.push({
-            id: createId("archive"),
+            id: createId2("archive"),
             summaryId: summary.id,
             sourceTurnIds: [input.turnId],
             createdAt: now
@@ -773,12 +808,21 @@ ${MEMORY_UPDATE_SCHEMA}`
       case "continuityfacts":
       case "continuityfact": {
         if (operation.op === "drop") {
-          if (!removeByIdentity(
-            state.director.continuityFacts,
-            payload,
-            (entry) => entry.text === text
-          )) {
-            warnings.push(`Could not drop continuity fact "${text ?? payload.id ?? "unknown"}".`);
+          const dropId = readString(payload.id);
+          if (dropId) {
+            if (!deleteContinuityFact(state, dropId)) {
+              warnings.push(`Could not drop continuity fact "${dropId}".`);
+            }
+          } else if (text) {
+            const dirIdx = state.director.continuityFacts.findIndex((e) => e.text === text);
+            const memIdx = state.memory.continuityFacts.findIndex((e) => e.text === text);
+            if (dirIdx === -1 && memIdx === -1) {
+              warnings.push(`Could not drop continuity fact "${text}".`);
+            }
+            if (dirIdx !== -1) state.director.continuityFacts.splice(dirIdx, 1);
+            if (memIdx !== -1) state.memory.continuityFacts.splice(memIdx, 1);
+          } else {
+            warnings.push('Could not drop continuity fact "unknown".');
           }
           return;
         }
@@ -797,7 +841,7 @@ ${MEMORY_UPDATE_SCHEMA}`
         if (continuityEntityIds.length > 0) {
           continuityPartial.entityIds = continuityEntityIds;
         }
-        upsertContinuityFact(state, text, now, {
+        upsertContinuityFact2(state, text, now, {
           ...continuityPartial
         });
         return;
@@ -859,18 +903,18 @@ ${MEMORY_UPDATE_SCHEMA}`
       ...input.brief.ensembleWeights
     };
     for (const lock of input.brief.continuityLocks) {
-      upsertContinuityFact(next, lock, now, { sceneId: next.director.currentSceneId });
+      upsertContinuityFact2(next, lock, now, { sceneId: next.director.currentSceneId });
     }
     if (isScenePhase(update.sceneDelta.scenePhase)) {
       next.director.scenePhase = update.sceneDelta.scenePhase;
     }
-    for (const durableFact of uniqueStrings(update.durableFacts)) {
+    for (const durableFact of uniqueStrings2(update.durableFacts)) {
       upsertSummary(next.memory.summaries, durableFact, now, {
         sceneId: next.director.currentSceneId,
         recencyWeight: 1
       });
     }
-    for (const worldChange of uniqueStrings(update.sceneDelta.worldStateChanges ?? [])) {
+    for (const worldChange of uniqueStrings2(update.sceneDelta.worldStateChanges ?? [])) {
       upsertWorldFact(next.memory.worldFacts, worldChange, now);
     }
     next.memory.sceneLedger.push({
@@ -914,7 +958,7 @@ ${MEMORY_UPDATE_SCHEMA}`
       next.director.failureHistory = next.director.failureHistory.slice(0, MAX_FAILURE_HISTORY);
     }
     if (update.correction) {
-      next.actor.currentIntentHints = uniqueStrings([
+      next.actor.currentIntentHints = uniqueStrings2([
         update.correction,
         ...next.actor.currentIntentHints
       ]).slice(0, 12);

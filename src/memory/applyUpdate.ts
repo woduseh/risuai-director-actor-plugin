@@ -10,6 +10,10 @@ import type {
   ScenePhase,
   WorldFact
 } from '../contracts/types.js'
+import {
+  upsertContinuityFact as mutUpsertContinuityFact,
+  deleteContinuityFact as mutDeleteContinuityFact
+} from './memoryMutations.js'
 
 const MAX_FAILURE_HISTORY = 50
 const MAX_SCENE_LEDGER = 200
@@ -125,44 +129,17 @@ function upsertWorldFact(
 function upsertContinuityFact(
   state: DirectorPluginState,
   text: string,
-  now: number,
+  _now: number,
   partial?: { id?: string; priority?: number; sceneId?: string; entityIds?: string[] }
 ): void {
-  const existing = state.director.continuityFacts.find(
-    (entry) => entry.text === text || entry.id === partial?.id
-  )
-
-  if (existing) {
-    existing.text = text
-    existing.priority = partial?.priority ?? existing.priority
-    if (partial?.sceneId !== undefined) {
-      existing.sceneId = partial.sceneId
-    }
-    existing.entityIds = uniqueStrings([
-      ...(existing.entityIds ?? []),
-      ...(partial?.entityIds ?? [])
-    ])
-    return
-  }
-
-  const next: {
-    id: string
-    text: string
-    priority: number
-    sceneId?: string
-    entityIds?: string[]
-  } = {
-    id: partial?.id ?? createId('continuity'),
+  const input: Parameters<typeof mutUpsertContinuityFact>[1] = {
     text,
     priority: partial?.priority ?? 0.8
   }
-  if (partial?.sceneId !== undefined) {
-    next.sceneId = partial.sceneId
-  }
-  if (partial?.entityIds && partial.entityIds.length > 0) {
-    next.entityIds = partial.entityIds
-  }
-  state.director.continuityFacts.push(next)
+  if (partial?.id != null) input.id = partial.id
+  if (partial?.sceneId != null) input.sceneId = partial.sceneId
+  if (partial?.entityIds != null) input.entityIds = partial.entityIds
+  mutUpsertContinuityFact(state, input)
 }
 
 function upsertEntity(
@@ -390,14 +367,21 @@ function applyMemoryOperation(
     case 'continuityfacts':
     case 'continuityfact': {
       if (operation.op === 'drop') {
-        if (
-          !removeByIdentity(
-            state.director.continuityFacts,
-            payload,
-            (entry) => entry.text === text
-          )
-        ) {
-          warnings.push(`Could not drop continuity fact "${text ?? payload.id ?? 'unknown'}".`)
+        const dropId = readString(payload.id)
+        if (dropId) {
+          if (!mutDeleteContinuityFact(state, dropId)) {
+            warnings.push(`Could not drop continuity fact "${dropId}".`)
+          }
+        } else if (text) {
+          const dirIdx = state.director.continuityFacts.findIndex((e) => e.text === text)
+          const memIdx = state.memory.continuityFacts.findIndex((e) => e.text === text)
+          if (dirIdx === -1 && memIdx === -1) {
+            warnings.push(`Could not drop continuity fact "${text}".`)
+          }
+          if (dirIdx !== -1) state.director.continuityFacts.splice(dirIdx, 1)
+          if (memIdx !== -1) state.memory.continuityFacts.splice(memIdx, 1)
+        } else {
+          warnings.push('Could not drop continuity fact "unknown".')
         }
         return
       }
