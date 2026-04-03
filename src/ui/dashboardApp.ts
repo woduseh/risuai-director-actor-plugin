@@ -62,6 +62,23 @@ const TOAST_DURATION_ERROR_MS = 5000
 const PROFILE_ID_PREFIX = 'user-profile-'
 const IMPORT_STAGING_KEY = 'dashboard-profile-import-staging'
 
+/**
+ * Action names that must not be double-fired while a previous
+ * invocation is still in flight.
+ */
+export const GUARDED_ACTIONS: ReadonlySet<string> = new Set([
+  'save',
+  'discard',
+  'test-connection',
+  'refresh-models',
+  'import-profile',
+  'backfill-current-chat',
+  'regenerate-current-chat',
+  'force-extract',
+  'force-dream',
+  'bulk-delete-memory',
+])
+
 // ---------------------------------------------------------------------------
 // Toast severity
 // ---------------------------------------------------------------------------
@@ -286,6 +303,9 @@ class DashboardInstance {
   } | null = null
   private memoryOpsStatus: MemoryOpsStatus
 
+  /** Action names currently in flight (used by async busy guards). */
+  private readonly busyActions = new Set<string>()
+
   constructor(
     api: RisuaiApi,
     store: DashboardStore,
@@ -454,6 +474,7 @@ class DashboardInstance {
     parent.appendChild(wrapper)
     this.root = wrapper
     this.bindEvents()
+    this.applyAllBusyStates()
   }
 
   private updateConnectionStatusDom(): void {
@@ -501,6 +522,70 @@ class DashboardInstance {
   private markDirty(): void {
     this.draft.isDirty = true
     this.updateDirtyIndicator()
+  }
+
+  // ── Async busy guards ──────────────────────────────────────────────────
+
+  /** True when `actionName` is currently in flight. */
+  isActionBusy(actionName: string): boolean {
+    return this.busyActions.has(actionName)
+  }
+
+  /**
+   * Run `fn` while marking `actionName` as busy.
+   * A second click on the same action is silently ignored until the
+   * first promise settles.  The triggering button is disabled for
+   * the duration so the user gets visible feedback via the CSS
+   * disabled-state rule from UI-1.
+   */
+  private async withBusyGuard(
+    actionName: string,
+    fn: () => Promise<void>,
+  ): Promise<void> {
+    if (this.busyActions.has(actionName)) return
+    this.busyActions.add(actionName)
+    this.setBusyDisabled(actionName, true)
+    try {
+      await fn()
+    } finally {
+      this.busyActions.delete(actionName)
+      this.setBusyDisabled(actionName, false)
+    }
+  }
+
+  /**
+   * Set or clear the `disabled` attribute on the button that owns
+   * `actionName`.  When *clearing*, respects the bulk-delete
+   * "no items selected" invariant so we never incorrectly re-enable
+   * that button.
+   */
+  private setBusyDisabled(actionName: string, busy: boolean): void {
+    if (!this.root) return
+    const btn = this.root.querySelector(
+      `[data-da-action="${actionName}"]`,
+    ) as HTMLButtonElement | null
+    if (!btn) return
+
+    if (busy) {
+      btn.disabled = true
+      return
+    }
+    // When un-busying bulk-delete, keep it disabled if nothing is selected
+    if (actionName === 'bulk-delete-memory' && this.selectedMemoryKeys.size === 0) {
+      btn.disabled = true
+      return
+    }
+    btn.disabled = false
+  }
+
+  /**
+   * Re-apply disabled states for every action that is still in flight.
+   * Called after `fullReRender()` replaces the DOM tree.
+   */
+  private applyAllBusyStates(): void {
+    for (const actionName of this.busyActions) {
+      this.setBusyDisabled(actionName, true)
+    }
   }
 
   // ── Event binding ─────────────────────────────────────────────────────
@@ -597,16 +682,16 @@ class DashboardInstance {
         await this.close()
         break
       case 'save':
-        await this.handleSave()
+        await this.withBusyGuard('save', () => this.handleSave())
         break
       case 'discard':
-        await this.handleDiscard()
+        await this.withBusyGuard('discard', () => this.handleDiscard())
         break
       case 'test-connection':
-        await this.handleTestConnection()
+        await this.withBusyGuard('test-connection', () => this.handleTestConnection())
         break
       case 'refresh-models':
-        await this.handleRefreshModels()
+        await this.withBusyGuard('refresh-models', () => this.handleRefreshModels())
         break
       case 'create-profile':
         await this.handleCreateProfile()
@@ -615,7 +700,7 @@ class DashboardInstance {
         await this.handleExportProfile()
         break
       case 'import-profile':
-        await this.handleImportProfile()
+        await this.withBusyGuard('import-profile', () => this.handleImportProfile())
         break
       case 'create-prompt-preset':
         this.handleCreatePromptPreset()
@@ -624,13 +709,13 @@ class DashboardInstance {
         this.handleDeletePromptPreset()
         break
       case 'backfill-current-chat':
-        await this.handleBackfillCurrentChat()
+        await this.withBusyGuard('backfill-current-chat', () => this.handleBackfillCurrentChat())
         break
       case 'regenerate-current-chat':
-        await this.handleRegenerateCurrentChat()
+        await this.withBusyGuard('regenerate-current-chat', () => this.handleRegenerateCurrentChat())
         break
       case 'bulk-delete-memory':
-        await this.handleBulkDeleteMemory()
+        await this.withBusyGuard('bulk-delete-memory', () => this.handleBulkDeleteMemory())
         break
       case 'edit-memory-item':
         this.handleEditMemoryItem(btn)
@@ -675,10 +760,10 @@ class DashboardInstance {
         await this.handleAddRelation()
         break
       case 'force-extract':
-        await this.handleForceExtract()
+        await this.withBusyGuard('force-extract', () => this.handleForceExtract())
         break
       case 'force-dream':
-        await this.handleForceDream()
+        await this.withBusyGuard('force-dream', () => this.handleForceDream())
         break
       case 'inspect-recalled':
         await this.handleInspectRecalled()

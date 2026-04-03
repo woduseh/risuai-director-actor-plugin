@@ -2511,6 +2511,9 @@ ${lines.join("\n").trimEnd()}`;
         deps.log(
           `[housekeeping] Dream attempt failed: ${err instanceof Error ? err.message : String(err)}`
         );
+        if (dreamDeps) {
+          await dreamDeps.onDreamFailure(err);
+        }
       }
     }
     async function shutdown() {
@@ -2783,6 +2786,132 @@ ${lines.join("\n").trimEnd()}`;
     }
   };
 
+  // src/runtime/diagnostics.ts
+  var MAX_BREADCRUMBS = 16;
+  function defaultWorkerStatus() {
+    return { health: "idle", lastTs: 0 };
+  }
+  function createDefaultDiagnosticsSnapshot() {
+    return {
+      lastHookKind: null,
+      lastHookTs: 0,
+      lastErrorMessage: null,
+      lastErrorTs: 0,
+      extraction: defaultWorkerStatus(),
+      dream: defaultWorkerStatus(),
+      recovery: defaultWorkerStatus(),
+      breadcrumbs: []
+    };
+  }
+  function diagnosticsStorageKey(scopeKey) {
+    return `diagnostics-v1:${scopeKey}`;
+  }
+  var DiagnosticsManager = class {
+    snapshot;
+    storage;
+    storageKey;
+    constructor(storage, scopeKey) {
+      this.storage = storage;
+      this.storageKey = diagnosticsStorageKey(scopeKey);
+      this.snapshot = createDefaultDiagnosticsSnapshot();
+    }
+    // ── persistence ─────────────────────────────────────────────────────
+    async loadSnapshot() {
+      const raw = await this.storage.getItem(this.storageKey);
+      if (raw != null && typeof raw === "object" && Array.isArray(raw.breadcrumbs)) {
+        this.snapshot = {
+          lastHookKind: typeof raw.lastHookKind === "string" ? raw.lastHookKind : null,
+          lastHookTs: typeof raw.lastHookTs === "number" ? raw.lastHookTs : 0,
+          lastErrorMessage: typeof raw.lastErrorMessage === "string" ? raw.lastErrorMessage : null,
+          lastErrorTs: typeof raw.lastErrorTs === "number" ? raw.lastErrorTs : 0,
+          extraction: normalizeWorkerStatus(raw.extraction),
+          dream: normalizeWorkerStatus(raw.dream),
+          recovery: normalizeWorkerStatus(raw.recovery),
+          breadcrumbs: raw.breadcrumbs.slice(-MAX_BREADCRUMBS)
+        };
+      } else {
+        this.snapshot = createDefaultDiagnosticsSnapshot();
+      }
+      return structuredClone(this.snapshot);
+    }
+    async persist() {
+      await this.storage.setItem(this.storageKey, structuredClone(this.snapshot));
+    }
+    // ── accessors ───────────────────────────────────────────────────────
+    getSnapshot() {
+      return structuredClone(this.snapshot);
+    }
+    // ── recording methods ───────────────────────────────────────────────
+    async recordHook(kind, detail) {
+      const now = Date.now();
+      this.snapshot.lastHookKind = kind;
+      this.snapshot.lastHookTs = now;
+      this.pushBreadcrumb({ ts: now, label: `hook:${kind}`, detail });
+      await this.persist();
+    }
+    async recordError(kind, error) {
+      const now = Date.now();
+      const message = error instanceof Error ? error.message : String(error);
+      this.snapshot.lastErrorMessage = message;
+      this.snapshot.lastErrorTs = now;
+      this.pushBreadcrumb({ ts: now, label: `error:${kind}`, detail: message });
+      await this.persist();
+    }
+    async recordWorkerSuccess(workerKind, detail) {
+      const now = Date.now();
+      const status = this.workerRef(workerKind);
+      status.health = "ok";
+      status.lastTs = now;
+      status.lastDetail = detail;
+      this.pushBreadcrumb({ ts: now, label: `worker:${workerKind}:ok`, detail });
+      await this.persist();
+    }
+    async recordWorkerFailure(workerKind, error) {
+      const now = Date.now();
+      const message = error instanceof Error ? error.message : String(error);
+      const status = this.workerRef(workerKind);
+      status.health = "error";
+      status.lastTs = now;
+      status.lastDetail = message;
+      this.snapshot.lastErrorMessage = message;
+      this.snapshot.lastErrorTs = now;
+      this.pushBreadcrumb({ ts: now, label: `worker:${workerKind}:error`, detail: message });
+      await this.persist();
+    }
+    async recordRecovery(resultStatus, detail) {
+      const now = Date.now();
+      const status = this.workerRef("recovery");
+      status.health = resultStatus === "error" ? "error" : "ok";
+      status.lastTs = now;
+      status.lastDetail = detail;
+      this.pushBreadcrumb({ ts: now, label: `recovery:${resultStatus}`, detail });
+      await this.persist();
+    }
+    // ── internal ────────────────────────────────────────────────────────
+    workerRef(kind) {
+      return this.snapshot[kind];
+    }
+    pushBreadcrumb(crumb) {
+      this.snapshot.breadcrumbs.push(crumb);
+      if (this.snapshot.breadcrumbs.length > MAX_BREADCRUMBS) {
+        this.snapshot.breadcrumbs = this.snapshot.breadcrumbs.slice(-MAX_BREADCRUMBS);
+      }
+    }
+  };
+  function normalizeWorkerStatus(raw) {
+    if (raw != null && typeof raw === "object") {
+      const r = raw;
+      const health = r.health;
+      const validHealth = health === "idle" || health === "ok" || health === "error";
+      return {
+        health: validHealth ? health : "idle",
+        lastTs: typeof r.lastTs === "number" ? r.lastTs : 0,
+        lastDetail: typeof r.lastDetail === "string" ? r.lastDetail : void 0
+      };
+    }
+    return defaultWorkerStatus();
+  }
+
   // src/ui/i18n.ts
   var activeLocale = "en";
   function getLocale() {
@@ -2945,6 +3074,19 @@ ${lines.join("\n").trimEnd()}`;
     "btn.forceDream": "Run Dream Now",
     "btn.inspectRecalled": "Inspect Recalled",
     "btn.toggleFallback": "Toggle Fallback Retrieval",
+    // Diagnostics
+    "diag.title": "Runtime Diagnostics",
+    "diag.lastHook": "Last Hook",
+    "diag.lastError": "Last Error",
+    "diag.noError": "None",
+    "diag.extraction": "Extraction Worker",
+    "diag.dream": "Dream Worker",
+    "diag.recovery": "Startup Recovery",
+    "diag.breadcrumbs": "Recent Activity",
+    "diag.health.idle": "Idle",
+    "diag.health.ok": "OK",
+    "diag.health.error": "Error",
+    "diag.noBreadcrumbs": "No recent activity",
     "toast.extractStarted": "Extraction started",
     "toast.dreamStarted": "Consolidation started",
     "toast.extractFailed": "Extraction failed: {{error}}",
@@ -2992,6 +3134,10 @@ ${lines.join("\n").trimEnd()}`;
     "fallback.postReview": "Post-review",
     "fallback.briefCap": "Brief cap",
     "fallback.briefCapUnit": "tokens",
+    // Refresh guard
+    "guard.blockedStartup": "Please wait \u2014 the plugin is still starting up.",
+    "guard.blockedShutdown": "Please wait \u2014 the plugin is shutting down.",
+    "guard.blockedMaintenance": "Please wait \u2014 another maintenance task is still running.",
     // Language selector
     "lang.label": "Language",
     "lang.en": "English",
@@ -3151,6 +3297,19 @@ ${lines.join("\n").trimEnd()}`;
     "btn.forceDream": "\uC9C0\uAE08 \uD1B5\uD569 \uC2E4\uD589",
     "btn.inspectRecalled": "\uD68C\uC0C1 \uBB38\uC11C \uD655\uC778",
     "btn.toggleFallback": "\uB300\uCCB4 \uAC80\uC0C9 \uD1A0\uAE00",
+    // Diagnostics
+    "diag.title": "\uB7F0\uD0C0\uC784 \uC9C4\uB2E8",
+    "diag.lastHook": "\uB9C8\uC9C0\uB9C9 \uD6C5",
+    "diag.lastError": "\uB9C8\uC9C0\uB9C9 \uC624\uB958",
+    "diag.noError": "\uC5C6\uC74C",
+    "diag.extraction": "\uCD94\uCD9C \uC6CC\uCEE4",
+    "diag.dream": "\uD1B5\uD569 \uC6CC\uCEE4",
+    "diag.recovery": "\uC2DC\uC791 \uBCF5\uAD6C",
+    "diag.breadcrumbs": "\uCD5C\uADFC \uD65C\uB3D9",
+    "diag.health.idle": "\uB300\uAE30",
+    "diag.health.ok": "\uC815\uC0C1",
+    "diag.health.error": "\uC624\uB958",
+    "diag.noBreadcrumbs": "\uCD5C\uADFC \uD65C\uB3D9 \uC5C6\uC74C",
     "toast.extractStarted": "\uCD94\uCD9C\uC774 \uC2DC\uC791\uB418\uC5C8\uC2B5\uB2C8\uB2E4",
     "toast.dreamStarted": "\uD1B5\uD569\uC774 \uC2DC\uC791\uB418\uC5C8\uC2B5\uB2C8\uB2E4",
     "toast.extractFailed": "\uCD94\uCD9C \uC2E4\uD328: {{error}}",
@@ -3198,6 +3357,10 @@ ${lines.join("\n").trimEnd()}`;
     "fallback.postReview": "\uC0AC\uD6C4 \uB9AC\uBDF0",
     "fallback.briefCap": "\uBE0C\uB9AC\uD504 \uC0C1\uD55C",
     "fallback.briefCapUnit": "\uD1A0\uD070",
+    // Refresh guard
+    "guard.blockedStartup": "\uC7A0\uC2DC \uAE30\uB2E4\uB824 \uC8FC\uC138\uC694 \u2014 \uD50C\uB7EC\uADF8\uC778\uC774 \uC544\uC9C1 \uC2DC\uC791 \uC911\uC785\uB2C8\uB2E4.",
+    "guard.blockedShutdown": "\uC7A0\uC2DC \uAE30\uB2E4\uB824 \uC8FC\uC138\uC694 \u2014 \uD50C\uB7EC\uADF8\uC778\uC774 \uC885\uB8CC \uC911\uC785\uB2C8\uB2E4.",
+    "guard.blockedMaintenance": "\uC7A0\uC2DC \uAE30\uB2E4\uB824 \uC8FC\uC138\uC694 \u2014 \uB2E4\uB978 \uC720\uC9C0\uBCF4\uC218 \uC791\uC5C5\uC774 \uC544\uC9C1 \uC2E4\uD589 \uC911\uC785\uB2C8\uB2E4.",
     // Language selector
     "lang.label": "\uC5B8\uC5B4",
     "lang.en": "English",
@@ -4553,6 +4716,129 @@ ${lines.join("\n").trimEnd()}`;
   animation: da-toast-fade-in 0.18s ease-out;
 }
 
+/* \u2500\u2500 Diagnostics / Warning / Recalled / Breadcrumb surfaces \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.da-diag-section {
+  display: grid;
+  gap: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--da-border);
+}
+
+.da-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--da-danger) 28%, var(--da-border));
+  border-radius: var(--da-radius-sm);
+  background: color-mix(in srgb, var(--da-danger) 8%, transparent);
+  color: var(--da-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.da-warning-list {
+  display: grid;
+  gap: 8px;
+}
+
+.da-warning-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, #f4c95d 22%, var(--da-border));
+  border-radius: var(--da-radius-sm);
+  background: color-mix(in srgb, #f4c95d 8%, transparent);
+  color: var(--da-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.da-recalled-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.da-recalled-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--da-border);
+  border-radius: var(--da-radius-sm);
+  background: color-mix(in srgb, var(--da-bg) 92%, black);
+  font-size: 13px;
+}
+
+.da-breadcrumb-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.da-breadcrumb-item {
+  padding: 6px 10px;
+  border-left: 3px solid color-mix(in srgb, var(--da-accent) 44%, transparent);
+  font-size: 12px;
+  color: var(--da-text-muted);
+  line-height: 1.5;
+}
+
+.da-badge--sm {
+  min-height: 20px;
+  padding: 0 6px;
+  font-size: 10px;
+}
+
+/* \u2500\u2500 Disabled form controls \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.da-btn:disabled,
+.da-input:disabled,
+.da-select:disabled,
+.da-textarea:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* \u2500\u2500 Focus-visible on toggle \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.da-toggle input[type="checkbox"]:focus-visible + .da-toggle-track {
+  outline: 2px solid var(--da-accent);
+  outline-offset: 2px;
+}
+
+/* \u2500\u2500 Toast severity variants \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.da-toast--success {
+  border-color: color-mix(in srgb, #25c281 48%, var(--da-border));
+  background: linear-gradient(180deg, color-mix(in srgb, #25c281 76%, white 6%), color-mix(in srgb, #25c281 62%, black));
+}
+
+.da-toast--info {
+  border-color: color-mix(in srgb, var(--da-accent) 38%, var(--da-border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--da-accent) 76%, white 6%), color-mix(in srgb, var(--da-accent) 62%, black));
+}
+
+.da-toast--warning {
+  border-color: color-mix(in srgb, #f4c95d 48%, var(--da-border));
+  background: linear-gradient(180deg, color-mix(in srgb, #f4c95d 76%, white 6%), color-mix(in srgb, #f4c95d 62%, black));
+}
+
+.da-toast--error {
+  border-color: color-mix(in srgb, var(--da-danger) 48%, var(--da-border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--da-danger) 76%, white 6%), color-mix(in srgb, var(--da-danger) 62%, black));
+}
+
 @keyframes da-toast-fade-in {
   from {
     opacity: 0;
@@ -5084,6 +5370,7 @@ ${lines.join("\n").trimEnd()}`;
       const badge = d.freshness !== "current" ? ` <span class="da-badge da-badge--sm" data-kind="${d.freshness === "stale" ? "error" : "neutral"}">${escapeXml(d.freshness)}</span>` : "";
       return `<li class="da-recalled-item">${escapeXml(d.title)}${badge}</li>`;
     }).join("")}</ul>` : "";
+    const diagHtml = buildDiagnosticsSection(status);
     return `
         <section class="da-card" data-da-role="memory-ops-status">
           <div class="da-card-header">
@@ -5107,7 +5394,57 @@ ${lines.join("\n").trimEnd()}`;
             <button class="da-btn da-btn--sm" data-da-action="toggle-fallback-retrieval">${t("btn.toggleFallback")}</button>
           </div>
           ${recalledHtml}
+          ${diagHtml}
         </section>`;
+  }
+  function healthBadgeKind(health) {
+    switch (health) {
+      case "ok":
+        return "success";
+      case "error":
+        return "error";
+      default:
+        return "neutral";
+    }
+  }
+  function healthLabel(health) {
+    switch (health) {
+      case "ok":
+        return t("diag.health.ok");
+      case "error":
+        return t("diag.health.error");
+      default:
+        return t("diag.health.idle");
+    }
+  }
+  function buildDiagnosticsSection(status) {
+    const diag = status.diagnostics;
+    if (!diag) return "";
+    const lastHookLabel = diag.lastHookKind ? `${diag.lastHookKind} @ ${formatTimestamp(diag.lastHookTs)}` : t("memoryOps.neverRun");
+    const lastErrorLabel = diag.lastErrorMessage ? `${escapeXml(diag.lastErrorMessage)} @ ${formatTimestamp(diag.lastErrorTs)}` : t("diag.noError");
+    const workerRows = ["extraction", "dream", "recovery"].map((kind) => {
+      const ws = diag[kind];
+      const labelKey = kind === "extraction" ? "diag.extraction" : kind === "dream" ? "diag.dream" : "diag.recovery";
+      const badge = `<span class="da-badge da-badge--sm" data-kind="${healthBadgeKind(ws.health)}">${healthLabel(ws.health)}</span>`;
+      const ts = ws.lastTs > 0 ? formatTimestamp(ws.lastTs) : "";
+      const detail = ws.lastDetail ? ` \u2014 ${escapeXml(ws.lastDetail)}` : "";
+      return `<li class="da-metric-item" data-da-role="diag-worker-${kind}"><span>${t(labelKey)}</span><strong>${badge} ${ts}${detail}</strong></li>`;
+    }).join("");
+    const breadcrumbsHtml = diag.breadcrumbs.length > 0 ? `<ul class="da-breadcrumb-list" data-da-role="diag-breadcrumbs">${diag.breadcrumbs.slice().reverse().map((b) => {
+      const detail = b.detail ? ` \u2014 ${escapeXml(b.detail)}` : "";
+      return `<li class="da-breadcrumb-item">${formatTimestamp(b.ts)} <strong>${escapeXml(b.label)}</strong>${detail}</li>`;
+    }).join("")}</ul>` : `<p class="da-empty">${t("diag.noBreadcrumbs")}</p>`;
+    return `
+          <div class="da-diag-section" data-da-role="diagnostics">
+            <h4 class="da-card-title">${t("diag.title")}</h4>
+            <ul class="da-metric-list">
+              <li class="da-metric-item" data-da-role="diag-last-hook"><span>${t("diag.lastHook")}</span><strong>${lastHookLabel}</strong></li>
+              <li class="da-metric-item" data-da-role="diag-last-error"><span>${t("diag.lastError")}</span><strong>${lastErrorLabel}</strong></li>
+              ${workerRows}
+            </ul>
+            <h4 class="da-card-title">${t("diag.breadcrumbs")}</h4>
+            ${breadcrumbsHtml}
+          </div>`;
   }
   function buildMemoryCachePage(input) {
     const { pluginState } = input;
@@ -5464,6 +5801,7 @@ ${lines.join("\n").trimEnd()}`;
 
   // src/ui/dashboardApp.ts
   var TOAST_DURATION_MS = 2500;
+  var TOAST_DURATION_ERROR_MS = 5e3;
   var PROFILE_ID_PREFIX = "user-profile-";
   var IMPORT_STAGING_KEY = "dashboard-profile-import-staging";
   var activeInstance = null;
@@ -5522,6 +5860,7 @@ ${lines.join("\n").trimEnd()}`;
     const prefs = await loadMemoryOpsPrefs(store.storage);
     const isLocked = store.isMemoryLocked ? await store.isMemoryLocked() : false;
     const latestMemoryTs = computeLatestMemoryTs(canonicalState);
+    const diagnostics = store.loadDiagnostics ? await store.loadDiagnostics() : createDefaultDiagnosticsSnapshot();
     return {
       lastExtractTs: latestMemoryTs,
       lastDreamTs: dreamState.lastDreamTs,
@@ -5530,8 +5869,21 @@ ${lines.join("\n").trimEnd()}`;
       fallbackRetrievalEnabled: prefs.fallbackRetrievalEnabled,
       isMemoryLocked: isLocked,
       staleWarnings: buildStaleWarnings(latestMemoryTs, dreamState.lastDreamTs),
-      recalledDocs: []
+      recalledDocs: [],
+      diagnostics
     };
+  }
+  function guardReasonToast(reason) {
+    switch (reason) {
+      case "startup":
+        return t("guard.blockedStartup");
+      case "shutdown":
+        return t("guard.blockedShutdown");
+      case "maintenance":
+        return t("guard.blockedMaintenance");
+      default:
+        return t("guard.blockedMaintenance");
+    }
   }
   var DashboardInstance = class {
     api;
@@ -5548,6 +5900,8 @@ ${lines.join("\n").trimEnd()}`;
     selectedMemoryKeys = /* @__PURE__ */ new Set();
     editingMemory = null;
     memoryOpsStatus;
+    /** Action names currently in flight (used by async busy guards). */
+    busyActions = /* @__PURE__ */ new Set();
     constructor(api, store, doc, draft, profiles, modelOptions, canonicalState, memoryOpsStatus) {
       this.api = api;
       this.store = store;
@@ -5677,6 +6031,7 @@ ${lines.join("\n").trimEnd()}`;
       parent.appendChild(wrapper);
       this.root = wrapper;
       this.bindEvents();
+      this.applyAllBusyStates();
     }
     updateConnectionStatusDom() {
       if (!this.root) return;
@@ -5714,6 +6069,60 @@ ${lines.join("\n").trimEnd()}`;
     markDirty() {
       this.draft.isDirty = true;
       this.updateDirtyIndicator();
+    }
+    // ── Async busy guards ──────────────────────────────────────────────────
+    /** True when `actionName` is currently in flight. */
+    isActionBusy(actionName) {
+      return this.busyActions.has(actionName);
+    }
+    /**
+     * Run `fn` while marking `actionName` as busy.
+     * A second click on the same action is silently ignored until the
+     * first promise settles.  The triggering button is disabled for
+     * the duration so the user gets visible feedback via the CSS
+     * disabled-state rule from UI-1.
+     */
+    async withBusyGuard(actionName, fn) {
+      if (this.busyActions.has(actionName)) return;
+      this.busyActions.add(actionName);
+      this.setBusyDisabled(actionName, true);
+      try {
+        await fn();
+      } finally {
+        this.busyActions.delete(actionName);
+        this.setBusyDisabled(actionName, false);
+      }
+    }
+    /**
+     * Set or clear the `disabled` attribute on the button that owns
+     * `actionName`.  When *clearing*, respects the bulk-delete
+     * "no items selected" invariant so we never incorrectly re-enable
+     * that button.
+     */
+    setBusyDisabled(actionName, busy) {
+      if (!this.root) return;
+      const btn = this.root.querySelector(
+        `[data-da-action="${actionName}"]`
+      );
+      if (!btn) return;
+      if (busy) {
+        btn.disabled = true;
+        return;
+      }
+      if (actionName === "bulk-delete-memory" && this.selectedMemoryKeys.size === 0) {
+        btn.disabled = true;
+        return;
+      }
+      btn.disabled = false;
+    }
+    /**
+     * Re-apply disabled states for every action that is still in flight.
+     * Called after `fullReRender()` replaces the DOM tree.
+     */
+    applyAllBusyStates() {
+      for (const actionName of this.busyActions) {
+        this.setBusyDisabled(actionName, true);
+      }
     }
     // ── Event binding ─────────────────────────────────────────────────────
     bindEvents() {
@@ -5781,16 +6190,16 @@ ${lines.join("\n").trimEnd()}`;
           await this.close();
           break;
         case "save":
-          await this.handleSave();
+          await this.withBusyGuard("save", () => this.handleSave());
           break;
         case "discard":
-          await this.handleDiscard();
+          await this.withBusyGuard("discard", () => this.handleDiscard());
           break;
         case "test-connection":
-          await this.handleTestConnection();
+          await this.withBusyGuard("test-connection", () => this.handleTestConnection());
           break;
         case "refresh-models":
-          await this.handleRefreshModels();
+          await this.withBusyGuard("refresh-models", () => this.handleRefreshModels());
           break;
         case "create-profile":
           await this.handleCreateProfile();
@@ -5799,7 +6208,7 @@ ${lines.join("\n").trimEnd()}`;
           await this.handleExportProfile();
           break;
         case "import-profile":
-          await this.handleImportProfile();
+          await this.withBusyGuard("import-profile", () => this.handleImportProfile());
           break;
         case "create-prompt-preset":
           this.handleCreatePromptPreset();
@@ -5808,13 +6217,13 @@ ${lines.join("\n").trimEnd()}`;
           this.handleDeletePromptPreset();
           break;
         case "backfill-current-chat":
-          await this.handleBackfillCurrentChat();
+          await this.withBusyGuard("backfill-current-chat", () => this.handleBackfillCurrentChat());
           break;
         case "regenerate-current-chat":
-          await this.handleRegenerateCurrentChat();
+          await this.withBusyGuard("regenerate-current-chat", () => this.handleRegenerateCurrentChat());
           break;
         case "bulk-delete-memory":
-          await this.handleBulkDeleteMemory();
+          await this.withBusyGuard("bulk-delete-memory", () => this.handleBulkDeleteMemory());
           break;
         case "edit-memory-item":
           this.handleEditMemoryItem(btn);
@@ -5859,10 +6268,10 @@ ${lines.join("\n").trimEnd()}`;
           await this.handleAddRelation();
           break;
         case "force-extract":
-          await this.handleForceExtract();
+          await this.withBusyGuard("force-extract", () => this.handleForceExtract());
           break;
         case "force-dream":
-          await this.handleForceDream();
+          await this.withBusyGuard("force-dream", () => this.handleForceDream());
           break;
         case "inspect-recalled":
           await this.handleInspectRecalled();
@@ -5954,7 +6363,7 @@ ${lines.join("\n").trimEnd()}`;
       }
       this.draft.isDirty = false;
       this.updateDirtyIndicator();
-      this.showToast(t("toast.settingsSaved"));
+      this.showToast(t("toast.settingsSaved"), "success");
     }
     async handleDiscard() {
       const raw = await this.store.storage.getItem(
@@ -5964,7 +6373,7 @@ ${lines.join("\n").trimEnd()}`;
         normalizePersistedSettings(raw ?? {})
       );
       this.fullReRender();
-      this.showToast(t("toast.changesDiscarded"));
+      this.showToast(t("toast.changesDiscarded"), "info");
     }
     // ── Connection status helpers ────────────────────────────────────────
     /** Re-derive a localized message from `kind`, preserving raw error text. */
@@ -6036,7 +6445,7 @@ ${lines.join("\n").trimEnd()}`;
         structuredClone(this.profiles)
       );
       this.fullReRender();
-      this.showToast(t("toast.profileCreated"));
+      this.showToast(t("toast.profileCreated"), "success");
     }
     selectProfile(profileId) {
       const profile = this.profiles.profiles.find((p) => p.id === profileId);
@@ -6053,13 +6462,13 @@ ${lines.join("\n").trimEnd()}`;
         (p) => p.id === this.profiles.activeProfileId
       );
       if (!activeProfile) {
-        this.showToast(t("toast.noProfileSelected"));
+        this.showToast(t("toast.noProfileSelected"), "warning");
         return;
       }
       const payload = createProfileExportPayload(activeProfile);
       const json = JSON.stringify(payload, null, 2);
       await this.api.alert(json);
-      this.showToast(t("toast.profileExported"));
+      this.showToast(t("toast.profileExported"), "success");
     }
     async handleImportProfile() {
       const raw = await this.store.storage.getItem(IMPORT_STAGING_KEY);
@@ -6090,7 +6499,7 @@ ${lines.join("\n").trimEnd()}`;
         );
         await this.store.storage.removeItem(IMPORT_STAGING_KEY);
         this.fullReRender();
-        this.showToast(t("toast.profileImported"));
+        this.showToast(t("toast.profileImported"), "success");
       } catch {
         await this.api.alertError(t("toast.failedParseProfile"));
       }
@@ -6148,6 +6557,16 @@ ${lines.join("\n").trimEnd()}`;
       this.markDirty();
     }
     async handleBackfillCurrentChat() {
+      if (this.store.checkRefreshGuard) {
+        const status = this.store.checkRefreshGuard();
+        if (status.blocked) {
+          this.showToast(guardReasonToast(status.reason), "warning");
+          return;
+        }
+      }
+      if (this.store.markMaintenance) {
+        await this.store.markMaintenance("backfill-current-chat");
+      }
       const resolution = await resolveScopeStorageKey(this.api);
       if (resolution.storageKey !== this.resolveStateKey()) {
         await this.api.alertError(t("error.backfillScopeMismatch"));
@@ -6171,13 +6590,24 @@ ${lines.join("\n").trimEnd()}`;
       this.fullReRender();
       if (result.appliedUpdates > 0) {
         this.showToast(
-          t("toast.backfillCompleted", { count: String(result.appliedUpdates) })
+          t("toast.backfillCompleted", { count: String(result.appliedUpdates) }),
+          "success"
         );
         return;
       }
-      this.showToast(t("toast.backfillSkipped"));
+      this.showToast(t("toast.backfillSkipped"), "info");
     }
     async handleRegenerateCurrentChat() {
+      if (this.store.checkRefreshGuard) {
+        const status = this.store.checkRefreshGuard();
+        if (status.blocked) {
+          this.showToast(guardReasonToast(status.reason), "warning");
+          return;
+        }
+      }
+      if (this.store.markMaintenance) {
+        await this.store.markMaintenance("regenerate-current-chat");
+      }
       const resolution = await resolveScopeStorageKey(this.api);
       if (resolution.storageKey !== this.resolveStateKey()) {
         await this.api.alertError(t("error.backfillScopeMismatch"));
@@ -6323,6 +6753,16 @@ ${lines.join("\n").trimEnd()}`;
     }
     async handleBulkDeleteMemory() {
       if (this.selectedMemoryKeys.size === 0) return;
+      if (this.store.checkRefreshGuard) {
+        const status = this.store.checkRefreshGuard();
+        if (status.blocked) {
+          this.showToast(guardReasonToast(status.reason), "warning");
+          return;
+        }
+      }
+      if (this.store.markMaintenance) {
+        await this.store.markMaintenance("bulk-delete-memory");
+      }
       const applyDelete = (state) => {
         for (const itemKey of Array.from(this.selectedMemoryKeys)) {
           const [kind, id] = itemKey.split(":", 2);
@@ -6485,37 +6925,43 @@ ${lines.join("\n").trimEnd()}`;
     // ── Memory operations actions ──────────────────────────────────────
     async handleForceExtract() {
       if (!this.store.forceExtract) {
-        this.showToast(t("toast.noCallback"));
+        this.showToast(t("toast.noCallback"), "warning");
         return;
       }
       try {
         await this.store.forceExtract();
       } catch (err) {
-        this.showToast(t("toast.extractFailed", { error: String(err) }));
+        this.showToast(t("toast.extractFailed", { error: String(err) }), "error");
         return;
       }
-      this.showToast(t("toast.extractStarted"));
+      this.showToast(t("toast.extractStarted"), "info");
       await this.refreshMemoryOpsStatus();
       this.fullReRender();
     }
     async handleForceDream() {
       if (!this.store.forceDream) {
-        this.showToast(t("toast.noCallback"));
+        this.showToast(t("toast.noCallback"), "warning");
         return;
       }
       try {
         await this.store.forceDream();
       } catch (err) {
-        this.showToast(t("toast.dreamFailed", { error: String(err) }));
+        const msg = String(err);
+        const blockedMatch = msg.match(/blocked:(\w+)/);
+        if (blockedMatch && this.store.checkRefreshGuard) {
+          this.showToast(guardReasonToast(blockedMatch[1]), "warning");
+          return;
+        }
+        this.showToast(t("toast.dreamFailed", { error: msg }), "error");
         return;
       }
-      this.showToast(t("toast.dreamStarted"));
+      this.showToast(t("toast.dreamStarted"), "info");
       await this.refreshMemoryOpsStatus();
       this.fullReRender();
     }
     async handleInspectRecalled() {
       if (!this.store.getRecalledDocs) {
-        this.showToast(t("toast.noCallback"));
+        this.showToast(t("toast.noCallback"), "warning");
         return;
       }
       const docs = await this.store.getRecalledDocs();
@@ -6538,7 +6984,7 @@ ${lines.join("\n").trimEnd()}`;
       await saveMemoryOpsPrefs(this.store.storage, {
         fallbackRetrievalEnabled: next
       });
-      this.showToast(t("toast.fallbackToggled"));
+      this.showToast(t("toast.fallbackToggled"), "info");
       this.fullReRender();
     }
     async refreshMemoryOpsStatus() {
@@ -6548,6 +6994,7 @@ ${lines.join("\n").trimEnd()}`;
       this.canonicalState = canonicalState;
       const isLocked = this.store.isMemoryLocked ? await this.store.isMemoryLocked() : false;
       const latestMemoryTs = computeLatestMemoryTs(canonicalState);
+      const diagnostics = this.store.loadDiagnostics ? await this.store.loadDiagnostics() : createDefaultDiagnosticsSnapshot();
       this.memoryOpsStatus = {
         lastExtractTs: latestMemoryTs,
         lastDreamTs: dreamState.lastDreamTs,
@@ -6556,7 +7003,8 @@ ${lines.join("\n").trimEnd()}`;
         fallbackRetrievalEnabled: prefs.fallbackRetrievalEnabled,
         isMemoryLocked: isLocked,
         staleWarnings: buildStaleWarnings(latestMemoryTs, dreamState.lastDreamTs),
-        recalledDocs: this.memoryOpsStatus.recalledDocs
+        recalledDocs: this.memoryOpsStatus.recalledDocs,
+        diagnostics
       };
     }
     // ── Language switch ──────────────────────────────────────────────────
@@ -6568,16 +7016,24 @@ ${lines.join("\n").trimEnd()}`;
       this.fullReRender();
     }
     // ── Toast ─────────────────────────────────────────────────────────────
-    showToast(message) {
+    showToast(message, severity = "info") {
       const prev = this.doc.querySelector(".da-toast");
       if (prev) prev.remove();
       const toast = this.doc.createElement("div");
-      toast.className = "da-toast";
+      toast.className = `da-toast da-toast--${severity}`;
+      if (severity === "error") {
+        toast.setAttribute("role", "alert");
+        toast.setAttribute("aria-live", "assertive");
+      } else {
+        toast.setAttribute("role", "status");
+        toast.setAttribute("aria-live", "polite");
+      }
       toast.textContent = message;
       this.doc.body.appendChild(toast);
+      const duration = severity === "error" ? TOAST_DURATION_ERROR_MS : TOAST_DURATION_MS;
       this.lifecycle.setTimeout(() => {
         if (toast.parentNode) toast.parentNode.removeChild(toast);
-      }, TOAST_DURATION_MS);
+      }, duration);
     }
   };
   function isValidExportPayload(value) {
@@ -6704,6 +7160,7 @@ ${lines.join("\n").trimEnd()}`;
     const onShutdown = options.onShutdown ?? null;
     const sessionNotebook = options.sessionNotebook ?? null;
     const turnRecovery = options.turnRecovery ?? null;
+    const diagnostics = options.diagnostics ?? null;
     let currentTurnId = null;
     let debounceTimer = null;
     let turnIndex = 0;
@@ -6802,6 +7259,7 @@ ${lines.join("\n").trimEnd()}`;
           type,
           messages
         });
+        await diagnostics?.recordHook("beforeRequest", type);
         if (!brief) {
           clearActiveTurn();
           return messages;
@@ -6815,6 +7273,7 @@ ${lines.join("\n").trimEnd()}`;
       } catch (err) {
         clearActiveTurn();
         await safeLog(api, `Director preRequest failed: ${err}`);
+        await diagnostics?.recordError("preRequest", err);
         circuitBreaker?.recordFailure(String(err));
         return messages;
       }
@@ -6823,6 +7282,7 @@ ${lines.join("\n").trimEnd()}`;
       if (!includeTypes.includes(type)) return content;
       if (getCurrentTurn()) {
         clearDebounce();
+        await diagnostics?.recordHook("afterRequest", type);
         await finalizeTurn(content);
       }
       return content;
@@ -6834,6 +7294,7 @@ ${lines.join("\n").trimEnd()}`;
         lastOutputText: content
       });
       clearDebounce();
+      await diagnostics?.recordHook("output");
       debounceTimer = setTimeout(() => {
         void finalizeTurn();
       }, outputDebounceMs);
@@ -6843,6 +7304,7 @@ ${lines.join("\n").trimEnd()}`;
     await api.onUnload(async () => {
       clearDebounce();
       clearActiveTurn();
+      await diagnostics?.recordHook("shutdown");
       if (onShutdown) {
         try {
           await onShutdown();
@@ -6928,6 +7390,98 @@ ${lines.join("\n").trimEnd()}`;
     return true;
   }
 
+  // src/runtime/refreshGuard.ts
+  var STABILIZATION_WINDOW_MS = 1e4;
+  function refreshGuardStorageKey(scopeKey) {
+    return `director:refresh-guard:${scopeKey}`;
+  }
+  function createDefaultSnapshot() {
+    return {
+      startupTs: 0,
+      shutdownTs: 0,
+      maintenanceTs: 0,
+      maintenanceKind: null
+    };
+  }
+  function normalizeSnapshot(raw) {
+    if (raw != null && typeof raw === "object") {
+      const r = raw;
+      return {
+        startupTs: typeof r.startupTs === "number" ? r.startupTs : 0,
+        shutdownTs: typeof r.shutdownTs === "number" ? r.shutdownTs : 0,
+        maintenanceTs: typeof r.maintenanceTs === "number" ? r.maintenanceTs : 0,
+        maintenanceKind: typeof r.maintenanceKind === "string" ? r.maintenanceKind : null
+      };
+    }
+    return createDefaultSnapshot();
+  }
+  var RefreshGuard = class {
+    snapshot;
+    storage;
+    storageKey;
+    constructor(storage, scopeKey) {
+      this.storage = storage;
+      this.storageKey = refreshGuardStorageKey(scopeKey);
+      this.snapshot = createDefaultSnapshot();
+    }
+    // ── persistence ─────────────────────────────────────────────────────
+    async load() {
+      const raw = await this.storage.getItem(this.storageKey);
+      this.snapshot = normalizeSnapshot(raw);
+    }
+    async persist() {
+      await this.storage.setItem(this.storageKey, structuredClone(this.snapshot));
+    }
+    // ── stamping ────────────────────────────────────────────────────────
+    async markStartup() {
+      this.snapshot.startupTs = Date.now();
+      await this.persist();
+    }
+    async markShutdown() {
+      this.snapshot.shutdownTs = Date.now();
+      await this.persist();
+    }
+    async markMaintenance(kind) {
+      const now = Date.now();
+      this.snapshot.maintenanceTs = now;
+      this.snapshot.maintenanceKind = kind;
+      await this.persist();
+    }
+    // ── query ───────────────────────────────────────────────────────────
+    /**
+     * Return the latest guard timestamp (max of startup, shutdown, maintenance).
+     * Useful for extending the user-interaction guard in dream cadence gating.
+     */
+    latestGuardTs() {
+      return Math.max(
+        this.snapshot.startupTs,
+        this.snapshot.shutdownTs,
+        this.snapshot.maintenanceTs
+      );
+    }
+    /**
+     * Check whether heavy maintenance is currently blocked by an active
+     * stabilization window.  Returns a reason code if blocked.
+     */
+    checkBlocked(now) {
+      const ts = now ?? Date.now();
+      if (ts - this.snapshot.startupTs < STABILIZATION_WINDOW_MS) {
+        return { blocked: true, reason: "startup" };
+      }
+      if (ts - this.snapshot.shutdownTs < STABILIZATION_WINDOW_MS) {
+        return { blocked: true, reason: "shutdown" };
+      }
+      if (ts - this.snapshot.maintenanceTs < STABILIZATION_WINDOW_MS) {
+        return { blocked: true, reason: "maintenance" };
+      }
+      return { blocked: false, reason: null };
+    }
+    /** Read-only access to the current snapshot (cloned). */
+    getSnapshot() {
+      return structuredClone(this.snapshot);
+    }
+  };
+
   // src/index.ts
   function createId3(prefix) {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -7009,21 +7563,29 @@ ${lines.join("\n").trimEnd()}`;
           }
           const promptPreset = resolvePromptPreset(state.settings);
           const service = createDirectorService(api, state.settings);
-          const result = await service.postResponse({
-            responseText: ctx.content,
-            brief: ctx.brief,
-            messages: ctx.messages,
-            directorState: state.director,
-            memory: state.memory,
-            assertiveness: state.settings.assertiveness,
-            promptPreset
-          });
+          let result;
+          try {
+            result = await service.postResponse({
+              responseText: ctx.content,
+              brief: ctx.brief,
+              messages: ctx.messages,
+              directorState: state.director,
+              memory: state.memory,
+              assertiveness: state.settings.assertiveness,
+              promptPreset
+            });
+          } catch (err) {
+            await diagnostics.recordWorkerFailure("extraction", err);
+            throw err;
+          }
           if (!result.ok) {
+            await diagnostics.recordWorkerFailure("extraction", result.error);
             if (isTransientError(result.error)) {
               throw new Error(result.error);
             }
             return { applied: false, memoryUpdate: null };
           }
+          await diagnostics.recordWorkerSuccess("extraction", `applied=${true}`);
           return { applied: true, memoryUpdate: result.update };
         },
         async persistDocuments(update, ctx) {
@@ -7087,6 +7649,12 @@ ${lines.join("\n").trimEnd()}`;
     );
     const dreamState = await loadDreamState(api.pluginStorage);
     let lastUserInteractionTs = Date.now();
+    const refreshGuard = new RefreshGuard(
+      api.safeLocalStorage,
+      scopeResolution.storageKey
+    );
+    await refreshGuard.load();
+    await refreshGuard.markStartup();
     const dreamWorker = createAutoDreamWorker({
       memdirStore,
       log(message) {
@@ -7134,7 +7702,7 @@ ${lines.join("\n").trimEnd()}`;
             sessionsSinceLastDream: dreamState.sessionsSinceLastDream,
             dreamMinSessionsElapsed: freshState.settings.dreamMinSessionsElapsed,
             userInteractionGuardMs: 1e4,
-            lastUserInteractionTs
+            lastUserInteractionTs: Math.max(lastUserInteractionTs, refreshGuard.latestGuardTs())
           };
         },
         dreamWorker,
@@ -7144,6 +7712,10 @@ ${lines.join("\n").trimEnd()}`;
           dreamState.turnsSinceLastDream = 0;
           dreamState.sessionsSinceLastDream = 0;
           await saveDreamState(api.pluginStorage, dreamState);
+          await diagnostics.recordWorkerSuccess("dream", `merged=${result.merged}`);
+        },
+        async onDreamFailure(error) {
+          await diagnostics.recordWorkerFailure("dream", error);
         },
         log(message) {
           api.log(message);
@@ -7154,6 +7726,11 @@ ${lines.join("\n").trimEnd()}`;
       api.pluginStorage,
       scopeResolution.storageKey
     );
+    const diagnostics = new DiagnosticsManager(
+      api.pluginStorage,
+      scopeResolution.storageKey
+    );
+    await diagnostics.loadSnapshot();
     const director = {
       async preRequest(input) {
         const state = await store.load();
@@ -7261,12 +7838,19 @@ ${lines.join("\n").trimEnd()}`;
       turnCache,
       sessionNotebook,
       turnRecovery,
+      diagnostics,
       onTurnFinalized: (ctx) => {
         lastUserInteractionTs = Date.now();
         dreamState.turnsSinceLastDream += 1;
         return housekeeping.afterTurn(ctx);
       },
-      onShutdown: () => housekeeping.shutdown(),
+      onShutdown: async () => {
+        try {
+          await refreshGuard.markShutdown();
+        } catch {
+        }
+        await housekeeping.shutdown();
+      },
       openSettings: async () => {
         const dashboardStore = createDashboardStore(
           api,
@@ -7277,6 +7861,11 @@ ${lines.join("\n").trimEnd()}`;
           await extractionWorker.flush();
         };
         dashboardStore.forceDream = async () => {
+          const blockStatus = refreshGuard.checkBlocked();
+          if (blockStatus.blocked) {
+            throw new Error(`blocked:${blockStatus.reason}`);
+          }
+          await refreshGuard.markMaintenance("force-dream");
           const result = await consolidationLock.withLock(() => dreamWorker.run());
           if (result == null) {
             throw new Error("Consolidation lock is held by another worker");
@@ -7292,15 +7881,23 @@ ${lines.join("\n").trimEnd()}`;
           }));
         };
         dashboardStore.isMemoryLocked = () => consolidationLock.isHeld();
+        dashboardStore.loadDiagnostics = () => diagnostics.loadSnapshot();
+        dashboardStore.checkRefreshGuard = () => refreshGuard.checkBlocked();
+        dashboardStore.markMaintenance = (kind) => refreshGuard.markMaintenance(kind);
         await openDashboard(api, dashboardStore);
       }
     });
-    await attemptStartupRecovery(turnRecovery, {
-      postResponse: (input) => director.postResponse(input).then(() => {
-      }),
-      runHousekeeping: (ctx) => housekeeping.afterTurn(ctx),
-      log: (msg) => api.log(msg)
-    });
+    try {
+      await attemptStartupRecovery(turnRecovery, {
+        postResponse: (input) => director.postResponse(input).then(() => {
+        }),
+        runHousekeeping: (ctx) => housekeeping.afterTurn(ctx),
+        log: (msg) => api.log(msg)
+      });
+      await diagnostics.recordRecovery("ok", "startup recovery completed");
+    } catch (err) {
+      await diagnostics.recordRecovery("error", err instanceof Error ? err.message : String(err));
+    }
   }
   var index_default = registerDirectorActorPlugin;
   function isRisuaiApiLike(value) {

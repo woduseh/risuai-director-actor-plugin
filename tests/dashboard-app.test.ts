@@ -13,6 +13,7 @@ import {
   DASHBOARD_MEMORY_OPS_PREFS_KEY,
 } from '../src/ui/dashboardState.js'
 import { createEmptyState, DEFAULT_DIRECTOR_SETTINGS } from '../src/contracts/types.js'
+import type { DirectorPluginState } from '../src/contracts/types.js'
 import { BUILTIN_PROMPT_PRESET_ID } from '../src/director/prompt.js'
 
 function createTestStore(api: ReturnType<typeof createMockRisuaiApi>): DashboardStore {
@@ -1004,5 +1005,312 @@ describe('openDashboard', () => {
     const toast = document.querySelector('.da-toast')
     expect(toast).not.toBeNull()
     expect(toast!.classList.contains('da-toast--info')).toBe(true)
+  })
+
+  // ── UI-2: Async busy guards ──────────────────────────────────────────
+
+  test('save button is disabled while save is in flight and re-enabled after', async () => {
+    const resolvers: Array<() => void> = []
+    const slowStore: DashboardStore = {
+      storage: {
+        ...api.pluginStorage,
+        setItem: () => new Promise<void>((r) => { resolvers.push(r) }),
+        getItem: (k: string) => api.pluginStorage.getItem(k),
+        removeItem: (k: string) => api.pluginStorage.removeItem(k),
+        clear: () => api.pluginStorage.clear(),
+        keys: () => api.pluginStorage.keys(),
+        length: () => api.pluginStorage.length(),
+      },
+    }
+
+    await openDashboard(api, slowStore)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const saveBtn = root.querySelector('[data-da-action="save"]') as HTMLButtonElement
+    expect(saveBtn.disabled).toBe(false)
+
+    saveBtn.click()
+    await new Promise((r) => { setTimeout(r, 10) })
+    expect(saveBtn.disabled).toBe(true)
+
+    // handleSave does multiple sequential setItem calls; drain them all
+    for (let i = 0; i < 5; i++) {
+      while (resolvers.length) resolvers.shift()!()
+      await new Promise((r) => { setTimeout(r, 10) })
+    }
+    expect(saveBtn.disabled).toBe(false)
+  })
+
+  test('duplicate save clicks are blocked while the first is in flight', async () => {
+    let callCount = 0
+    const resolvers: Array<() => void> = []
+    const slowStore: DashboardStore = {
+      storage: {
+        ...api.pluginStorage,
+        setItem: () => {
+          callCount++
+          return new Promise<void>((r) => { resolvers.push(r) })
+        },
+        getItem: (k: string) => api.pluginStorage.getItem(k),
+        removeItem: (k: string) => api.pluginStorage.removeItem(k),
+        clear: () => api.pluginStorage.clear(),
+        keys: () => api.pluginStorage.keys(),
+        length: () => api.pluginStorage.length(),
+      },
+    }
+
+    await openDashboard(api, slowStore)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const saveBtn = root.querySelector('[data-da-action="save"]') as HTMLButtonElement
+
+    // Click save twice rapidly
+    saveBtn.click()
+    saveBtn.click()
+    await new Promise((r) => { setTimeout(r, 10) })
+
+    // Only one setItem call should have gone through (second click blocked)
+    expect(callCount).toBe(1)
+
+    // Drain all in-flight resolvers so the guard releases
+    for (let i = 0; i < 5; i++) {
+      while (resolvers.length) resolvers.shift()!()
+      await new Promise((r) => { setTimeout(r, 10) })
+    }
+  })
+
+  test('force-extract button is disabled while in flight and recovers after success', async () => {
+    let resolveExtract!: () => void
+    const storeWithOps: DashboardStore = {
+      storage: api.pluginStorage,
+      forceExtract: () => new Promise<void>((r) => { resolveExtract = r }),
+    }
+
+    await openDashboard(api, storeWithOps)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    const extractBtn = root.querySelector('[data-da-action="force-extract"]') as HTMLButtonElement
+    expect(extractBtn.disabled).toBe(false)
+
+    extractBtn.click()
+    await new Promise((r) => { setTimeout(r, 10) })
+    expect(extractBtn.disabled).toBe(true)
+
+    resolveExtract()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    // After fullReRender the button is a new DOM node
+    const newExtractBtn = document.querySelector('[data-da-action="force-extract"]') as HTMLButtonElement
+    expect(newExtractBtn.disabled).toBe(false)
+  })
+
+  test('force-extract button recovers after failure', async () => {
+    let rejectExtract!: (err: Error) => void
+    const storeWithOps: DashboardStore = {
+      storage: api.pluginStorage,
+      forceExtract: () => new Promise<void>((_r, rej) => { rejectExtract = rej }),
+    }
+
+    await openDashboard(api, storeWithOps)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    const extractBtn = root.querySelector('[data-da-action="force-extract"]') as HTMLButtonElement
+    extractBtn.click()
+    await new Promise((r) => { setTimeout(r, 10) })
+    expect(extractBtn.disabled).toBe(true)
+
+    rejectExtract(new Error('extract-fail'))
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const newExtractBtn = document.querySelector('[data-da-action="force-extract"]') as HTMLButtonElement
+    expect(newExtractBtn.disabled).toBe(false)
+  })
+
+  test('force-dream button is disabled while in flight', async () => {
+    let resolveDream!: () => void
+    const storeWithOps: DashboardStore = {
+      storage: api.pluginStorage,
+      forceDream: () => new Promise<void>((r) => { resolveDream = r }),
+    }
+
+    await openDashboard(api, storeWithOps)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    const dreamBtn = root.querySelector('[data-da-action="force-dream"]') as HTMLButtonElement
+    expect(dreamBtn.disabled).toBe(false)
+
+    dreamBtn.click()
+    await new Promise((r) => { setTimeout(r, 10) })
+    expect(dreamBtn.disabled).toBe(true)
+
+    resolveDream()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const newDreamBtn = document.querySelector('[data-da-action="force-dream"]') as HTMLButtonElement
+    expect(newDreamBtn.disabled).toBe(false)
+  })
+
+  test('test-connection button is disabled while in flight', async () => {
+    let resolveTest!: () => void
+    const promise = new Promise<void>((r) => { resolveTest = r })
+
+    // Seed settings with API key and base URL so testDirectorConnection
+    // actually reaches the nativeFetch call
+    await api.pluginStorage.setItem(DASHBOARD_SETTINGS_KEY, {
+      ...DEFAULT_DIRECTOR_SETTINGS,
+      directorProvider: 'openai',
+      directorApiKey: 'test-key',
+      directorBaseUrl: 'https://test.example.com/v1',
+    })
+
+    // Open dashboard first with normal api
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    // Override nativeFetch AFTER dashboard is open
+    api.enqueueNativeFetchJson({ data: [{ id: 'model-1' }] })
+    const origFetch = api.nativeFetch.bind(api)
+    api.nativeFetch = async (...args: Parameters<typeof origFetch>) => {
+      await promise
+      return origFetch(...args)
+    }
+
+    const modelTabBtn = root.querySelector('[data-da-target="model-settings"]') as HTMLElement
+    modelTabBtn.click()
+
+    const testBtn = root.querySelector('[data-da-action="test-connection"]') as HTMLButtonElement
+    expect(testBtn).not.toBeNull()
+    expect(testBtn.disabled).toBe(false)
+
+    testBtn.click()
+    await new Promise((r) => { setTimeout(r, 10) })
+    expect(testBtn.disabled).toBe(true)
+
+    resolveTest()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const newTestBtn = document.querySelector('[data-da-action="test-connection"]') as HTMLButtonElement
+    expect(newTestBtn.disabled).toBe(false)
+  })
+
+  test('discard button is disabled while in flight and recovers', async () => {
+    let resolveGet!: (v: unknown) => void
+    let interceptGetItem = false
+
+    // Open with normal store first, then install the intercept
+    await openDashboard(api, store)
+
+    // Build a store whose getItem blocks only for the discard's settings load
+    const slowStore: DashboardStore = {
+      storage: {
+        ...api.pluginStorage,
+        getItem: (k: string) => {
+          if (interceptGetItem && k === DASHBOARD_SETTINGS_KEY) {
+            return new Promise((r) => { resolveGet = r })
+          }
+          return api.pluginStorage.getItem(k)
+        },
+        setItem: (k: string, v: unknown) => api.pluginStorage.setItem(k, v),
+        removeItem: (k: string) => api.pluginStorage.removeItem(k),
+        clear: () => api.pluginStorage.clear(),
+        keys: () => api.pluginStorage.keys(),
+        length: () => api.pluginStorage.length(),
+      },
+    }
+
+    // Close and reopen with slow store
+    await closeDashboard()
+    await openDashboard(api, slowStore)
+    const root2 = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const discardBtn = root2.querySelector('[data-da-action="discard"]') as HTMLButtonElement
+    expect(discardBtn.disabled).toBe(false)
+
+    // Now enable the intercept for the discard getItem call
+    interceptGetItem = true
+    discardBtn.click()
+    await new Promise((r) => { setTimeout(r, 10) })
+    expect(discardBtn.disabled).toBe(true)
+
+    resolveGet(null)
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    const newDiscardBtn = document.querySelector('[data-da-action="discard"]') as HTMLButtonElement
+    expect(newDiscardBtn.disabled).toBe(false)
+  })
+
+  test('GUARDED_ACTIONS set contains exactly the expected actions', async () => {
+    const { GUARDED_ACTIONS } = await import('../src/ui/dashboardApp.js')
+    expect(GUARDED_ACTIONS).toBeInstanceOf(Set)
+    expect(GUARDED_ACTIONS.size).toBe(10)
+    expect(GUARDED_ACTIONS.has('save')).toBe(true)
+    expect(GUARDED_ACTIONS.has('discard')).toBe(true)
+    expect(GUARDED_ACTIONS.has('test-connection')).toBe(true)
+    expect(GUARDED_ACTIONS.has('refresh-models')).toBe(true)
+    expect(GUARDED_ACTIONS.has('import-profile')).toBe(true)
+    expect(GUARDED_ACTIONS.has('backfill-current-chat')).toBe(true)
+    expect(GUARDED_ACTIONS.has('regenerate-current-chat')).toBe(true)
+    expect(GUARDED_ACTIONS.has('force-extract')).toBe(true)
+    expect(GUARDED_ACTIONS.has('force-dream')).toBe(true)
+    expect(GUARDED_ACTIONS.has('bulk-delete-memory')).toBe(true)
+  })
+
+  test('bulk-delete button stays disabled after busy guard clears when no items selected', async () => {
+    const state = createEmptyState()
+    state.memory.summaries.push({
+      id: 'sum-1',
+      text: 'Test summary',
+      recencyWeight: 1,
+      updatedAt: Date.now(),
+    } as any)
+
+    let resolveWrite!: (v: DirectorPluginState) => void
+    let currentState = structuredClone(state)
+    const storeWithWrite: DashboardStore = {
+      storage: api.pluginStorage,
+      readCanonical: async () => structuredClone(currentState),
+      writeCanonical: (mutator) => new Promise((r) => {
+        currentState = mutator(structuredClone(currentState))
+        resolveWrite = () => r(currentState)
+      }),
+    }
+
+    await openDashboard(api, storeWithWrite)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    // Select an item
+    const checkbox = root.querySelector('input[data-da-role="memory-select"]') as HTMLInputElement
+    expect(checkbox).not.toBeNull()
+    checkbox.checked = true
+    checkbox.dispatchEvent(new Event('change', { bubbles: true }))
+
+    const bulkDeleteBtn = root.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLButtonElement
+    expect(bulkDeleteBtn.disabled).toBe(false)
+
+    bulkDeleteBtn.click()
+    await new Promise((r) => { setTimeout(r, 10) })
+
+    // The button should be disabled during the operation
+    // (it's been re-rendered by fullReRender, find it again)
+    const busyBtn = document.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLButtonElement
+    expect(busyBtn.disabled).toBe(true)
+
+    resolveWrite()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    // After completion, bulk-delete should stay disabled because selectedMemoryKeys is now empty
+    const finalBtn = document.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLButtonElement
+    expect(finalBtn.disabled).toBe(true)
   })
 })
