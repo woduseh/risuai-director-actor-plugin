@@ -63,7 +63,7 @@ export function createDefaultDiagnosticsSnapshot(): DiagnosticsSnapshot {
 // ---------------------------------------------------------------------------
 
 export function diagnosticsStorageKey(scopeKey: string): string {
-  return `diagnostics-v1:${scopeKey}`
+  return `continuity-director-diagnostics-v1:${scopeKey}`
 }
 
 // ---------------------------------------------------------------------------

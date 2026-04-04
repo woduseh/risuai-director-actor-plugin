@@ -25,10 +25,10 @@ import { t } from './i18n.js'
 // Storage keys & schema version
 // ---------------------------------------------------------------------------
 
-export const DASHBOARD_SETTINGS_KEY = 'dashboard-settings-v1'
-export const DASHBOARD_PROFILE_MANIFEST_KEY = 'dashboard-profile-manifest-v1'
-export const DASHBOARD_LOCALE_KEY = 'dashboard-locale-v1'
-export const DASHBOARD_LAST_TAB_KEY = 'dashboard-last-tab-v1'
+export const DASHBOARD_SETTINGS_KEY = 'continuity-director-dashboard-settings-v1'
+export const DASHBOARD_PROFILE_MANIFEST_KEY = 'continuity-director-dashboard-profile-manifest-v1'
+export const DASHBOARD_LOCALE_KEY = 'continuity-director-dashboard-locale-v1'
+export const DASHBOARD_LAST_TAB_KEY = 'continuity-director-dashboard-last-tab-v1'
 export const DASHBOARD_SCHEMA_VERSION = 1
 
 // ---------------------------------------------------------------------------
@@ -62,7 +62,7 @@ export interface ProfileExportPayload {
 }
 
 export interface SettingsExportPayload {
-  schema: 'director-actor-dashboard-settings'
+  schema: 'continuity-director-dashboard-settings'
   version: 1
   exportedAt: number
   locale: import('./i18n.js').DashboardLocale
@@ -280,7 +280,7 @@ export function createProfileExportPayload(
   profile: DashboardProfile
 ): ProfileExportPayload {
   return {
-    schema: 'director-actor-dashboard-profile',
+    schema: 'continuity-director-dashboard-profile',
     version: 1,
     profile: { ...profile },
   }
@@ -296,7 +296,7 @@ export function createSettingsExportPayload(
   locale: import('./i18n.js').DashboardLocale,
 ): SettingsExportPayload {
   return {
-    schema: 'director-actor-dashboard-settings',
+    schema: 'continuity-director-dashboard-settings',
     version: 1,
     exportedAt: Date.now(),
     locale,
@@ -353,7 +353,7 @@ export function parseProfileExportPayload(
 
   if (
     !payload ||
-    payload.schema !== 'director-actor-dashboard-profile' ||
+    payload.schema !== 'continuity-director-dashboard-profile' ||
     payload.version !== 1 ||
     !payload.profile
   ) {
@@ -441,7 +441,7 @@ export async function saveProfileManifest(
 // Dream runtime state (persisted per-scope)
 // ---------------------------------------------------------------------------
 
-export const DASHBOARD_DREAM_STATE_KEY = 'dashboard-dream-state-v1'
+export const DASHBOARD_DREAM_STATE_KEY = 'continuity-director-dashboard-dream-state-v1'
 
 export interface DreamRuntimeState {
   /** Epoch ms of the last successful dream consolidation pass. */
@@ -505,7 +505,7 @@ export function mergeDashboardSettingsIntoPluginState(
 // Memory operations status
 // ---------------------------------------------------------------------------
 
-export const DASHBOARD_MEMORY_OPS_PREFS_KEY = 'dashboard-memory-ops-prefs-v1'
+export const DASHBOARD_MEMORY_OPS_PREFS_KEY = 'continuity-director-dashboard-memory-ops-prefs-v1'
 
 /** Elapsed time (ms) beyond which notebook is considered stale. */
 const FRESHNESS_STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000

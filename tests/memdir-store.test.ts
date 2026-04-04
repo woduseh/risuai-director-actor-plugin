@@ -49,8 +49,8 @@ describe('MemdirStore', () => {
     it('uses correct storage key namespace for index', async () => {
       await store.loadIndex()
       const keys = await storage.keys()
-      const indexKey = keys.find((k) => k.startsWith('director-memdir:index:'))
-      expect(indexKey).toBe(`director-memdir:index:${scopeKey}`)
+      const indexKey = keys.find((k) => k.startsWith('continuity-director-memdir:index:'))
+      expect(indexKey).toBe(`continuity-director-memdir:index:${scopeKey}`)
     })
   })
 
@@ -91,10 +91,10 @@ describe('MemdirStore', () => {
       await store.putDocument(doc)
       const keys = await storage.keys()
       const docKey = keys.find((k) =>
-        k.startsWith('director-memdir:doc:'),
+        k.startsWith('continuity-director-memdir:doc:'),
       )
       expect(docKey).toBe(
-        `director-memdir:doc:${scopeKey}:world-1`,
+        `continuity-director-memdir:doc:${scopeKey}:world-1`,
       )
     })
 
@@ -401,9 +401,9 @@ describe('MemdirStore', () => {
 
       const keys = await storage.keys()
       const mdKey = keys.find((k) =>
-        k.startsWith('director-memdir:memory-md:'),
+        k.startsWith('continuity-director-memdir:memory-md:'),
       )
-      expect(mdKey).toBe(`director-memdir:memory-md:${scopeKey}`)
+      expect(mdKey).toBe(`continuity-director-memdir:memory-md:${scopeKey}`)
     })
 
     it('stores and retrieves the MEMORY.md content', async () => {

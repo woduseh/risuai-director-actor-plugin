@@ -55,7 +55,7 @@ export interface RecoveryReplayDeps {
 
 /** Derive a scoped pluginStorage key for the pending-turn record. */
 export function pendingTurnStorageKey(scopeKey: string): string {
-  return `director:pending-turn:${scopeKey}`
+  return `continuity-director:pending-turn:${scopeKey}`
 }
 
 // ---------------------------------------------------------------------------

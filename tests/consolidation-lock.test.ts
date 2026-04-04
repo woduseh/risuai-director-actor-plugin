@@ -66,7 +66,7 @@ describe('ConsolidationLock', () => {
   it('recovers a stale lock held by another worker', async () => {
     // Manually write a stale lease
     const staleTs = Date.now() - STALE_THRESHOLD_MS - 1000
-    const key = `director-memdir:consolidate-lock:${scopeKey}`
+    const key = `continuity-director-memdir:consolidate-lock:${scopeKey}`
     const staleLease: LeaseBody = {
       workerId: 'dead-worker',
       acquiredAt: staleTs,
@@ -81,7 +81,7 @@ describe('ConsolidationLock', () => {
   })
 
   it('does NOT recover a non-stale lock held by another worker', async () => {
-    const key = `director-memdir:consolidate-lock:${scopeKey}`
+    const key = `continuity-director-memdir:consolidate-lock:${scopeKey}`
     const freshTs = Date.now()
     const freshLease: LeaseBody = {
       workerId: 'other-worker',
@@ -103,7 +103,7 @@ describe('ConsolidationLock', () => {
     await lock.tryAcquire()
 
     // After acquisition, reading the store should show this worker's lease
-    const key = `director-memdir:consolidate-lock:${scopeKey}`
+    const key = `continuity-director-memdir:consolidate-lock:${scopeKey}`
     const lease = await store.getItem<LeaseBody>(key)
     expect(lease).not.toBeNull()
     expect(lease!.workerId).toBe(workerId)
@@ -115,7 +115,7 @@ describe('ConsolidationLock', () => {
     const lock = new ConsolidationLock(store, scopeKey, workerId)
     await lock.tryAcquire()
 
-    const key = `director-memdir:consolidate-lock:${scopeKey}`
+    const key = `continuity-director-memdir:consolidate-lock:${scopeKey}`
     const before = await store.getItem<LeaseBody>(key)
     expect(before).not.toBeNull()
     const beforeTs = before!.lastTouchedAt
@@ -191,7 +191,7 @@ describe('ConsolidationLock', () => {
   })
 
   it('isHeld returns false for a stale lock', async () => {
-    const key = `director-memdir:consolidate-lock:${scopeKey}`
+    const key = `continuity-director-memdir:consolidate-lock:${scopeKey}`
     const staleTs = Date.now() - STALE_THRESHOLD_MS - 1000
     await store.setItem(key, {
       workerId: 'dead-worker',

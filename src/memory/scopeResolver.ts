@@ -15,10 +15,10 @@ import {
 import { DIRECTOR_STATE_STORAGE_KEY } from './canonicalStore.js'
 
 /** Storage key for the persisted scope registry. */
-export const SCOPE_REGISTRY_KEY = 'director-scope-registry'
+export const SCOPE_REGISTRY_KEY = 'continuity-director-scope-registry'
 
 /** Namespace used when composing scoped storage keys. */
-const STORAGE_NAMESPACE = 'director-plugin-state'
+const STORAGE_NAMESPACE = 'continuity-director-state'
 
 /**
  * Attempt to retrieve the current character snapshot from the host API.
@@ -249,7 +249,7 @@ export interface ScopeResolution {
  *   3. `getChatFromIndex(charIdx, chatIdx)` for chat snapshot
  *
  * If the host APIs are unavailable or return unusable data, falls back
- * to the legacy flat key `director-plugin-state`.
+ * to the legacy flat key `continuity-director-state`.
  *
  * Chat fingerprints are registered in a persisted scope registry so the
  * storage key stays stable even when no host chat id is available.

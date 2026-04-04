@@ -25,7 +25,7 @@ describe('DiagnosticsManager', () => {
   // ── storage key ─────────────────────────────────────────────────────
 
   test('produces a scoped storage key', () => {
-    expect(diagnosticsStorageKey('my-scope')).toBe('diagnostics-v1:my-scope')
+    expect(diagnosticsStorageKey('my-scope')).toBe('continuity-director-diagnostics-v1:my-scope')
   })
 
   // ── loadSnapshot ────────────────────────────────────────────────────

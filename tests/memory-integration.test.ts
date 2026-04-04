@@ -44,7 +44,7 @@ describe('Memory lifecycle integration', () => {
   test('extract → recall → session → dream completes without shared-state conflicts', async () => {
     const storage = new InMemoryAsyncStore()
     const scopeKey = 'scope:lifecycle:test'
-    const storageKey = `director-plugin-state::${scopeKey}`
+    const storageKey = `continuity-director-state::${scopeKey}`
 
     // ── Setup: canonical store with existing memory ────────────────
     const initialState = createEmptyState()
@@ -172,7 +172,7 @@ describe('Memory lifecycle integration', () => {
   test('migration + extraction worker: new extractions go to memdir without corrupting canonical', async () => {
     const storage = new InMemoryAsyncStore()
     const scopeKey = 'scope:extract-compat:test'
-    const storageKey = `director-plugin-state::${scopeKey}`
+    const storageKey = `continuity-director-state::${scopeKey}`
 
     const state = createEmptyState()
     state.memory.entities = [

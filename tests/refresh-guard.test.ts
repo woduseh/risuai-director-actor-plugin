@@ -84,7 +84,7 @@ describe('RefreshGuard — snapshot persistence', () => {
 
   it('load handles corrupted data gracefully', async () => {
     const { guard, store } = createGuard()
-    await store.setItem('director:refresh-guard:test-scope', 'not-an-object')
+    await store.setItem('continuity-director:refresh-guard:test-scope', 'not-an-object')
     await guard.load()
     expect(guard.getSnapshot().startupTs).toBe(0)
   })

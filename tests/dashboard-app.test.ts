@@ -509,14 +509,14 @@ describe('openDashboard', () => {
 
     expect(api.__alerts.length).toBeGreaterThanOrEqual(1)
     const alertText = api.__alerts[api.__alerts.length - 1]!
-    expect(alertText).toContain('director-actor-dashboard-profile')
+    expect(alertText).toContain('continuity-director-dashboard-profile')
   })
 
   // ── Import profile via staging key ──────────────────────────────────
 
   test('import-profile imports from staging storage key', async () => {
     const importPayload = JSON.stringify({
-      schema: 'director-actor-dashboard-profile',
+      schema: 'continuity-director-dashboard-profile',
       version: 1,
       profile: {
         id: 'imported-1',
@@ -527,7 +527,7 @@ describe('openDashboard', () => {
         overrides: { assertiveness: 'firm' },
       },
     })
-    await api.pluginStorage.setItem('dashboard-profile-import-staging', importPayload)
+    await api.pluginStorage.setItem('continuity-director-dashboard-profile-import-staging', importPayload)
 
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
@@ -547,7 +547,7 @@ describe('openDashboard', () => {
     expect(manifest).not.toBeNull()
     expect(manifest!.profiles.some((p) => p.name === 'Imported Test')).toBe(true)
 
-    const staging = await api.pluginStorage.getItem('dashboard-profile-import-staging')
+    const staging = await api.pluginStorage.getItem('continuity-director-dashboard-profile-import-staging')
     expect(staging).toBeNull()
   })
 
@@ -962,7 +962,7 @@ describe('openDashboard', () => {
       recencyWeight: 1,
       updatedAt: Date.now(),
     } as any)
-    await api.pluginStorage.setItem('director-plugin-state', state)
+    await api.pluginStorage.setItem('continuity-director-state', state)
 
     const storeWithGuard: DashboardStore = {
       storage: api.pluginStorage,
@@ -1576,7 +1576,7 @@ describe('openDashboard', () => {
 
     expect(api.__alerts.length).toBeGreaterThan(0)
     const payload = JSON.parse(api.__alerts[api.__alerts.length - 1]!)
-    expect(payload.schema).toBe('director-actor-dashboard-settings')
+    expect(payload.schema).toBe('continuity-director-dashboard-settings')
     expect(payload.version).toBe(1)
     expect(payload.settings).toBeDefined()
     expect(payload.profiles).toBeDefined()

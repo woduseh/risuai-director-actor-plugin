@@ -64,7 +64,7 @@ import type { BlockReason } from '../runtime/refreshGuard.js'
 const TOAST_DURATION_MS = 2500
 const TOAST_DURATION_ERROR_MS = 5000
 const PROFILE_ID_PREFIX = 'user-profile-'
-const IMPORT_STAGING_KEY = 'dashboard-profile-import-staging'
+const IMPORT_STAGING_KEY = 'continuity-director-dashboard-profile-import-staging'
 
 /** Timeout (ms) after which an armed destructive action resets. */
 export const ARM_TIMEOUT_MS = 3000
@@ -2023,7 +2023,7 @@ function isValidExportPayload(value: unknown): value is ProfileExportPayload {
   if (value == null || typeof value !== 'object') return false
   const v = value as Record<string, unknown>
   return (
-    v.schema === 'director-actor-dashboard-profile' &&
+    v.schema === 'continuity-director-dashboard-profile' &&
     typeof v.version === 'number' &&
     v.profile != null &&
     typeof v.profile === 'object' &&

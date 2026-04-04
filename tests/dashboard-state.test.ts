@@ -62,7 +62,7 @@ describe('dashboardState', () => {
       overrides: { assertiveness: 'standard' }
     })
 
-    expect(payload.schema).toBe('director-actor-dashboard-profile')
+    expect(payload.schema).toBe('continuity-director-dashboard-profile')
     expect(payload.version).toBe(1)
     expect(payload.profile.name).toBe('Balanced')
   })

@@ -4,13 +4,13 @@ import { createEmptyState } from '../contracts/types.js'
 import type { MemdirStore } from './memdirStore.js'
 import { migrateCanonicalToMemdir } from './memoryDocuments.js'
 
-export const DIRECTOR_STATE_STORAGE_KEY = 'director-plugin-state'
+export const DIRECTOR_STATE_STORAGE_KEY = 'continuity-director-state'
 
 /**
  * Storage namespace for per-scope memdir migration markers.
  * Each scope stores `{MEMDIR_MIGRATION_MARKER_NS}:{scopeKey}`.
  */
-export const MEMDIR_MIGRATION_MARKER_NS = 'director-memdir:migrated'
+export const MEMDIR_MIGRATION_MARKER_NS = 'continuity-director-memdir:migrated'
 
 /** Schema version for the memdir-backed runtime. */
 export const MEMDIR_SCHEMA_VERSION = 2

@@ -103,8 +103,8 @@ function getVectorVersion(
 }
 
 // safeLocalStorage keys for extraction hot cache
-const LS_LAST_EXTRACTION_TS = 'director:extraction:lastTs'
-const LS_LAST_PROCESSED_CURSOR = 'director:extraction:cursor'
+const LS_LAST_EXTRACTION_TS = 'continuity-director:extraction:lastTs'
+const LS_LAST_PROCESSED_CURSOR = 'continuity-director:extraction:cursor'
 
 /** Timeout for the recall prefetch before falling back to deterministic retrieval. */
 const RECALL_TIMEOUT_MS = 3000

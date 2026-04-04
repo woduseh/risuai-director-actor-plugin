@@ -42,7 +42,7 @@ export interface BlockStatus {
 // ---------------------------------------------------------------------------
 
 export function refreshGuardStorageKey(scopeKey: string): string {
-  return `director:refresh-guard:${scopeKey}`
+  return `continuity-director:refresh-guard:${scopeKey}`
 }
 
 // ---------------------------------------------------------------------------

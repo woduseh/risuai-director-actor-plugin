@@ -168,7 +168,7 @@ describe('registerContinuityDirectorPlugin', () => {
     await new Promise((r) => setTimeout(r, 50))
 
     // The extraction cursor should be stored in safeLocalStorage
-    const cursor = await api.safeLocalStorage.getItem<number>('director:extraction:cursor')
+    const cursor = await api.safeLocalStorage.getItem<number>('continuity-director:extraction:cursor')
     // Cursor should be set (≥1) after the turn was finalized
     expect(cursor).toBeGreaterThanOrEqual(1)
   })

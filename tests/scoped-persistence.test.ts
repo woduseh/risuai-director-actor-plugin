@@ -324,7 +324,7 @@ describe('resolveScopeStorageKey', () => {
 // ── Scoped CanonicalStore tests ──────────────────────────────────────────
 
 describe('CanonicalStore (scoped)', () => {
-  const SCOPED_KEY = 'director-plugin-state::scope:abc123:def456'
+  const SCOPED_KEY = 'continuity-director-state::scope:abc123:def456'
 
   test('loads from scoped key when data exists there', async () => {
     const api = createMockRisuaiApi()
@@ -483,7 +483,7 @@ describe('Dashboard fallback reads with scoped key', () => {
     // Inline import to avoid jsdom env requirement for this simple test
     const { createDashboardStore } = await import('../src/ui/dashboardApp.js')
     const api = createMockRisuaiApi()
-    const scopedKey = 'director-plugin-state::scope:x:y'
+    const scopedKey = 'continuity-director-state::scope:x:y'
 
     const dashStore = createDashboardStore(api, undefined, scopedKey)
 
@@ -492,7 +492,7 @@ describe('Dashboard fallback reads with scoped key', () => {
 
   test('readCanonical fallback reads from provided scoped key', async () => {
     const api = createMockRisuaiApi()
-    const scopedKey = 'director-plugin-state::scope:x:y'
+    const scopedKey = 'continuity-director-state::scope:x:y'
     const scopedState = createEmptyState({ projectKey: 'scoped-dashboard' })
     await api.pluginStorage.setItem(scopedKey, scopedState)
 

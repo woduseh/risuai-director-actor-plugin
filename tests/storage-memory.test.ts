@@ -63,7 +63,7 @@ describe('CanonicalStore', () => {
   test('legacy state missing summaries does not break memdir migration', async () => {
     const storage = new InMemoryAsyncStore()
     const scopeKey = 'scope:legacy-sum:test'
-    const storageKey = `director-plugin-state::${scopeKey}`
+    const storageKey = `continuity-director-state::${scopeKey}`
 
     const legacyState = createEmptyState()
     legacyState.memory.entities = [
@@ -217,7 +217,7 @@ describe('CanonicalStore memdir migration', () => {
   test('lazily migrates legacy canonical memory into memdir on first load', async () => {
     const storage = new InMemoryAsyncStore()
     const scopeKey = 'scope:test-char:test-chat'
-    const storageKey = `director-plugin-state::${scopeKey}`
+    const storageKey = `continuity-director-state::${scopeKey}`
 
     // Persist a populated state under the scoped key
     await storage.setItem(storageKey, makePopulatedState())
@@ -245,7 +245,7 @@ describe('CanonicalStore memdir migration', () => {
   test('migration is idempotent — re-load does not create duplicates', async () => {
     const storage = new InMemoryAsyncStore()
     const scopeKey = 'scope:idem:test'
-    const storageKey = `director-plugin-state::${scopeKey}`
+    const storageKey = `continuity-director-state::${scopeKey}`
 
     await storage.setItem(storageKey, makePopulatedState())
 
@@ -273,7 +273,7 @@ describe('CanonicalStore memdir migration', () => {
   test('dual-read: canonical state is still returned after migration', async () => {
     const storage = new InMemoryAsyncStore()
     const scopeKey = 'scope:dual:test'
-    const storageKey = `director-plugin-state::${scopeKey}`
+    const storageKey = `continuity-director-state::${scopeKey}`
 
     const populated = makePopulatedState()
     populated.projectKey = 'my-project'
@@ -299,7 +299,7 @@ describe('CanonicalStore memdir migration', () => {
   test('single-write: writeFirst still persists canonical state', async () => {
     const storage = new InMemoryAsyncStore()
     const scopeKey = 'scope:write:test'
-    const storageKey = `director-plugin-state::${scopeKey}`
+    const storageKey = `continuity-director-state::${scopeKey}`
 
     await storage.setItem(storageKey, makePopulatedState())
 
@@ -332,7 +332,7 @@ describe('CanonicalStore memdir migration', () => {
   test('safe fallback when memdir migration is partially complete', async () => {
     const storage = new InMemoryAsyncStore()
     const scopeKey = 'scope:partial:test'
-    const storageKey = `director-plugin-state::${scopeKey}`
+    const storageKey = `continuity-director-state::${scopeKey}`
 
     const populated = makePopulatedState()
     await storage.setItem(storageKey, populated)
@@ -363,7 +363,7 @@ describe('CanonicalStore memdir migration', () => {
 
   test('skips migration when no memdirStore is provided', async () => {
     const storage = new InMemoryAsyncStore()
-    const storageKey = `director-plugin-state::scope:no-memdir:test`
+    const storageKey = `continuity-director-state::scope:no-memdir:test`
 
     await storage.setItem(storageKey, makePopulatedState())
 
@@ -387,7 +387,7 @@ describe('CanonicalStore memdir migration', () => {
   test('onMigrationError callback receives errors from failed migration', async () => {
     const storage = new InMemoryAsyncStore()
     const scopeKey = 'scope:err:test'
-    const storageKey = `director-plugin-state::${scopeKey}`
+    const storageKey = `continuity-director-state::${scopeKey}`
 
     await storage.setItem(storageKey, makePopulatedState())
 
@@ -419,7 +419,7 @@ describe('CanonicalStore memdir migration', () => {
   test('migration failure without onMigrationError does not throw', async () => {
     const storage = new InMemoryAsyncStore()
     const scopeKey = 'scope:silent:test'
-    const storageKey = `director-plugin-state::${scopeKey}`
+    const storageKey = `continuity-director-state::${scopeKey}`
 
     await storage.setItem(storageKey, makePopulatedState())
 

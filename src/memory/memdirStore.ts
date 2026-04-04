@@ -1,9 +1,9 @@
 import type { AsyncKeyValueStore } from '../contracts/risuai.js'
 import type { MemdirDocument, MemdirIndex } from '../contracts/types.js'
 
-const NS_INDEX = 'director-memdir:index'
-const NS_DOC = 'director-memdir:doc'
-const NS_MEMORY_MD = 'director-memdir:memory-md'
+const NS_INDEX = 'continuity-director-memdir:index'
+const NS_DOC = 'continuity-director-memdir:doc'
+const NS_MEMORY_MD = 'continuity-director-memdir:memory-md'
 
 function indexKey(scopeKey: string): string {
   return `${NS_INDEX}:${scopeKey}`
