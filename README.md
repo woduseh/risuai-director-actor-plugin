@@ -49,7 +49,7 @@ When a `MemdirStore` is provided to `CanonicalStore`, the plugin performs a **la
 
 The migration is **idempotent** (deterministic IDs prevent duplicates), **non-destructive** (the canonical blob is never modified or deleted), and **safe when partially complete** (canonical reads remain available as a fallback; the migration marker is only set after all documents are persisted).
 
-A per-scope migration marker (`director-memdir:migrated:{scopeKey}`) records when migration completed successfully. If the marker is absent, migration is retried on next load.
+A per-scope migration marker (`continuity-director-memdir:migrated:{scopeKey}`) records when migration completed successfully. If the marker is absent, migration is retried on next load.
 
 ### Operator Controls
 

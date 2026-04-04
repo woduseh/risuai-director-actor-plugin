@@ -2259,7 +2259,7 @@ describe('memory-page scope badge', () => {
   test('scope badge renders on the memory page with the scope label', async () => {
     store = {
       storage: api.pluginStorage,
-      stateStorageKey: 'director-state-sc-abc123',
+      stateStorageKey: 'continuity-director-state::scope:char-abc123:chat-def456',
     }
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
@@ -2273,7 +2273,7 @@ describe('memory-page scope badge', () => {
   test('scope badge renders with localized label', async () => {
     store = {
       storage: api.pluginStorage,
-      stateStorageKey: 'director-state-sc-abc123',
+      stateStorageKey: 'continuity-director-state::scope:char-abc123:chat-def456',
     }
     setLocale('ko')
     await openDashboard(api, store)

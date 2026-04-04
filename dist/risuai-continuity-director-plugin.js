@@ -726,8 +726,8 @@
   }
 
   // src/memory/canonicalStore.ts
-  var DIRECTOR_STATE_STORAGE_KEY = "director-plugin-state";
-  var MEMDIR_MIGRATION_MARKER_NS = "director-memdir:migrated";
+  var DIRECTOR_STATE_STORAGE_KEY = "continuity-director-state";
+  var MEMDIR_MIGRATION_MARKER_NS = "continuity-director-memdir:migrated";
   var MEMDIR_SCHEMA_VERSION = 2;
   function patchLegacyMemory(state) {
     if (!Array.isArray(state.memory.continuityFacts)) {
@@ -954,8 +954,8 @@
   }
 
   // src/memory/scopeResolver.ts
-  var SCOPE_REGISTRY_KEY = "director-scope-registry";
-  var STORAGE_NAMESPACE = "director-plugin-state";
+  var SCOPE_REGISTRY_KEY = "continuity-director-scope-registry";
+  var STORAGE_NAMESPACE = "continuity-director-state";
   async function tryGetCharacter(api) {
     try {
       const anyApi = api;
@@ -2119,9 +2119,9 @@ ${recentText}`
   }
 
   // src/memory/memdirStore.ts
-  var NS_INDEX = "director-memdir:index";
-  var NS_DOC = "director-memdir:doc";
-  var NS_MEMORY_MD = "director-memdir:memory-md";
+  var NS_INDEX = "continuity-director-memdir:index";
+  var NS_DOC = "continuity-director-memdir:doc";
+  var NS_MEMORY_MD = "continuity-director-memdir:memory-md";
   function indexKey(scopeKey) {
     return `${NS_INDEX}:${scopeKey}`;
   }
@@ -2754,7 +2754,7 @@ ${lines.join("\n").trimEnd()}`;
 
   // src/memory/consolidationLock.ts
   var STALE_THRESHOLD_MS = 5 * 60 * 1e3;
-  var LOCK_KEY_PREFIX = "director-memdir:consolidate-lock";
+  var LOCK_KEY_PREFIX = "continuity-director-memdir:consolidate-lock";
   var ConsolidationLock = class {
     storage;
     key;
@@ -2868,7 +2868,7 @@ ${lines.join("\n").trimEnd()}`;
     };
   }
   function diagnosticsStorageKey(scopeKey) {
-    return `diagnostics-v1:${scopeKey}`;
+    return `continuity-director-diagnostics-v1:${scopeKey}`;
   }
   var DiagnosticsManager = class {
     snapshot;
@@ -3580,10 +3580,10 @@ ${lines.join("\n").trimEnd()}`;
   }
 
   // src/ui/dashboardState.ts
-  var DASHBOARD_SETTINGS_KEY = "dashboard-settings-v1";
-  var DASHBOARD_PROFILE_MANIFEST_KEY = "dashboard-profile-manifest-v1";
-  var DASHBOARD_LOCALE_KEY = "dashboard-locale-v1";
-  var DASHBOARD_LAST_TAB_KEY = "dashboard-last-tab-v1";
+  var DASHBOARD_SETTINGS_KEY = "continuity-director-dashboard-settings-v1";
+  var DASHBOARD_PROFILE_MANIFEST_KEY = "continuity-director-dashboard-profile-manifest-v1";
+  var DASHBOARD_LOCALE_KEY = "continuity-director-dashboard-locale-v1";
+  var DASHBOARD_LAST_TAB_KEY = "continuity-director-dashboard-last-tab-v1";
   var DASHBOARD_SCHEMA_VERSION = 1;
   function normalizePersistedSettings(raw) {
     return {
@@ -3690,14 +3690,14 @@ ${lines.join("\n").trimEnd()}`;
   }
   function createProfileExportPayload(profile) {
     return {
-      schema: "director-actor-dashboard-profile",
+      schema: "continuity-director-dashboard-profile",
       version: 1,
       profile: { ...profile }
     };
   }
   function createSettingsExportPayload(settings, profiles, locale) {
     return {
-      schema: "director-actor-dashboard-settings",
+      schema: "continuity-director-dashboard-settings",
       version: 1,
       exportedAt: Date.now(),
       locale,
@@ -3705,7 +3705,7 @@ ${lines.join("\n").trimEnd()}`;
       profiles: structuredClone(profiles)
     };
   }
-  var DASHBOARD_DREAM_STATE_KEY = "dashboard-dream-state-v1";
+  var DASHBOARD_DREAM_STATE_KEY = "continuity-director-dashboard-dream-state-v1";
   function createDefaultDreamState() {
     return {
       lastDreamTs: 0,
@@ -3729,7 +3729,7 @@ ${lines.join("\n").trimEnd()}`;
       settings: { ...state.settings, ...dashboardSettings }
     };
   }
-  var DASHBOARD_MEMORY_OPS_PREFS_KEY = "dashboard-memory-ops-prefs-v1";
+  var DASHBOARD_MEMORY_OPS_PREFS_KEY = "continuity-director-dashboard-memory-ops-prefs-v1";
   var FRESHNESS_STALE_THRESHOLD_MS = 24 * 60 * 60 * 1e3;
   function computeDocumentCounts(memory) {
     return {
@@ -6243,7 +6243,7 @@ ${lines.join("\n").trimEnd()}`;
   var TOAST_DURATION_MS = 2500;
   var TOAST_DURATION_ERROR_MS = 5e3;
   var PROFILE_ID_PREFIX = "user-profile-";
-  var IMPORT_STAGING_KEY = "dashboard-profile-import-staging";
+  var IMPORT_STAGING_KEY = "continuity-director-dashboard-profile-import-staging";
   var ARM_TIMEOUT_MS = 3e3;
   var DESTRUCTIVE_ACTIONS = /* @__PURE__ */ new Map([
     ["delete-summary", "confirm.deleteMemory"],
@@ -7767,7 +7767,7 @@ ${lines.join("\n").trimEnd()}`;
   function isValidExportPayload(value) {
     if (value == null || typeof value !== "object") return false;
     const v = value;
-    return v.schema === "director-actor-dashboard-profile" && typeof v.version === "number" && v.profile != null && typeof v.profile === "object" && typeof v.profile.id === "string" && typeof v.profile.name === "string";
+    return v.schema === "continuity-director-dashboard-profile" && typeof v.version === "number" && v.profile != null && typeof v.profile === "object" && typeof v.profile.id === "string" && typeof v.profile.name === "string";
   }
   async function openDashboard(api, store, doc) {
     if (activeInstance) {
@@ -8049,7 +8049,7 @@ ${lines.join("\n").trimEnd()}`;
   // src/runtime/turnRecovery.ts
   var PENDING_TURN_SCHEMA_VERSION = 1;
   function pendingTurnStorageKey(scopeKey) {
-    return `director:pending-turn:${scopeKey}`;
+    return `continuity-director:pending-turn:${scopeKey}`;
   }
   function createTurnRecoveryManager(storage, scopeKey) {
     const key = pendingTurnStorageKey(scopeKey);
@@ -8124,7 +8124,7 @@ ${lines.join("\n").trimEnd()}`;
   // src/runtime/refreshGuard.ts
   var STABILIZATION_WINDOW_MS = 1e4;
   function refreshGuardStorageKey(scopeKey) {
-    return `director:refresh-guard:${scopeKey}`;
+    return `continuity-director:refresh-guard:${scopeKey}`;
   }
   function createDefaultSnapshot() {
     return {
@@ -8420,8 +8420,8 @@ ${doc.description}`;
       dimensions: settings.embeddingDimensions
     });
   }
-  var LS_LAST_EXTRACTION_TS = "director:extraction:lastTs";
-  var LS_LAST_PROCESSED_CURSOR = "director:extraction:cursor";
+  var LS_LAST_EXTRACTION_TS = "continuity-director:extraction:lastTs";
+  var LS_LAST_PROCESSED_CURSOR = "continuity-director:extraction:cursor";
   var RECALL_TIMEOUT_MS = 3e3;
   function latestUserText(messages) {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
