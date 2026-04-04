@@ -14,7 +14,7 @@ Narrative guidance and long-memory continuity plugin for **RisuAI Plugin V3**.
 - Supports director model provider settings for OpenAI, Anthropic, Google, GitHub Copilot, Vertex AI, and custom OpenAI-compatible endpoints
 - Uses pasted **GitHub Copilot tokens** for live connection tests, model discovery, and direct Director inference
 - Uses pasted **Vertex AI service-account JSON keys** for live connection tests, Gemini Director inference, model discovery, and Vertex text embeddings
-- Includes refreshed curated model catalogs such as `GPT-5.4`, `Claude Haiku 4.5`, `Claude Sonnet 4.6`, `Claude Opus 4.6`, and `Gemini 2.5`
+- Includes refreshed curated model catalogs such as `GPT-5.4`, `Claude Haiku 4.5`, `Claude Sonnet 4.6`, `Claude Opus 4.6`, and current `Gemini 3` / `Gemini 3.1` preview families
 - Exposes prompt preset management for director pre-request and post-response templates
 - Includes a scoped canonical memory workbench for summaries, continuity facts, world facts, entities, and relations with live filtering, scope badges, quick navigation, internal section scrolling, bounded rerender updates, manual add/edit/delete, bulk delete, and two-step destructive arming safeguards
 - Adds a read-only Memory Workbench inspector for memory documents with type/status/source filters, embedding-state badges, `MEMORY.md` preview, and session notebook snapshots

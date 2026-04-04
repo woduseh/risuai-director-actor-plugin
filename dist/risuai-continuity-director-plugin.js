@@ -1,7 +1,7 @@
 //@name risuai-continuity-director-plugin
 //@display-name RisuAI Continuity Director
 //@api 3.0
-//@version 0.8.0
+//@version 0.8.1
 //@description Narrative guidance and long-memory continuity plugin for RisuAI Plugin V3
 
 "use strict";
@@ -5974,9 +5974,7 @@ ${lines.join("\n").trimEnd()}`;
       authMode: "api-key",
       curatedModels: [
         "gpt-5.4-mini",
-        "gpt-5.4",
-        "gpt-5.4-nano",
-        "gpt-5.4-pro"
+        "gpt-5.4"
       ]
     },
     {
@@ -5998,9 +5996,9 @@ ${lines.join("\n").trimEnd()}`;
       manualModelOnly: true,
       authMode: "api-key",
       curatedModels: [
-        "gemini-2.5-flash-lite",
-        "gemini-2.5-flash",
-        "gemini-2.5-pro"
+        "gemini-3.1-flash-lite-preview",
+        "gemini-3-flash-preview",
+        "gemini-3.1-pro-preview"
       ]
     },
     {
@@ -6010,10 +6008,10 @@ ${lines.join("\n").trimEnd()}`;
       manualModelOnly: true,
       authMode: "oauth-device-flow",
       curatedModels: [
-        "gpt-5.4-mini",
         "gpt-5.4",
         "claude-sonnet-4-6",
-        "claude-opus-4-6"
+        "claude-opus-4-6",
+        "gemini-3.1-pro-preview"
       ]
     },
     {
@@ -6023,8 +6021,9 @@ ${lines.join("\n").trimEnd()}`;
       manualModelOnly: true,
       authMode: "manual-advanced",
       curatedModels: [
-        "gemini-2.5-flash",
-        "gemini-2.5-pro"
+        "gemini-3.1-flash-lite-preview",
+        "gemini-3-flash-preview",
+        "gemini-3.1-pro-preview"
       ]
     },
     {

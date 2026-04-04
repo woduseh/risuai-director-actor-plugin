@@ -39,8 +39,6 @@ export const DIRECTOR_PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     curatedModels: [
       'gpt-5.4-mini',
       'gpt-5.4',
-      'gpt-5.4-nano',
-      'gpt-5.4-pro',
     ]
   },
   {
@@ -62,9 +60,9 @@ export const DIRECTOR_PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     manualModelOnly: true,
     authMode: 'api-key',
     curatedModels: [
-      'gemini-2.5-flash-lite',
-      'gemini-2.5-flash',
-      'gemini-2.5-pro',
+      'gemini-3.1-flash-lite-preview',
+      'gemini-3-flash-preview',
+      'gemini-3.1-pro-preview',
     ]
   },
   {
@@ -74,10 +72,10 @@ export const DIRECTOR_PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     manualModelOnly: true,
     authMode: 'oauth-device-flow',
     curatedModels: [
-      'gpt-5.4-mini',
       'gpt-5.4',
       'claude-sonnet-4-6',
       'claude-opus-4-6',
+      'gemini-3.1-pro-preview',
     ]
   },
   {
@@ -87,8 +85,9 @@ export const DIRECTOR_PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     manualModelOnly: true,
     authMode: 'manual-advanced',
     curatedModels: [
-      'gemini-2.5-flash',
-      'gemini-2.5-pro',
+      'gemini-3.1-flash-lite-preview',
+      'gemini-3-flash-preview',
+      'gemini-3.1-pro-preview',
     ]
   },
   {

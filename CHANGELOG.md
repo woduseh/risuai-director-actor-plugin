@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1] - 2026-04-04
+
+### Changed
+
+- Refreshed curated provider model presets again to match the latest 2026 operator-selected OpenAI, Google, Copilot, and Vertex lineups
+- Aligned dashboard model tests with the current curated preset catalogs so provider-managed fallback expectations no longer rely on stale model IDs
+
 ## [0.8.0] - 2026-04-04
 
 ### Added
