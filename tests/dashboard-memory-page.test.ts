@@ -13,7 +13,7 @@ import { beforeEach, afterEach, vi } from 'vitest'
 import { createMockRisuaiApi } from './helpers/mockRisuai.js'
 import { openDashboard, closeDashboard, ARM_TIMEOUT_MS } from '../src/ui/dashboardApp.js'
 import type { DashboardStore } from '../src/ui/dashboardApp.js'
-import { DASHBOARD_ROOT_CLASS } from '../src/ui/dashboardCss.js'
+import { DASHBOARD_ROOT_CLASS, buildDashboardCss } from '../src/ui/dashboardCss.js'
 import { createEmptyState } from '../src/contracts/types.js'
 import type { DirectorPluginState } from '../src/contracts/types.js'
 import { DIRECTOR_STATE_STORAGE_KEY } from '../src/memory/canonicalStore.js'
@@ -2098,5 +2098,222 @@ describe('destructive-action arming', () => {
     ) as HTMLElement
     delBtn.click() // arm
     expect(delBtn.textContent).toBe('삭제 확인?')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Task B: Memory navigation foundation
+// ---------------------------------------------------------------------------
+
+describe('memory filter persistence across rerender', () => {
+  let api: ReturnType<typeof createMockRisuaiApi>
+  let store: DashboardStore
+
+  beforeEach(() => {
+    api = createMockRisuaiApi()
+    store = createTestStore(api)
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  afterEach(async () => {
+    await closeDashboard()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  test('memory filter query survives a rerender-triggering mutation', async () => {
+    const state = stateWithFullMemory()
+    let currentState = structuredClone(state)
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    // Type a filter query
+    const filterInput = root.querySelector('[data-da-role="memory-filter"]') as HTMLInputElement
+    filterInput.value = 'dragon'
+    filterInput.dispatchEvent(new Event('input', { bubbles: true }))
+
+    // Trigger a rerender via add-summary (which calls fullReRender)
+    const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+    addInput.value = 'Test summary'
+    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    addBtn.click()
+
+    // Wait for async operations
+    await new Promise((r) => setTimeout(r, 50))
+
+    // After rerender, the filter input should retain the query
+    const newRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const newFilterInput = newRoot.querySelector('[data-da-role="memory-filter"]') as HTMLInputElement
+    expect(newFilterInput.value).toBe('dragon')
+  })
+})
+
+describe('memory-page quick navigation controls', () => {
+  let api: ReturnType<typeof createMockRisuaiApi>
+  let store: DashboardStore
+
+  beforeEach(() => {
+    api = createMockRisuaiApi()
+    store = createTestStore(api)
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  afterEach(async () => {
+    await closeDashboard()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  test('memory-cache page renders quick-nav controls for all 5 sections', async () => {
+    const state = stateWithFullMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const quickNav = root.querySelector('[data-da-role="memory-quick-nav"]') as HTMLElement
+    expect(quickNav).not.toBeNull()
+
+    const links = quickNav.querySelectorAll('[data-da-nav-target]')
+    expect(links.length).toBe(5)
+
+    const targets = Array.from(links).map((l) => l.getAttribute('data-da-nav-target'))
+    expect(targets).toContain('summaries')
+    expect(targets).toContain('continuity-facts')
+    expect(targets).toContain('world-facts')
+    expect(targets).toContain('entities')
+    expect(targets).toContain('relations')
+  })
+
+  test('quick-nav controls render with localized copy', async () => {
+    const state = stateWithFullMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    setLocale('ko')
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const quickNav = root.querySelector('[data-da-role="memory-quick-nav"]') as HTMLElement
+    expect(quickNav).not.toBeNull()
+    // Korean labels should appear
+    expect(quickNav.textContent).toContain('요약')
+    expect(quickNav.textContent).toContain('엔티티')
+  })
+})
+
+describe('memory-page scope badge', () => {
+  let api: ReturnType<typeof createMockRisuaiApi>
+  let store: DashboardStore
+
+  beforeEach(() => {
+    api = createMockRisuaiApi()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  afterEach(async () => {
+    await closeDashboard()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  test('scope badge renders on the memory page with the scope label', async () => {
+    store = {
+      storage: api.pluginStorage,
+      stateStorageKey: 'director-state-sc-abc123',
+    }
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const badge = root.querySelector('[data-da-role="scope-badge"]') as HTMLElement
+    expect(badge).not.toBeNull()
+    expect(badge.textContent!.length).toBeGreaterThan(0)
+  })
+
+  test('scope badge renders with localized label', async () => {
+    store = {
+      storage: api.pluginStorage,
+      stateStorageKey: 'director-state-sc-abc123',
+    }
+    setLocale('ko')
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const badge = root.querySelector('[data-da-role="scope-badge"]') as HTMLElement
+    expect(badge).not.toBeNull()
+  })
+
+  test('scope badge shows default label when using legacy flat key', async () => {
+    store = {
+      storage: api.pluginStorage,
+    }
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const badge = root.querySelector('[data-da-role="scope-badge"]') as HTMLElement
+    expect(badge).not.toBeNull()
+    expect(badge.textContent).toContain('Global')
+  })
+})
+
+describe('embeddings/settings cross-link', () => {
+  let api: ReturnType<typeof createMockRisuaiApi>
+  let store: DashboardStore
+
+  beforeEach(() => {
+    api = createMockRisuaiApi()
+    store = createTestStore(api)
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  afterEach(async () => {
+    await closeDashboard()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  test('memory page renders a cross-link to model settings tab', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const crossLink = root.querySelector('[data-da-role="model-settings-link"]') as HTMLElement
+    expect(crossLink).not.toBeNull()
+    expect(crossLink.getAttribute('data-da-target')).toBe('model-settings')
+  })
+})
+
+describe('memory-list bounded scrolling', () => {
+  test('.da-memory-list CSS includes max-height and overflow-y: auto', () => {
+    const css = buildDashboardCss()
+    const idx = css.indexOf('.da-memory-list')
+    expect(idx).toBeGreaterThan(-1)
+    const block = css.slice(idx, css.indexOf('}', idx) + 1)
+    expect(block).toContain('max-height')
+    expect(block).toContain('overflow-y')
   })
 })

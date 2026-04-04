@@ -179,4 +179,15 @@ describe('buildDashboardCss', () => {
     expect(css).toContain('memory-select')
     expect(css).toMatch(/memory-select.*focus-visible/s)
   })
+
+  // ── Task B: Memory list bounded scrolling ────────────────────────────
+
+  test('.da-memory-list has max-height and overflow-y for bounded scrolling', () => {
+    const css = buildDashboardCss()
+    const idx = css.indexOf('.da-memory-list')
+    expect(idx).toBeGreaterThan(-1)
+    const block = css.slice(idx, css.indexOf('}', idx) + 1)
+    expect(block).toContain('max-height')
+    expect(block).toContain('overflow-y')
+  })
 })

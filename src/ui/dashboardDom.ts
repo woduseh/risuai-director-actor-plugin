@@ -52,6 +52,10 @@ export interface DashboardMarkupInput {
     id: string
   } | null
   memoryOpsStatus?: MemoryOpsStatus
+  /** Current memory filter query to restore after rerender. */
+  memoryFilterQuery?: string
+  /** Scope label for the active scoped storage key. */
+  scopeLabel?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -527,7 +531,25 @@ function buildMemoryCachePage(input: DashboardMarkupInput): string {
   const backfillHtml = `<div class="da-inline"><button class="da-btn da-btn--primary" data-da-action="backfill-current-chat">${t('btn.backfillCurrentChat')}</button></div>`
   const regenerateHtml = `<div class="da-inline"><button class="da-btn" data-da-action="regenerate-current-chat">${t('btn.regenerateCurrentChat')}</button></div>`
   const bulkDeleteHtml = `<div class="da-inline"><button class="da-btn da-btn--danger" data-da-action="bulk-delete-memory"${selectedCount === 0 ? ' disabled' : ''}>${t('btn.deleteSelected')}</button></div>`
-  const filterHtml = `<input type="text" class="da-input" data-da-role="memory-filter" placeholder="${t('memory.filterPlaceholder')}" aria-label="${t('memory.filterPlaceholder')}" />`
+  const filterValue = input.memoryFilterQuery ? ` value="${escapeXml(input.memoryFilterQuery)}"` : ''
+  const filterHtml = `<input type="text" class="da-input" data-da-role="memory-filter" placeholder="${t('memory.filterPlaceholder')}" aria-label="${t('memory.filterPlaceholder')}"${filterValue} />`
+
+  // Scope badge
+  const scopeText = input.scopeLabel ?? t('memory.scopeGlobal')
+  const scopeBadgeHtml = `<span class="da-badge" data-da-role="scope-badge" data-kind="neutral">${escapeXml(t('memory.scopeLabel', { scope: scopeText }))}</span>`
+
+  // Quick navigation
+  const quickNavItems: Array<[string, string]> = [
+    ['summaries', t('memory.quickNav.summaries')],
+    ['continuity-facts', t('memory.quickNav.continuityFacts')],
+    ['world-facts', t('memory.quickNav.worldFacts')],
+    ['entities', t('memory.quickNav.entities')],
+    ['relations', t('memory.quickNav.relations')],
+  ]
+  const quickNavHtml = `<nav class="da-quick-nav" data-da-role="memory-quick-nav">${quickNavItems.map(([target, label]) => `<button class="da-btn da-btn--sm" data-da-nav-target="${target}">${escapeXml(label)}</button>`).join('')}</nav>`
+
+  // Cross-link to model settings
+  const crossLinkHtml = `<button class="da-btn da-btn--ghost" data-da-role="model-settings-link" data-da-target="model-settings">${t('memory.modelSettingsLink')}</button>`
 
   const addSummaryHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-summary-text" placeholder="${t('memory.addSummaryPlaceholder')}" aria-label="${t('memory.addSummaryPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-summary">${t('btn.add')}</button></div>`
   const addFactHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-fact-text" placeholder="${t('memory.addFactPlaceholder')}" aria-label="${t('memory.addFactPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-continuity-fact">${t('btn.add')}</button></div>`
@@ -649,10 +671,11 @@ function buildMemoryCachePage(input: DashboardMarkupInput): string {
     : ''
 
   return `
-      ${backfillHtml}${regenerateHtml}${bulkDeleteHtml}${filterHtml}${emptyHintHtml}
+      ${scopeBadgeHtml}${quickNavHtml}
+      ${backfillHtml}${regenerateHtml}${bulkDeleteHtml}${crossLinkHtml}${filterHtml}${emptyHintHtml}
       ${memoryOpsCardHtml}
       <div class="da-grid">
-        <section class="da-card">
+        <section class="da-card" id="da-memory-section-summaries">
           <div class="da-card-header">
             <div>
               <h3 class="da-card-title">${t('card.memorySummaries.title')}</h3>
@@ -660,7 +683,7 @@ function buildMemoryCachePage(input: DashboardMarkupInput): string {
           </div>${summaryItems ? `\n          <ul class="da-memory-list">${summaryItems}</ul>` : ''}
           ${addSummaryHtml}
         </section>
-        <section class="da-card">
+        <section class="da-card" id="da-memory-section-continuity-facts">
           <div class="da-card-header">
             <div>
               <h3 class="da-card-title">${t('card.continuityFacts.title')}</h3>
@@ -668,7 +691,7 @@ function buildMemoryCachePage(input: DashboardMarkupInput): string {
           </div>${factItems ? `\n          <ul class="da-memory-list">${factItems}</ul>` : ''}
           ${addFactHtml}
         </section>
-        <section class="da-card">
+        <section class="da-card" id="da-memory-section-world-facts">
           <div class="da-card-header">
             <div>
               <h3 class="da-card-title">${t('card.worldFacts.title')}</h3>
@@ -676,7 +699,7 @@ function buildMemoryCachePage(input: DashboardMarkupInput): string {
           </div>${worldFactItems ? `\n          <ul class="da-memory-list">${worldFactItems}</ul>` : ''}
           ${addWorldFactHtml}
         </section>
-        <section class="da-card">
+        <section class="da-card" id="da-memory-section-entities">
           <div class="da-card-header">
             <div>
               <h3 class="da-card-title">${t('card.entities.title')}</h3>
@@ -684,7 +707,7 @@ function buildMemoryCachePage(input: DashboardMarkupInput): string {
           </div>${entityItems ? `\n          <ul class="da-memory-list">${entityItems}</ul>` : ''}
           ${addEntityHtml}
         </section>
-        <section class="da-card">
+        <section class="da-card" id="da-memory-section-relations">
           <div class="da-card-header">
             <div>
               <h3 class="da-card-title">${t('card.relations.title')}</h3>

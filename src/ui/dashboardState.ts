@@ -24,6 +24,7 @@ import { t } from './i18n.js'
 export const DASHBOARD_SETTINGS_KEY = 'dashboard-settings-v1'
 export const DASHBOARD_PROFILE_MANIFEST_KEY = 'dashboard-profile-manifest-v1'
 export const DASHBOARD_LOCALE_KEY = 'dashboard-locale-v1'
+export const DASHBOARD_LAST_TAB_KEY = 'dashboard-last-tab-v1'
 export const DASHBOARD_SCHEMA_VERSION = 1
 
 // ---------------------------------------------------------------------------

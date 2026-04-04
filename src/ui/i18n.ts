@@ -175,6 +175,21 @@ const EN_CATALOG = {
   'card.entities.title': 'Entities',
   'card.relations.title': 'Relations',
 
+  // Scope badge
+  'memory.scopeLabel': 'Scope: {{scope}}',
+  'memory.scopeGlobal': 'Global',
+  'memory.scopeScoped': 'Scoped',
+
+  // Quick navigation
+  'memory.quickNav.summaries': 'Summaries',
+  'memory.quickNav.continuityFacts': 'Continuity Facts',
+  'memory.quickNav.worldFacts': 'World Facts',
+  'memory.quickNav.entities': 'Entities',
+  'memory.quickNav.relations': 'Relations',
+
+  // Cross-link
+  'memory.modelSettingsLink': 'Embeddings & Model Settings',
+
   // Card: Memory Operations
   'card.memoryOps.title': 'Memory Operations',
   'card.memoryOps.copy': 'Live status of extraction and consolidation workers, with operator actions.',
@@ -434,6 +449,21 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'card.worldFacts.title': '세계 사실',
   'card.entities.title': '엔티티',
   'card.relations.title': '관계',
+
+  // Scope badge
+  'memory.scopeLabel': '범위: {{scope}}',
+  'memory.scopeGlobal': '전역',
+  'memory.scopeScoped': '범위 지정됨',
+
+  // Quick navigation
+  'memory.quickNav.summaries': '요약',
+  'memory.quickNav.continuityFacts': '연속성 사실',
+  'memory.quickNav.worldFacts': '세계 사실',
+  'memory.quickNav.entities': '엔티티',
+  'memory.quickNav.relations': '관계',
+
+  // Cross-link
+  'memory.modelSettingsLink': '임베딩 & 모델 설정',
 
   // Card: Memory Operations
   'card.memoryOps.title': '메모리 작업',

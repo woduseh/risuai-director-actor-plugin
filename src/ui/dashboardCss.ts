@@ -517,6 +517,8 @@ export function buildDashboardCss(): string {
   margin: 0;
   padding: 0;
   list-style: none;
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 .da-memory-item {
@@ -546,6 +548,13 @@ export function buildDashboardCss(): string {
 .da-add-row .da-input--add {
   flex: 1;
   min-height: 36px;
+}
+
+.da-quick-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
 }
 
 @media (max-width: 960px) {

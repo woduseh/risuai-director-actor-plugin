@@ -1537,3 +1537,64 @@ describe('openDashboard', () => {
     expect(closeBtn.getAttribute('aria-label')).toBeTruthy()
   })
 })
+
+// ---------------------------------------------------------------------------
+// Task B: Last-open tab persistence
+// ---------------------------------------------------------------------------
+
+describe('last-open tab persistence', () => {
+  let api: ReturnType<typeof createMockRisuaiApi>
+  let store: DashboardStore
+
+  beforeEach(() => {
+    api = createMockRisuaiApi()
+    store = createTestStore(api)
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+  })
+
+  afterEach(async () => {
+    await closeDashboard()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+  })
+
+  test('last-open tab is restored after closing and reopening the dashboard', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    // Switch to memory-cache tab
+    const memBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memBtn.click()
+
+    // Close and reopen
+    await closeDashboard()
+    document.body.innerHTML = ''
+    await openDashboard(api, store)
+
+    const newRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const memoryPage = newRoot.querySelector('#da-page-memory-cache') as HTMLElement
+    const generalPage = newRoot.querySelector('#da-page-general') as HTMLElement
+
+    expect(memoryPage.classList.contains('da-hidden')).toBe(false)
+    expect(generalPage.classList.contains('da-hidden')).toBe(true)
+  })
+
+  test('sidebar button for the restored tab has the active class', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    // Switch to prompt-tuning tab
+    const ptBtn = root.querySelector('[data-da-target="prompt-tuning"]') as HTMLElement
+    ptBtn.click()
+
+    await closeDashboard()
+    document.body.innerHTML = ''
+    await openDashboard(api, store)
+
+    const newRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const activeBtn = newRoot.querySelector('.da-sidebar-btn--active') as HTMLElement
+    expect(activeBtn).not.toBeNull()
+    expect(activeBtn.getAttribute('data-da-target')).toBe('prompt-tuning')
+  })
+})

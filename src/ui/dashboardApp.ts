@@ -13,6 +13,7 @@ import {
   DASHBOARD_SETTINGS_KEY,
   DASHBOARD_PROFILE_MANIFEST_KEY,
   DASHBOARD_LOCALE_KEY,
+  DASHBOARD_LAST_TAB_KEY,
   createDashboardDraft,
   createPromptPresetFromSettings,
   createDefaultProfileManifest,
@@ -321,6 +322,7 @@ class DashboardInstance {
     id: string
   } | null = null
   private memoryOpsStatus: MemoryOpsStatus
+  private memoryFilterQuery = ''
 
   /**
    * Action names currently in flight (used by async busy guards).
@@ -346,13 +348,17 @@ class DashboardInstance {
     modelOptions: string[],
     canonicalState: DirectorPluginState,
     memoryOpsStatus: MemoryOpsStatus,
+    initialTab?: string,
   ) {
     this.api = api
     this.store = store
     this.doc = doc
     this.draft = draft
     this.profiles = profiles
-    this.activeTab = DASHBOARD_TABS[0]?.id ?? 'general'
+    const validTabIds = DASHBOARD_TABS.map((t) => t.id)
+    this.activeTab = initialTab && validTabIds.includes(initialTab)
+      ? initialTab
+      : DASHBOARD_TABS[0]?.id ?? 'general'
     this.modelOptions = modelOptions
     this.connectionStatus = { kind: 'idle', message: t('connection.notTested') }
     this.canonicalState = canonicalState
@@ -401,6 +407,10 @@ class DashboardInstance {
   // ── DOM ───────────────────────────────────────────────────────────────
 
   private buildMarkupInput(): DashboardMarkupInput {
+    const scopeKey = this.store.stateStorageKey ?? DIRECTOR_STATE_STORAGE_KEY
+    const scopeLabel = scopeKey === DIRECTOR_STATE_STORAGE_KEY
+      ? t('memory.scopeGlobal')
+      : t('memory.scopeScoped')
     return {
       settings: this.draft.settings,
       pluginState: this.canonicalState,
@@ -411,6 +421,8 @@ class DashboardInstance {
       selectedMemoryKeys: Array.from(this.selectedMemoryKeys),
       editingMemory: this.editingMemory,
       memoryOpsStatus: this.memoryOpsStatus,
+      memoryFilterQuery: this.memoryFilterQuery,
+      scopeLabel,
     }
   }
 
@@ -510,6 +522,11 @@ class DashboardInstance {
     this.root = wrapper
     this.bindEvents()
     this.applyAllBusyStates()
+
+    // Replay memory filter visibility after rerender
+    if (this.memoryFilterQuery) {
+      this.handleMemoryFilter(this.memoryFilterQuery)
+    }
   }
 
   private updateConnectionStatusDom(): void {
@@ -720,6 +737,7 @@ class DashboardInstance {
     this.lifecycle.listen(this.root, 'click', (e) => {
       const target = e.target as HTMLElement
       this.handleTabClick(target)
+      this.handleQuickNavClick(target)
       void this.handleActionClick(target)
       this.handleProfileSelect(target)
     })
@@ -778,6 +796,9 @@ class DashboardInstance {
     this.clearArmedState()
     this.activeTab = tabId
 
+    // Persist the last-open tab
+    void this.api.safeLocalStorage.setItem(DASHBOARD_LAST_TAB_KEY, tabId)
+
     // Update sidebar active state
     if (this.root) {
       for (const b of Array.from(this.root.querySelectorAll('.da-sidebar-btn'))) {
@@ -794,6 +815,17 @@ class DashboardInstance {
         const pageId = page.id.replace('da-page-', '')
         page.classList.toggle('da-hidden', pageId !== tabId)
       }
+    }
+  }
+
+  private handleQuickNavClick(target: HTMLElement): void {
+    const btn = target.closest('[data-da-nav-target]') as HTMLElement | null
+    if (!btn || !this.root) return
+    const sectionId = btn.getAttribute('data-da-nav-target')
+    if (!sectionId) return
+    const section = this.root.querySelector(`#da-memory-section-${sectionId}`)
+    if (section) {
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }
 
@@ -1515,6 +1547,7 @@ class DashboardInstance {
   // ── Memory filter ──────────────────────────────────────────────────────
 
   private handleMemoryFilter(query: string): void {
+    this.memoryFilterQuery = query
     if (!this.root) return
     const needle = query.trim().toLowerCase()
     const items = this.root.querySelectorAll('.da-memory-item')
@@ -1852,6 +1885,10 @@ export async function openDashboard(
   // Build memory operations status for the memory page
   const memoryOpsStatus = await buildMemoryOpsStatus(store, canonicalState)
 
+  // Restore last-open tab from safeLocalStorage
+  const savedTab = await api.safeLocalStorage.getItem<string>(DASHBOARD_LAST_TAB_KEY)
+  const initialTab = typeof savedTab === 'string' ? savedTab : undefined
+
   const instance = new DashboardInstance(
     api,
     store,
@@ -1861,6 +1898,7 @@ export async function openDashboard(
     modelOptions,
     canonicalState,
     memoryOpsStatus,
+    initialTab,
   )
   activeInstance = instance
   await instance.mount()
