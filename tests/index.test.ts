@@ -413,6 +413,17 @@ describe('composition root wiring', () => {
     // Verify no "no callback" warning was logged
     expect(api.__logs.every((l) => !l.includes('noCallback'))).toBe(true)
 
+    // Verify metrics: exactly 1 memory write (no double-increment), 0 director calls
+    const { CanonicalStore } = await import('../src/memory/canonicalStore.js')
+    const liveScopedStore = new CanonicalStore(api.pluginStorage, {
+      storageKey: 'scope-live-chat',
+      migrateFromFlatKey: false,
+      memdirStore: liveMemdirStore,
+    })
+    const liveScopedState = await liveScopedStore.load()
+    expect(liveScopedState.metrics.totalMemoryWrites).toBe(1)
+    expect(liveScopedState.metrics.totalDirectorCalls).toBe(0)
+
     resolveStub.mockRestore()
   })
 
@@ -612,7 +623,10 @@ describe('composition root wiring', () => {
       memdirStore: scopedMemdirStore,
     })
     const scopedState = await scopedStore.load()
-    expect(scopedState.metrics.totalMemoryWrites).toBeGreaterThanOrEqual(1)
+    // writeFirst increments totalMemoryWrites exactly once; no double-increment
+    expect(scopedState.metrics.totalMemoryWrites).toBe(1)
+    // forceExtract is a post-response extraction, not a director call (matches root-scope)
+    expect(scopedState.metrics.totalDirectorCalls).toBe(0)
 
     resolveStub.mockRestore()
   })

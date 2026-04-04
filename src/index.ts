@@ -801,6 +801,8 @@ export async function registerContinuityDirectorPlugin(api: RisuaiApi): Promise<
       }
 
       // Apply memory update to scoped canonical state
+      // writeFirst() owns updatedAt, lastUpdatedAt, and totalMemoryWrites
+      let warnings: string[] = []
       await liveStore.writeFirst((s) => {
         const next = applyMemoryUpdate(s, result.update, {
           turnId: `live-extract-${lastAssistantIdx}`,
@@ -808,17 +810,13 @@ export async function registerContinuityDirectorPlugin(api: RisuaiApi): Promise<
           responseText,
           brief,
         })
-        return {
-          ...next.state,
-          updatedAt: Date.now(),
-          metrics: {
-            ...next.state.metrics,
-            totalDirectorCalls: next.state.metrics.totalDirectorCalls + 1,
-            totalMemoryWrites: next.state.metrics.totalMemoryWrites + 1,
-            lastUpdatedAt: Date.now(),
-          },
-        }
+        warnings = next.warnings
+        return next.state
       })
+
+      for (const warning of warnings) {
+        await api.log(`Director memory warning: ${warning}`)
+      }
 
       // Persist extracted memdir documents for the live scope
       await persistExtractionDocuments(result.update, liveMemdirScopeKey, liveMemdirStore, {
