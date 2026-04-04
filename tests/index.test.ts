@@ -1,5 +1,6 @@
 import { vi } from 'vitest'
 import { registerContinuityDirectorPlugin } from '../src/index.js'
+import * as dashboardApp from '../src/ui/dashboardApp.js'
 import { createEmptyState } from '../src/contracts/types.js'
 import { DIRECTOR_STATE_STORAGE_KEY } from '../src/memory/canonicalStore.js'
 import {
@@ -368,6 +369,23 @@ describe('composition root wiring', () => {
     // Since we don't have a real DOM, calling the setting will attempt openDashboard
     // which needs the container API. We verify it at least doesn't crash on init.
     // The full E2E is better tested by the dashboard tests.
+  })
+
+  test('openSettings wires a live scope rebuild callback into the dashboard store', async () => {
+    const api = createMockRisuaiApi()
+    const openSpy = vi.spyOn(dashboardApp, 'openDashboard').mockResolvedValue()
+
+    await registerContinuityDirectorPlugin(api)
+
+    const settingEntry = api.__registerCalls.find((c) => c.kind === 'setting')
+    expect(settingEntry).toBeDefined()
+
+    await settingEntry!.callback()
+
+    expect(openSpy).toHaveBeenCalledTimes(1)
+    const dashboardStore = openSpy.mock.calls[0]?.[1]
+    expect(dashboardStore).toBeDefined()
+    expect(typeof dashboardStore?.rebuildForActiveScope).toBe('function')
   })
 
   test('startup stamps the refresh guard in safeLocalStorage', async () => {

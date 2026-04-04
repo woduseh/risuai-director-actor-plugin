@@ -14,6 +14,7 @@ import {
   DASHBOARD_PROFILE_MANIFEST_KEY,
   DASHBOARD_LOCALE_KEY,
   DASHBOARD_LAST_TAB_KEY,
+  DASHBOARD_SCHEMA_VERSION,
   createDashboardDraft,
   createPromptPresetFromSettings,
   createDefaultProfileManifest,
@@ -36,6 +37,7 @@ import type {
   DashboardProfile,
   ProfileManifest,
   ProfileExportPayload,
+  SettingsExportPayload,
   MemoryOpsStatus,
 } from './dashboardState.js'
 import type { MemoryWorkbenchInput, WorkbenchFilters } from './memoryWorkbenchDom.js'
@@ -46,8 +48,9 @@ import {
   loadProviderModels,
 } from './dashboardModel.js'
 import type { ConnectionTestResult } from './dashboardModel.js'
-import { t, setLocale, getLocale } from './i18n.js'
+import { t, setLocale, getLocale, progressLabel } from './i18n.js'
 import type { DashboardLocale } from './i18n.js'
+import { downloadJsonFile, pickJsonFile, readJsonFile, buildSettingsExportFilename } from './fileTransfer.js'
 import { BUILTIN_PROMPT_PRESET_ID } from '../director/prompt.js'
 import { backfillCurrentChat } from '../director/backfill.js'
 import {
@@ -67,6 +70,7 @@ import type { BlockReason } from '../runtime/refreshGuard.js'
 
 const TOAST_DURATION_MS = 2500
 const TOAST_DURATION_ERROR_MS = 5000
+const SCOPE_FOLLOW_POLL_MS = 2000
 const PROFILE_ID_PREFIX = 'user-profile-'
 const IMPORT_STAGING_KEY = 'continuity-director-dashboard-profile-import-staging'
 
@@ -98,6 +102,7 @@ export const GUARDED_ACTIONS: ReadonlySet<string> = new Set([
   'test-connection',
   'refresh-models',
   'import-profile',
+  'import-settings',
   'backfill-current-chat',
   'regenerate-current-chat',
   'force-extract',
@@ -131,6 +136,8 @@ export interface DashboardStore {
   storage: AsyncKeyValueStore
   /** The storage key used to persist canonical state. */
   stateStorageKey?: string
+  /** Optional callback that returns a fresh store bound to the current active chat scope. */
+  rebuildForActiveScope?: () => Promise<DashboardStore>
   mirrorToCanonical?: (settings: DirectorSettings) => Promise<void>
   readCanonical?: () => Promise<DirectorPluginState>
   writeCanonical?: (
@@ -331,7 +338,7 @@ function guardReasonToast(reason: BlockReason): string {
 
 class DashboardInstance {
   private readonly api: RisuaiApi
-  private readonly store: DashboardStore
+  private store: DashboardStore
   private readonly lifecycle = new DashboardLifecycle()
   private readonly doc: Document
 
@@ -350,6 +357,8 @@ class DashboardInstance {
   private memoryOpsStatus: MemoryOpsStatus
   private memoryFilterQuery = ''
   private workbenchInput: MemoryWorkbenchInput
+  private scopeWatcherActive = false
+  private scopeFollowInFlight = false
 
   /**
    * Action names currently in flight (used by async busy guards).
@@ -400,6 +409,7 @@ class DashboardInstance {
     this.renderRoot()
     this.bindEvents()
     await this.api.showContainer('fullscreen')
+    this.startScopeWatcher()
     // Fire-and-forget: load workbench data in the background
     void this.loadWorkbenchData()
   }
@@ -415,6 +425,75 @@ class DashboardInstance {
   /** Return the storage key that canonical state is persisted under. */
   private resolveStateKey(): string {
     return this.store.stateStorageKey ?? DIRECTOR_STATE_STORAGE_KEY
+  }
+
+  private startScopeWatcher(): void {
+    if (!this.store.rebuildForActiveScope) return
+    this.scopeWatcherActive = true
+    this.lifecycle.onTeardown(() => {
+      this.scopeWatcherActive = false
+    })
+    this.scheduleScopeWatch()
+  }
+
+  private scheduleScopeWatch(): void {
+    if (!this.scopeWatcherActive) return
+    this.lifecycle.setTimeout(() => {
+      void this.pollScopeWatch()
+    }, SCOPE_FOLLOW_POLL_MS)
+  }
+
+  private async pollScopeWatch(): Promise<void> {
+    try {
+      if (!this.scopeWatcherActive || this.scopeFollowInFlight) {
+        return
+      }
+      if (this.busyActions.size > 0) {
+        return
+      }
+
+      const resolution = await resolveScopeStorageKey(this.api)
+      if (resolution.isFallback || resolution.storageKey === this.resolveStateKey()) {
+        return
+      }
+
+      await this.followActiveScope()
+    } finally {
+      if (this.scopeWatcherActive) {
+        this.scheduleScopeWatch()
+      }
+    }
+  }
+
+  private async followActiveScope(): Promise<void> {
+    const rebuild = this.store.rebuildForActiveScope
+    if (!rebuild || this.scopeFollowInFlight) return
+
+    this.scopeFollowInFlight = true
+    const previousStore = this.store
+    try {
+      const nextStore = await rebuild()
+      if (!nextStore.rebuildForActiveScope) {
+        nextStore.rebuildForActiveScope = rebuild
+      }
+      const nextCanonicalState = await readCanonicalState(nextStore)
+      const nextMemoryOpsStatus = await buildMemoryOpsStatus(nextStore, nextCanonicalState)
+      this.store = nextStore
+      this.selectedMemoryKeys.clear()
+      this.editingMemory = null
+      this.canonicalState = nextCanonicalState
+      this.memoryOpsStatus = nextMemoryOpsStatus
+      this.workbenchInput = createDefaultWorkbenchInput()
+      this.fullReRender()
+      void this.loadWorkbenchData()
+      this.showToast(t('toast.scopeSwitched'), 'info')
+    } catch (err: unknown) {
+      this.store = previousStore
+      const message = err instanceof Error ? err.message : String(err)
+      this.showToast(t('toast.scopeSwitchFailed', { error: message }), 'error')
+    } finally {
+      this.scopeFollowInFlight = false
+    }
   }
 
   // ── Workbench data loading ───────────────────────────────────────────
@@ -519,6 +598,7 @@ class DashboardInstance {
       memoryFilterQuery: this.memoryFilterQuery,
       scopeLabel,
       workbenchInput: this.workbenchInput,
+      activeBusyActions: Array.from(this.busyActions.keys()),
     }
   }
 
@@ -782,11 +862,13 @@ class DashboardInstance {
     if (this.busyActions.has(actionName)) return
     this.busyActions.set(actionName, uiAction ?? actionName)
     this.setBusyDisabled(uiAction ?? actionName, true)
+    this.syncProgressBanner()
     try {
       await fn()
     } finally {
       this.busyActions.delete(actionName)
       this.setBusyDisabled(uiAction ?? actionName, false)
+      this.syncProgressBanner()
     }
   }
 
@@ -823,6 +905,23 @@ class DashboardInstance {
     for (const uiAction of this.busyActions.values()) {
       this.setBusyDisabled(uiAction, true)
     }
+  }
+
+  /**
+   * Update the progress banner DOM element to reflect the current set
+   * of in-flight long-running actions.  Called from `withBusyGuard`
+   * on both enter and exit, keeping the banner in sync without a
+   * full rerender.
+   */
+  private syncProgressBanner(): void {
+    if (!this.root) return
+    const banner = this.root.querySelector('[data-cd-role="progress-banner"]') as HTMLElement | null
+    if (!banner) return
+
+    const label = Array.from(this.busyActions.keys())
+      .map((a) => progressLabel(a))
+      .find((l): l is string => l !== undefined)
+    banner.textContent = label ?? ''
   }
 
   // ── Destructive-action arming ─────────────────────────────────────────
@@ -1028,6 +1127,10 @@ class DashboardInstance {
   private async handleActionClick(target: HTMLElement): Promise<void> {
     const btn = target.closest('[data-cd-action]') as HTMLElement | null
     if (!btn) return
+    if (this.scopeFollowInFlight) {
+      this.showToast(t('toast.scopeSwitchInProgress'), 'info')
+      return
+    }
     const action = btn.getAttribute('data-cd-action')
 
     // Gate destructive actions through the two-click arming flow
@@ -1050,6 +1153,9 @@ class DashboardInstance {
         break
       case 'export-settings':
         await this.handleExportSettings()
+        break
+      case 'import-settings':
+        await this.withBusyGuard('import-settings', () => this.handleImportSettings())
         break
       case 'test-connection':
         await this.withBusyGuard('test-connection', () => this.handleTestConnection())
@@ -1356,14 +1462,79 @@ class DashboardInstance {
   }
 
   private async handleExportSettings(): Promise<void> {
-    const payload = createSettingsExportPayload(
-      this.draft.settings,
-      this.profiles,
-      getLocale(),
+    try {
+      const payload = createSettingsExportPayload(
+        this.draft.settings,
+        this.profiles,
+        getLocale(),
+      )
+      const filename = buildSettingsExportFilename()
+      downloadJsonFile(payload, filename)
+      this.showToast(t('toast.settingsExported'), 'success')
+    } catch {
+      await this.api.alertError(t('toast.settingsExportFailed'))
+    }
+  }
+
+  private async handleImportSettings(): Promise<void> {
+    const file = await pickJsonFile()
+    if (!file) return
+
+    let parsed: unknown
+    try {
+      parsed = await readJsonFile(file)
+    } catch {
+      await this.api.alertError(t('toast.failedParseSettings'))
+      return
+    }
+
+    if (!isValidSettingsExportPayload(parsed)) {
+      await this.api.alertError(t('toast.invalidSettingsFormat'))
+      return
+    }
+
+    const payload = parsed as SettingsExportPayload
+    if (payload.version !== 1) {
+      await this.api.alertError(t('toast.unsupportedSettingsVersion'))
+      return
+    }
+
+    // Normalize imported settings to fill any missing fields
+    const importedSettings = normalizePersistedSettings(payload.settings)
+
+    // Validate and normalize imported profiles — reject malformed shape
+    if (!isValidProfileManifestShape(payload.profiles)) {
+      await this.api.alertError(t('toast.invalidSettingsFormat'))
+      return
+    }
+    const importedProfiles = normalizeImportedProfileManifest(payload.profiles)
+
+    // Apply locale if valid
+    if (payload.locale === 'en' || payload.locale === 'ko') {
+      setLocale(payload.locale)
+      await this.store.storage.setItem(DASHBOARD_LOCALE_KEY, payload.locale)
+    }
+
+    // Persist settings and profiles
+    await this.store.storage.setItem(DASHBOARD_SETTINGS_KEY, structuredClone(importedSettings))
+    await this.store.storage.setItem(DASHBOARD_PROFILE_MANIFEST_KEY, structuredClone(importedProfiles))
+
+    if (this.store.mirrorToCanonical) {
+      await this.store.mirrorToCanonical(importedSettings)
+    }
+
+    // Update in-memory state
+    this.draft = createDashboardDraft(importedSettings)
+    this.profiles = importedProfiles
+
+    // Rebuild model options for the imported provider
+    const providerDefaults = resolveProviderDefaults(importedSettings.directorProvider)
+    this.modelOptions = Array.from(
+      new Set([importedSettings.directorModel, ...providerDefaults.curatedModels]),
     )
-    const json = JSON.stringify(payload, null, 2)
-    await this.api.alert(json)
-    this.showToast(t('toast.settingsExported'), 'success')
+
+    this.fullReRender()
+    this.showToast(t('toast.settingsImported'), 'success')
   }
 
   private async handleImportProfile(): Promise<void> {
@@ -2034,6 +2205,102 @@ function isValidExportPayload(value: unknown): value is ProfileExportPayload {
     typeof (v.profile as Record<string, unknown>).id === 'string' &&
     typeof (v.profile as Record<string, unknown>).name === 'string'
   )
+}
+
+function isValidSettingsExportPayload(value: unknown): value is SettingsExportPayload {
+  if (value == null || typeof value !== 'object') return false
+  const v = value as Record<string, unknown>
+  return (
+    v.schema === 'continuity-director-dashboard-settings' &&
+    typeof v.version === 'number' &&
+    typeof v.exportedAt === 'number' &&
+    v.settings != null &&
+    typeof v.settings === 'object' &&
+    isValidProfileManifestShape(v.profiles)
+  )
+}
+
+/**
+ * Validate that the profile manifest has the required structural shape:
+ * `version` (number), `activeProfileId` (string), and `profiles` (array
+ * with at least one entry containing id + name + timestamps).
+ *
+ * Rejects malformed objects (e.g. `{}`) that would otherwise silently
+ * fall back to defaults inside `normalizeImportedProfileManifest`.
+ */
+function isValidProfileManifestShape(value: unknown): boolean {
+  if (value == null || typeof value !== 'object') return false
+  const m = value as Record<string, unknown>
+  if (
+    typeof m.version !== 'number' ||
+    typeof m.activeProfileId !== 'string' ||
+    !Array.isArray(m.profiles)
+  ) {
+    return false
+  }
+  return (m.profiles as unknown[]).some((p) => {
+    if (p == null || typeof p !== 'object') return false
+    const r = p as Record<string, unknown>
+    return (
+      typeof r.id === 'string' &&
+      typeof r.name === 'string' &&
+      typeof r.createdAt === 'number' &&
+      typeof r.updatedAt === 'number'
+    )
+  })
+}
+
+function normalizeImportedProfileManifest(raw: unknown): ProfileManifest {
+  if (raw == null || typeof raw !== 'object') {
+    return createDefaultProfileManifest()
+  }
+
+  const manifest = raw as Record<string, unknown>
+  if (
+    manifest.version !== DASHBOARD_SCHEMA_VERSION ||
+    typeof manifest.activeProfileId !== 'string' ||
+    !Array.isArray(manifest.profiles)
+  ) {
+    return createDefaultProfileManifest()
+  }
+
+  const profiles = (manifest.profiles as unknown[])
+    .filter((p) => {
+      if (p == null || typeof p !== 'object') return false
+      const r = p as Record<string, unknown>
+      return (
+        typeof r.id === 'string' &&
+        typeof r.name === 'string' &&
+        typeof r.createdAt === 'number' &&
+        typeof r.updatedAt === 'number'
+      )
+    })
+    .map((p) => {
+      const r = p as Record<string, unknown>
+      return {
+        id: r.id as string,
+        name: r.name as string,
+        createdAt: r.createdAt as number,
+        updatedAt: r.updatedAt as number,
+        basedOn: typeof r.basedOn === 'string' ? r.basedOn : null,
+        overrides:
+          r.overrides != null && typeof r.overrides === 'object' && !Array.isArray(r.overrides)
+            ? structuredClone(r.overrides as Partial<DirectorSettings>)
+            : {},
+      } satisfies DashboardProfile
+    })
+
+  if (profiles.length === 0) {
+    return createDefaultProfileManifest()
+  }
+
+  return {
+    version: DASHBOARD_SCHEMA_VERSION,
+    activeProfileId: profiles.some((p) => p.id === manifest.activeProfileId)
+      ? manifest.activeProfileId as string
+      : profiles[0]!.id,
+    profiles,
+  }
 }
 
 // ---------------------------------------------------------------------------

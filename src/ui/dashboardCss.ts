@@ -926,6 +926,29 @@ export function buildDashboardCss(): string {
   color: var(--cd-danger);
 }
 
+/* ── Progress banner ───────────────────────────────────────────────── */
+
+.cd-progress-banner {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 0;
+  max-height: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cd-accent);
+  background: var(--cd-accent-soft);
+  border-bottom: 1px solid transparent;
+  transition: max-height 0.2s ease, padding 0.2s ease;
+}
+
+.cd-progress-banner:not(:empty) {
+  max-height: 48px;
+  padding: 8px 18px;
+  border-bottom-color: var(--cd-border);
+}
+
 /* ── Reduced motion ─────────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
@@ -939,6 +962,10 @@ export function buildDashboardCss(): string {
 
   .cd-toggle-track,
   .cd-toggle-dot {
+    transition: none;
+  }
+
+  .cd-progress-banner {
     transition: none;
   }
 }

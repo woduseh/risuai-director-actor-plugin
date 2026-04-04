@@ -1,7 +1,7 @@
 //@name risuai-continuity-director-plugin
 //@display-name RisuAI Continuity Director
 //@api 3.0
-//@version 0.8.1
+//@version 0.9.0
 //@description Narrative guidance and long-memory continuity plugin for RisuAI Plugin V3
 
 "use strict";
@@ -3643,6 +3643,7 @@ ${lines.join("\n").trimEnd()}`;
     "btn.closeIcon": "\u2715 Close",
     "btn.reset": "Reset",
     "btn.exportSettings": "Export Settings",
+    "btn.importSettings": "Import Settings",
     "btn.testConnection": "Test Connection",
     "btn.refreshModels": "Refresh Models",
     "btn.newProfile": "New Profile",
@@ -3840,6 +3841,14 @@ ${lines.join("\n").trimEnd()}`;
     "toast.invalidProfileFormat": "Invalid profile format",
     "toast.failedParseProfile": "Failed to parse profile JSON",
     "toast.settingsExported": "Settings exported",
+    "toast.settingsImported": "Settings imported",
+    "toast.settingsExportFailed": "Failed to export settings",
+    "toast.invalidSettingsFormat": "Invalid settings file format",
+    "toast.unsupportedSettingsVersion": "Unsupported settings file version",
+    "toast.failedParseSettings": "Failed to parse settings file",
+    "toast.scopeSwitched": "Switched to the active chat",
+    "toast.scopeSwitchFailed": "Failed to switch to the active chat: {{error}}",
+    "toast.scopeSwitchInProgress": "Switching to the active chat\u2026",
     "toast.backfillCompleted": "Chat extraction completed ({{count}} updates)",
     "toast.backfillSkipped": "No chat memories were extracted",
     "error.backfillScopeMismatch": "The active chat changed while the dashboard was open. Return to the original chat and try again.",
@@ -3889,6 +3898,13 @@ ${lines.join("\n").trimEnd()}`;
     "workbench.memoryMdTitle": "MEMORY.md Preview",
     "workbench.notebookTitle": "Session Notebook",
     "workbench.notebookEmpty": "No notebook entries for this session.",
+    // Progress banner (in-dashboard busy indicator)
+    "progress.forceExtract": "Extracting memories\u2026",
+    "progress.backfillCurrentChat": "Extracting current chat\u2026",
+    "progress.regenerateCurrentChat": "Regenerating from current chat\u2026",
+    "progress.refreshEmbeddings": "Refreshing embeddings\u2026",
+    "progress.testConnection": "Testing connection\u2026",
+    "progress.refreshModels": "Refreshing model list\u2026",
     // Language selector
     "lang.label": "Language",
     "lang.en": "English",
@@ -3922,6 +3938,7 @@ ${lines.join("\n").trimEnd()}`;
     "btn.closeIcon": "\u2715 \uB2EB\uAE30",
     "btn.reset": "\uCD08\uAE30\uD654",
     "btn.exportSettings": "\uC124\uC815 \uB0B4\uBCF4\uB0B4\uAE30",
+    "btn.importSettings": "\uC124\uC815 \uAC00\uC838\uC624\uAE30",
     "btn.testConnection": "\uC5F0\uACB0 \uD14C\uC2A4\uD2B8",
     "btn.refreshModels": "\uBAA8\uB378 \uC0C8\uB85C\uACE0\uCE68",
     "btn.newProfile": "\uC0C8 \uD504\uB85C\uD544",
@@ -4119,6 +4136,14 @@ ${lines.join("\n").trimEnd()}`;
     "toast.invalidProfileFormat": "\uC798\uBABB\uB41C \uD504\uB85C\uD544 \uD615\uC2DD\uC785\uB2C8\uB2E4",
     "toast.failedParseProfile": "\uD504\uB85C\uD544 JSON \uD30C\uC2F1\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4",
     "toast.settingsExported": "\uC124\uC815\uC774 \uB0B4\uBCF4\uB0B4\uC84C\uC2B5\uB2C8\uB2E4",
+    "toast.settingsImported": "\uC124\uC815\uC744 \uAC00\uC838\uC654\uC2B5\uB2C8\uB2E4",
+    "toast.settingsExportFailed": "\uC124\uC815 \uB0B4\uBCF4\uB0B4\uAE30\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4",
+    "toast.invalidSettingsFormat": "\uC798\uBABB\uB41C \uC124\uC815 \uD30C\uC77C \uD615\uC2DD\uC785\uB2C8\uB2E4",
+    "toast.unsupportedSettingsVersion": "\uC9C0\uC6D0\uD558\uC9C0 \uC54A\uB294 \uC124\uC815 \uD30C\uC77C \uBC84\uC804\uC785\uB2C8\uB2E4",
+    "toast.failedParseSettings": "\uC124\uC815 \uD30C\uC77C \uD30C\uC2F1\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4",
+    "toast.scopeSwitched": "\uD604\uC7AC \uD65C\uC131 \uCC44\uD305\uC73C\uB85C \uB300\uC2DC\uBCF4\uB4DC\uB97C \uC804\uD658\uD588\uC2B5\uB2C8\uB2E4",
+    "toast.scopeSwitchFailed": "\uD65C\uC131 \uCC44\uD305\uC73C\uB85C \uC804\uD658\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4: {{error}}",
+    "toast.scopeSwitchInProgress": "\uD604\uC7AC \uD65C\uC131 \uCC44\uD305\uC73C\uB85C \uC804\uD658\uD558\uB294 \uC911\uC785\uB2C8\uB2E4\u2026",
     "toast.backfillCompleted": "\uCC44\uD305 \uCD94\uCD9C\uC774 \uC644\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4 ({{count}}\uAC1C \uC5C5\uB370\uC774\uD2B8)",
     "toast.backfillSkipped": "\uCD94\uCD9C\uB41C \uCC44\uD305 \uBA54\uBAA8\uB9AC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4",
     "error.backfillScopeMismatch": "\uB300\uC2DC\uBCF4\uB4DC\uB97C \uC5F0 \uB4A4 \uD65C\uC131 \uCC44\uD305\uC774 \uBC14\uB00C\uC5C8\uC2B5\uB2C8\uB2E4. \uC6D0\uB798 \uCC44\uD305\uC73C\uB85C \uB3CC\uC544\uAC04 \uB4A4 \uB2E4\uC2DC \uC2DC\uB3C4\uD558\uC138\uC694.",
@@ -4168,6 +4193,13 @@ ${lines.join("\n").trimEnd()}`;
     "workbench.memoryMdTitle": "MEMORY.md \uBBF8\uB9AC\uBCF4\uAE30",
     "workbench.notebookTitle": "\uC138\uC158 \uB178\uD2B8\uBD81",
     "workbench.notebookEmpty": "\uC774 \uC138\uC158\uC5D0 \uB300\uD55C \uB178\uD2B8\uBD81 \uD56D\uBAA9\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.",
+    // Progress banner (in-dashboard busy indicator)
+    "progress.forceExtract": "\uBA54\uBAA8\uB9AC \uCD94\uCD9C \uC911\u2026",
+    "progress.backfillCurrentChat": "\uD604\uC7AC \uCC44\uD305 \uCD94\uCD9C \uC911\u2026",
+    "progress.regenerateCurrentChat": "\uD604\uC7AC \uCC44\uD305 \uAE30\uC900 \uC7AC\uC0DD\uC131 \uC911\u2026",
+    "progress.refreshEmbeddings": "\uC784\uBCA0\uB529 \uC0C8\uB85C\uACE0\uCE68 \uC911\u2026",
+    "progress.testConnection": "\uC5F0\uACB0 \uD14C\uC2A4\uD2B8 \uC911\u2026",
+    "progress.refreshModels": "\uBAA8\uB378 \uBAA9\uB85D \uC0C8\uB85C\uACE0\uCE68 \uC911\u2026",
     // Language selector
     "lang.label": "\uC5B8\uC5B4",
     "lang.en": "English",
@@ -4226,6 +4258,18 @@ ${lines.join("\n").trimEnd()}`;
   function profileDisplayName(id, fallbackName) {
     const key = BUILTIN_PROFILE_KEY_MAP[id];
     return key ? t(key) : fallbackName;
+  }
+  var PROGRESS_LABEL_KEY_MAP = {
+    "force-extract": "progress.forceExtract",
+    "backfill-current-chat": "progress.backfillCurrentChat",
+    "regenerate-current-chat": "progress.regenerateCurrentChat",
+    "refresh-embeddings": "progress.refreshEmbeddings",
+    "test-connection": "progress.testConnection",
+    "refresh-models": "progress.refreshModels"
+  };
+  function progressLabel(actionName) {
+    const key = PROGRESS_LABEL_KEY_MAP[actionName];
+    return key ? t(key) : void 0;
   }
 
   // src/ui/dashboardState.ts
@@ -5833,6 +5877,29 @@ ${lines.join("\n").trimEnd()}`;
   color: var(--cd-danger);
 }
 
+/* \u2500\u2500 Progress banner \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.cd-progress-banner {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 0;
+  max-height: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cd-accent);
+  background: var(--cd-accent-soft);
+  border-bottom: 1px solid transparent;
+  transition: max-height 0.2s ease, padding 0.2s ease;
+}
+
+.cd-progress-banner:not(:empty) {
+  max-height: 48px;
+  padding: 8px 18px;
+  border-bottom-color: var(--cd-border);
+}
+
 /* \u2500\u2500 Reduced motion \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 
 @media (prefers-reduced-motion: reduce) {
@@ -5846,6 +5913,10 @@ ${lines.join("\n").trimEnd()}`;
 
   .cd-toggle-track,
   .cd-toggle-dot {
+    transition: none;
+  }
+
+  .cd-progress-banner {
     transition: none;
   }
 }
@@ -6272,6 +6343,7 @@ ${lines.join("\n").trimEnd()}`;
       <div class="cd-sidebar-footer cd-footer">
         <button class="cd-btn" data-cd-action="switch-lang" data-cd-lang="${nextLocale}">${nextLabel}</button>
         <button class="cd-btn cd-btn--ghost" data-cd-action="export-settings">${t("btn.exportSettings")}</button>
+        <button class="cd-btn cd-btn--ghost" data-cd-action="import-settings">${t("btn.importSettings")}</button>
         <button class="cd-btn cd-btn--danger cd-close-btn" data-cd-action="close-dashboard" aria-label="${t("btn.close")}">${t("btn.close")}</button>
       </div>
     </aside>`;
@@ -6863,6 +6935,12 @@ ${lines.join("\n").trimEnd()}`;
     "memory-cache": buildMemoryCachePage,
     "settings-profiles": buildSettingsProfilesPage
   };
+  function buildProgressBanner(activeBusyActions) {
+    const labels = (activeBusyActions ?? []).map((a) => progressLabel(a)).filter((l) => l !== void 0);
+    const firstLabel = labels[0];
+    const inner = firstLabel ? escapeXml(firstLabel) : "";
+    return `<div class="cd-progress-banner" data-cd-role="progress-banner" role="status" aria-live="polite">${inner}</div>`;
+  }
   function buildContent(input) {
     const pages = DASHBOARD_TABS.map((tab) => {
       const hidden = tab.id !== input.activeTab ? " cd-hidden" : "";
@@ -6873,6 +6951,7 @@ ${lines.join("\n").trimEnd()}`;
       ${buildPageTitle(tab.id)}${inner}
     </div>`;
     }).join("");
+    const bannerHtml = buildProgressBanner(input.activeBusyActions);
     return `
     <main class="cd-content">
       <section class="cd-toolbar">
@@ -6885,7 +6964,7 @@ ${lines.join("\n").trimEnd()}`;
           <button class="cd-btn cd-btn--primary" data-cd-action="save-settings">${t("btn.saveChanges")}</button>
           <button class="cd-btn" data-cd-action="reset-settings">${t("btn.reset")}</button>
         </div>
-      </section>${pages}
+      </section>${bannerHtml}${pages}
     </main>`;
   }
   function buildPageTitle(tabId) {
@@ -6922,6 +7001,71 @@ ${lines.join("\n").trimEnd()}`;
       this.callbacks.length = 0;
     }
   };
+
+  // src/ui/fileTransfer.ts
+  function downloadJsonFile(data, filename) {
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+  function readJsonFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = reader.result;
+        if (!text) {
+          reject(new Error("File is empty"));
+          return;
+        }
+        try {
+          resolve(JSON.parse(text));
+        } catch (err) {
+          reject(new Error(`Invalid JSON: ${err.message}`));
+        }
+      };
+      reader.onerror = () => {
+        reject(new Error("Failed to read file"));
+      };
+      reader.readAsText(file);
+    });
+  }
+  function pickJsonFile() {
+    return new Promise((resolve) => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".json,application/json";
+      input.style.display = "none";
+      input.addEventListener("change", () => {
+        const file = input.files?.[0] ?? null;
+        input.remove();
+        resolve(file);
+      });
+      const onFocus = () => {
+        setTimeout(() => {
+          if (!input.files?.length) {
+            input.remove();
+            resolve(null);
+          }
+          window.removeEventListener("focus", onFocus);
+        }, 300);
+      };
+      window.addEventListener("focus", onFocus);
+      document.body.appendChild(input);
+      input.click();
+    });
+  }
+  function buildSettingsExportFilename() {
+    const now = /* @__PURE__ */ new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const date = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+    const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    return `continuity-director-settings-${date}-${time}.json`;
+  }
 
   // src/director/backfill.ts
   var BACKFILL_WINDOW_MESSAGES = 8;
@@ -7042,6 +7186,7 @@ ${lines.join("\n").trimEnd()}`;
   // src/ui/dashboardApp.ts
   var TOAST_DURATION_MS = 2500;
   var TOAST_DURATION_ERROR_MS = 5e3;
+  var SCOPE_FOLLOW_POLL_MS = 2e3;
   var PROFILE_ID_PREFIX = "user-profile-";
   var IMPORT_STAGING_KEY = "continuity-director-dashboard-profile-import-staging";
   var ARM_TIMEOUT_MS = 3e3;
@@ -7162,6 +7307,8 @@ ${lines.join("\n").trimEnd()}`;
     memoryOpsStatus;
     memoryFilterQuery = "";
     workbenchInput;
+    scopeWatcherActive = false;
+    scopeFollowInFlight = false;
     /**
      * Action names currently in flight (used by async busy guards).
      * Key = canonical busy key, value = UI action to disable (may differ
@@ -7195,6 +7342,7 @@ ${lines.join("\n").trimEnd()}`;
       this.renderRoot();
       this.bindEvents();
       await this.api.showContainer("fullscreen");
+      this.startScopeWatcher();
       void this.loadWorkbenchData();
     }
     async close() {
@@ -7207,6 +7355,68 @@ ${lines.join("\n").trimEnd()}`;
     /** Return the storage key that canonical state is persisted under. */
     resolveStateKey() {
       return this.store.stateStorageKey ?? DIRECTOR_STATE_STORAGE_KEY;
+    }
+    startScopeWatcher() {
+      if (!this.store.rebuildForActiveScope) return;
+      this.scopeWatcherActive = true;
+      this.lifecycle.onTeardown(() => {
+        this.scopeWatcherActive = false;
+      });
+      this.scheduleScopeWatch();
+    }
+    scheduleScopeWatch() {
+      if (!this.scopeWatcherActive) return;
+      this.lifecycle.setTimeout(() => {
+        void this.pollScopeWatch();
+      }, SCOPE_FOLLOW_POLL_MS);
+    }
+    async pollScopeWatch() {
+      try {
+        if (!this.scopeWatcherActive || this.scopeFollowInFlight) {
+          return;
+        }
+        if (this.busyActions.size > 0) {
+          return;
+        }
+        const resolution = await resolveScopeStorageKey(this.api);
+        if (resolution.isFallback || resolution.storageKey === this.resolveStateKey()) {
+          return;
+        }
+        await this.followActiveScope();
+      } finally {
+        if (this.scopeWatcherActive) {
+          this.scheduleScopeWatch();
+        }
+      }
+    }
+    async followActiveScope() {
+      const rebuild = this.store.rebuildForActiveScope;
+      if (!rebuild || this.scopeFollowInFlight) return;
+      this.scopeFollowInFlight = true;
+      const previousStore = this.store;
+      try {
+        const nextStore = await rebuild();
+        if (!nextStore.rebuildForActiveScope) {
+          nextStore.rebuildForActiveScope = rebuild;
+        }
+        const nextCanonicalState = await readCanonicalState(nextStore);
+        const nextMemoryOpsStatus = await buildMemoryOpsStatus(nextStore, nextCanonicalState);
+        this.store = nextStore;
+        this.selectedMemoryKeys.clear();
+        this.editingMemory = null;
+        this.canonicalState = nextCanonicalState;
+        this.memoryOpsStatus = nextMemoryOpsStatus;
+        this.workbenchInput = createDefaultWorkbenchInput();
+        this.fullReRender();
+        void this.loadWorkbenchData();
+        this.showToast(t("toast.scopeSwitched"), "info");
+      } catch (err) {
+        this.store = previousStore;
+        const message = err instanceof Error ? err.message : String(err);
+        this.showToast(t("toast.scopeSwitchFailed", { error: message }), "error");
+      } finally {
+        this.scopeFollowInFlight = false;
+      }
     }
     // ── Workbench data loading ───────────────────────────────────────────
     /**
@@ -7282,7 +7492,8 @@ ${lines.join("\n").trimEnd()}`;
         memoryOpsStatus: this.memoryOpsStatus,
         memoryFilterQuery: this.memoryFilterQuery,
         scopeLabel,
-        workbenchInput: this.workbenchInput
+        workbenchInput: this.workbenchInput,
+        activeBusyActions: Array.from(this.busyActions.keys())
       };
     }
     renderRoot() {
@@ -7485,11 +7696,13 @@ ${lines.join("\n").trimEnd()}`;
       if (this.busyActions.has(actionName)) return;
       this.busyActions.set(actionName, uiAction ?? actionName);
       this.setBusyDisabled(uiAction ?? actionName, true);
+      this.syncProgressBanner();
       try {
         await fn();
       } finally {
         this.busyActions.delete(actionName);
         this.setBusyDisabled(uiAction ?? actionName, false);
+        this.syncProgressBanner();
       }
     }
     /**
@@ -7522,6 +7735,19 @@ ${lines.join("\n").trimEnd()}`;
       for (const uiAction of this.busyActions.values()) {
         this.setBusyDisabled(uiAction, true);
       }
+    }
+    /**
+     * Update the progress banner DOM element to reflect the current set
+     * of in-flight long-running actions.  Called from `withBusyGuard`
+     * on both enter and exit, keeping the banner in sync without a
+     * full rerender.
+     */
+    syncProgressBanner() {
+      if (!this.root) return;
+      const banner = this.root.querySelector('[data-cd-role="progress-banner"]');
+      if (!banner) return;
+      const label = Array.from(this.busyActions.keys()).map((a) => progressLabel(a)).find((l) => l !== void 0);
+      banner.textContent = label ?? "";
     }
     // ── Destructive-action arming ─────────────────────────────────────────
     /**
@@ -7674,6 +7900,10 @@ ${lines.join("\n").trimEnd()}`;
     async handleActionClick(target) {
       const btn = target.closest("[data-cd-action]");
       if (!btn) return;
+      if (this.scopeFollowInFlight) {
+        this.showToast(t("toast.scopeSwitchInProgress"), "info");
+        return;
+      }
       const action = btn.getAttribute("data-cd-action");
       if (action && DESTRUCTIVE_ACTIONS.has(action)) {
         if (!this.armOrExecute(action, btn)) return;
@@ -7693,6 +7923,9 @@ ${lines.join("\n").trimEnd()}`;
           break;
         case "export-settings":
           await this.handleExportSettings();
+          break;
+        case "import-settings":
+          await this.withBusyGuard("import-settings", () => this.handleImportSettings());
           break;
         case "test-connection":
           await this.withBusyGuard("test-connection", () => this.handleTestConnection());
@@ -7964,14 +8197,61 @@ ${lines.join("\n").trimEnd()}`;
       this.showToast(t("toast.profileExported"), "success");
     }
     async handleExportSettings() {
-      const payload = createSettingsExportPayload(
-        this.draft.settings,
-        this.profiles,
-        getLocale()
+      try {
+        const payload = createSettingsExportPayload(
+          this.draft.settings,
+          this.profiles,
+          getLocale()
+        );
+        const filename = buildSettingsExportFilename();
+        downloadJsonFile(payload, filename);
+        this.showToast(t("toast.settingsExported"), "success");
+      } catch {
+        await this.api.alertError(t("toast.settingsExportFailed"));
+      }
+    }
+    async handleImportSettings() {
+      const file = await pickJsonFile();
+      if (!file) return;
+      let parsed;
+      try {
+        parsed = await readJsonFile(file);
+      } catch {
+        await this.api.alertError(t("toast.failedParseSettings"));
+        return;
+      }
+      if (!isValidSettingsExportPayload(parsed)) {
+        await this.api.alertError(t("toast.invalidSettingsFormat"));
+        return;
+      }
+      const payload = parsed;
+      if (payload.version !== 1) {
+        await this.api.alertError(t("toast.unsupportedSettingsVersion"));
+        return;
+      }
+      const importedSettings = normalizePersistedSettings(payload.settings);
+      if (!isValidProfileManifestShape(payload.profiles)) {
+        await this.api.alertError(t("toast.invalidSettingsFormat"));
+        return;
+      }
+      const importedProfiles = normalizeImportedProfileManifest(payload.profiles);
+      if (payload.locale === "en" || payload.locale === "ko") {
+        setLocale(payload.locale);
+        await this.store.storage.setItem(DASHBOARD_LOCALE_KEY, payload.locale);
+      }
+      await this.store.storage.setItem(DASHBOARD_SETTINGS_KEY, structuredClone(importedSettings));
+      await this.store.storage.setItem(DASHBOARD_PROFILE_MANIFEST_KEY, structuredClone(importedProfiles));
+      if (this.store.mirrorToCanonical) {
+        await this.store.mirrorToCanonical(importedSettings);
+      }
+      this.draft = createDashboardDraft(importedSettings);
+      this.profiles = importedProfiles;
+      const providerDefaults = resolveProviderDefaults(importedSettings.directorProvider);
+      this.modelOptions = Array.from(
+        /* @__PURE__ */ new Set([importedSettings.directorModel, ...providerDefaults.curatedModels])
       );
-      const json = JSON.stringify(payload, null, 2);
-      await this.api.alert(json);
-      this.showToast(t("toast.settingsExported"), "success");
+      this.fullReRender();
+      this.showToast(t("toast.settingsImported"), "success");
     }
     async handleImportProfile() {
       const raw = await this.store.storage.getItem(IMPORT_STAGING_KEY);
@@ -8563,6 +8843,55 @@ ${lines.join("\n").trimEnd()}`;
     if (value == null || typeof value !== "object") return false;
     const v = value;
     return v.schema === "continuity-director-dashboard-profile" && typeof v.version === "number" && v.profile != null && typeof v.profile === "object" && typeof v.profile.id === "string" && typeof v.profile.name === "string";
+  }
+  function isValidSettingsExportPayload(value) {
+    if (value == null || typeof value !== "object") return false;
+    const v = value;
+    return v.schema === "continuity-director-dashboard-settings" && typeof v.version === "number" && typeof v.exportedAt === "number" && v.settings != null && typeof v.settings === "object" && isValidProfileManifestShape(v.profiles);
+  }
+  function isValidProfileManifestShape(value) {
+    if (value == null || typeof value !== "object") return false;
+    const m = value;
+    if (typeof m.version !== "number" || typeof m.activeProfileId !== "string" || !Array.isArray(m.profiles)) {
+      return false;
+    }
+    return m.profiles.some((p) => {
+      if (p == null || typeof p !== "object") return false;
+      const r = p;
+      return typeof r.id === "string" && typeof r.name === "string" && typeof r.createdAt === "number" && typeof r.updatedAt === "number";
+    });
+  }
+  function normalizeImportedProfileManifest(raw) {
+    if (raw == null || typeof raw !== "object") {
+      return createDefaultProfileManifest();
+    }
+    const manifest = raw;
+    if (manifest.version !== DASHBOARD_SCHEMA_VERSION || typeof manifest.activeProfileId !== "string" || !Array.isArray(manifest.profiles)) {
+      return createDefaultProfileManifest();
+    }
+    const profiles = manifest.profiles.filter((p) => {
+      if (p == null || typeof p !== "object") return false;
+      const r = p;
+      return typeof r.id === "string" && typeof r.name === "string" && typeof r.createdAt === "number" && typeof r.updatedAt === "number";
+    }).map((p) => {
+      const r = p;
+      return {
+        id: r.id,
+        name: r.name,
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+        basedOn: typeof r.basedOn === "string" ? r.basedOn : null,
+        overrides: r.overrides != null && typeof r.overrides === "object" && !Array.isArray(r.overrides) ? structuredClone(r.overrides) : {}
+      };
+    });
+    if (profiles.length === 0) {
+      return createDefaultProfileManifest();
+    }
+    return {
+      version: DASHBOARD_SCHEMA_VERSION,
+      activeProfileId: profiles.some((p) => p.id === manifest.activeProfileId) ? manifest.activeProfileId : profiles[0].id,
+      profiles
+    };
   }
   async function openDashboard(api, store, doc) {
     if (activeInstance) {
@@ -9686,6 +10015,190 @@ ${doc.description}`;
         return result.update;
       }
     };
+    const buildDashboardStoreForCurrentScope = async () => {
+      const liveResolution = await resolveScopeStorageKey(api);
+      const liveMemdirScopeKey = liveResolution.isFallback ? "default" : liveResolution.storageKey;
+      if (liveResolution.storageKey === store.stateStorageKey) {
+        const dashboardStore2 = createDashboardStore(
+          api,
+          (mutator) => store.writeFirst(mutator),
+          store.stateStorageKey
+        );
+        dashboardStore2.readCanonical = async () => store.load();
+        dashboardStore2.forceExtract = async () => {
+          await extractionWorker.flush();
+        };
+        dashboardStore2.forceDream = async () => {
+          const blockStatus = refreshGuard.checkBlocked();
+          if (blockStatus.blocked) {
+            throw new Error(`blocked:${blockStatus.reason}`);
+          }
+          await refreshGuard.markMaintenance("force-dream");
+          const result = await consolidationLock.withLock(() => dreamWorker.run());
+          if (result == null) {
+            throw new Error("Consolidation lock is held by another worker");
+          }
+        };
+        dashboardStore2.getRecalledDocs = async () => {
+          const cached = recallCache.get();
+          if (!cached) return [];
+          return cached.selectedDocs.map((d) => ({
+            id: d.id,
+            title: d.title,
+            freshness: d.freshness
+          }));
+        };
+        dashboardStore2.isMemoryLocked = () => consolidationLock.isHeld();
+        dashboardStore2.loadDiagnostics = () => diagnostics.loadSnapshot();
+        dashboardStore2.checkRefreshGuard = () => refreshGuard.checkBlocked();
+        dashboardStore2.markMaintenance = (kind) => refreshGuard.markMaintenance(kind);
+        dashboardStore2.refreshEmbeddings = async () => {
+          const currentState = await store.load();
+          const client = buildEmbeddingClient(api, currentState.settings);
+          if (!client) return 0;
+          const version = getVectorVersion(currentState.settings);
+          return embedDocuments({
+            memdirStore,
+            embeddingClient: client,
+            vectorVersion: version,
+            log: (msg) => api.log(msg)
+          });
+        };
+        dashboardStore2.getEmbeddingCacheStatus = async () => {
+          const currentState = await store.load();
+          const docs = await memdirStore.listDocuments();
+          const version = getVectorVersion(currentState.settings);
+          const enabled = currentState.settings.embeddingsEnabled;
+          const supported = isProviderSupported(currentState.settings.embeddingProvider);
+          return computeEmbeddingCacheStatus(docs, version, enabled, supported);
+        };
+        dashboardStore2.getWorkbenchDocuments = async () => {
+          const docs = await memdirStore.listDocuments();
+          return docs.map((d) => ({
+            id: d.id,
+            type: d.type,
+            title: d.title,
+            source: d.source,
+            freshness: d.freshness,
+            updatedAt: d.updatedAt,
+            hasEmbedding: d.embedding != null
+          }));
+        };
+        dashboardStore2.getMemoryMdPreview = async () => {
+          return memdirStore.getMemoryMd();
+        };
+        dashboardStore2.getNotebookSnapshot = async () => {
+          const snap = sessionNotebook.snapshot();
+          const hasContent = Object.values(snap).some((v) => v.length > 0);
+          return hasContent ? snap : null;
+        };
+        dashboardStore2.rebuildForActiveScope = buildDashboardStoreForCurrentScope;
+        return dashboardStore2;
+      }
+      const liveMemdirStore = new MemdirStore(api.pluginStorage, liveMemdirScopeKey);
+      const liveStore = new CanonicalStore(api.pluginStorage, {
+        storageKey: liveResolution.storageKey,
+        migrateFromFlatKey: !liveResolution.isFallback,
+        memdirStore: liveMemdirStore,
+        onMigrationError: (err) => api.log(`Memdir migration error: ${err}`)
+      });
+      const liveRefreshGuard = new RefreshGuard(
+        api.safeLocalStorage,
+        liveResolution.storageKey
+      );
+      await liveRefreshGuard.load();
+      const liveDiagnostics = new DiagnosticsManager(
+        api.pluginStorage,
+        liveResolution.storageKey
+      );
+      await liveDiagnostics.loadSnapshot();
+      const liveConsolidationLock = new ConsolidationLock(
+        api.pluginStorage,
+        liveMemdirScopeKey,
+        `dashboard-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      );
+      const liveDreamWorker = createAutoDreamWorker({
+        memdirStore: liveMemdirStore,
+        log(message) {
+          api.log(message);
+        },
+        async runConsolidationModel(prompt) {
+          const state = await liveStore.load();
+          const result = await api.runLLMModel({
+            messages: [
+              { role: "system", content: "You are a memory consolidation assistant." },
+              { role: "user", content: prompt }
+            ],
+            staticModel: state.settings.directorModel,
+            mode: state.settings.directorMode
+          });
+          if (result.type === "fail") {
+            throw new Error(`Consolidation model call failed: ${result.result}`);
+          }
+          return result.result;
+        }
+      });
+      const dashboardStore = createDashboardStore(
+        api,
+        (mutator) => liveStore.writeFirst(mutator),
+        liveStore.stateStorageKey
+      );
+      dashboardStore.readCanonical = async () => liveStore.load();
+      dashboardStore.forceDream = async () => {
+        const blockStatus = liveRefreshGuard.checkBlocked();
+        if (blockStatus.blocked) {
+          throw new Error(`blocked:${blockStatus.reason}`);
+        }
+        await liveRefreshGuard.markMaintenance("force-dream");
+        const result = await liveConsolidationLock.withLock(() => liveDreamWorker.run());
+        if (result == null) {
+          throw new Error("Consolidation lock is held by another worker");
+        }
+      };
+      dashboardStore.getRecalledDocs = async () => [];
+      dashboardStore.isMemoryLocked = () => liveConsolidationLock.isHeld();
+      dashboardStore.loadDiagnostics = () => liveDiagnostics.loadSnapshot();
+      dashboardStore.checkRefreshGuard = () => liveRefreshGuard.checkBlocked();
+      dashboardStore.markMaintenance = (kind) => liveRefreshGuard.markMaintenance(kind);
+      dashboardStore.refreshEmbeddings = async () => {
+        const currentState = await liveStore.load();
+        const client = buildEmbeddingClient(api, currentState.settings);
+        if (!client) return 0;
+        const version = getVectorVersion(currentState.settings);
+        return embedDocuments({
+          memdirStore: liveMemdirStore,
+          embeddingClient: client,
+          vectorVersion: version,
+          log: (msg) => api.log(msg)
+        });
+      };
+      dashboardStore.getEmbeddingCacheStatus = async () => {
+        const currentState = await liveStore.load();
+        const docs = await liveMemdirStore.listDocuments();
+        const version = getVectorVersion(currentState.settings);
+        const enabled = currentState.settings.embeddingsEnabled;
+        const supported = isProviderSupported(currentState.settings.embeddingProvider);
+        return computeEmbeddingCacheStatus(docs, version, enabled, supported);
+      };
+      dashboardStore.getWorkbenchDocuments = async () => {
+        const docs = await liveMemdirStore.listDocuments();
+        return docs.map((d) => ({
+          id: d.id,
+          type: d.type,
+          title: d.title,
+          source: d.source,
+          freshness: d.freshness,
+          updatedAt: d.updatedAt,
+          hasEmbedding: d.embedding != null
+        }));
+      };
+      dashboardStore.getMemoryMdPreview = async () => {
+        return liveMemdirStore.getMemoryMd();
+      };
+      dashboardStore.getNotebookSnapshot = async () => null;
+      dashboardStore.rebuildForActiveScope = buildDashboardStoreForCurrentScope;
+      return dashboardStore;
+    };
     await bootstrapPlugin(api, {
       director,
       includeTypes: initialState.settings.includeTypes,
@@ -9709,79 +10222,7 @@ ${doc.description}`;
         await housekeeping.shutdown();
       },
       openSettings: async () => {
-        const dashboardStore = createDashboardStore(
-          api,
-          (mutator) => store.writeFirst(mutator),
-          store.stateStorageKey
-        );
-        dashboardStore.readCanonical = async () => store.load();
-        dashboardStore.forceExtract = async () => {
-          await extractionWorker.flush();
-        };
-        dashboardStore.forceDream = async () => {
-          const blockStatus = refreshGuard.checkBlocked();
-          if (blockStatus.blocked) {
-            throw new Error(`blocked:${blockStatus.reason}`);
-          }
-          await refreshGuard.markMaintenance("force-dream");
-          const result = await consolidationLock.withLock(() => dreamWorker.run());
-          if (result == null) {
-            throw new Error("Consolidation lock is held by another worker");
-          }
-        };
-        dashboardStore.getRecalledDocs = async () => {
-          const cached = recallCache.get();
-          if (!cached) return [];
-          return cached.selectedDocs.map((d) => ({
-            id: d.id,
-            title: d.title,
-            freshness: d.freshness
-          }));
-        };
-        dashboardStore.isMemoryLocked = () => consolidationLock.isHeld();
-        dashboardStore.loadDiagnostics = () => diagnostics.loadSnapshot();
-        dashboardStore.checkRefreshGuard = () => refreshGuard.checkBlocked();
-        dashboardStore.markMaintenance = (kind) => refreshGuard.markMaintenance(kind);
-        dashboardStore.refreshEmbeddings = async () => {
-          const currentState = await store.load();
-          const client = buildEmbeddingClient(api, currentState.settings);
-          if (!client) return 0;
-          const version = getVectorVersion(currentState.settings);
-          return embedDocuments({
-            memdirStore,
-            embeddingClient: client,
-            vectorVersion: version,
-            log: (msg) => api.log(msg)
-          });
-        };
-        dashboardStore.getEmbeddingCacheStatus = async () => {
-          const currentState = await store.load();
-          const docs = await memdirStore.listDocuments();
-          const version = getVectorVersion(currentState.settings);
-          const enabled = currentState.settings.embeddingsEnabled;
-          const supported = isProviderSupported(currentState.settings.embeddingProvider);
-          return computeEmbeddingCacheStatus(docs, version, enabled, supported);
-        };
-        dashboardStore.getWorkbenchDocuments = async () => {
-          const docs = await memdirStore.listDocuments();
-          return docs.map((d) => ({
-            id: d.id,
-            type: d.type,
-            title: d.title,
-            source: d.source,
-            freshness: d.freshness,
-            updatedAt: d.updatedAt,
-            hasEmbedding: d.embedding != null
-          }));
-        };
-        dashboardStore.getMemoryMdPreview = async () => {
-          return memdirStore.getMemoryMd();
-        };
-        dashboardStore.getNotebookSnapshot = async () => {
-          const snap = sessionNotebook.snapshot();
-          const hasContent = Object.values(snap).some((v) => v.length > 0);
-          return hasContent ? snap : null;
-        };
+        const dashboardStore = await buildDashboardStoreForCurrentScope();
         await openDashboard(api, dashboardStore);
       }
     });

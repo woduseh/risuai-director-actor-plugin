@@ -52,6 +52,7 @@ import { buildActorMemoryContext } from './adapter/actorMemoryContext.js'
 import { DiagnosticsManager } from './runtime/diagnostics.js'
 import { RefreshGuard } from './runtime/refreshGuard.js'
 import { openDashboard, createDashboardStore } from './ui/dashboardApp.js'
+import type { DashboardStore } from './ui/dashboardApp.js'
 import { createEmbeddingClient, isProviderSupported, type EmbeddingClient } from './memory/embeddingClient.js'
 import { computeVectorVersion } from './memory/vectorVersion.js'
 import { tryEnrichWithEmbedding, embedDocuments, computeEmbeddingCacheStatus } from './memory/embeddingIntegration.js'
@@ -604,30 +605,13 @@ export async function registerContinuityDirectorPlugin(api: RisuaiApi): Promise<
     }
   }
 
-  await bootstrapPlugin(api, {
-    director,
-    includeTypes: initialState.settings.includeTypes,
-    injectionMode: initialState.settings.injectionMode,
-    outputDebounceMs: initialState.settings.outputDebounceMs,
-    circuitBreaker,
-    turnCache,
-    sessionNotebook,
-    turnRecovery,
-    diagnostics,
-    onTurnFinalized: (ctx) => {
-      lastUserInteractionTs = Date.now()
-      dreamState.turnsSinceLastDream += 1
-      return housekeeping.afterTurn(ctx)
-    },
-    onShutdown: async () => {
-      try {
-        await refreshGuard.markShutdown()
-      } catch {
-        // Guard stamp failure must not prevent pending extraction flush
-      }
-      await housekeeping.shutdown()
-    },
-    openSettings: async () => {
+  const buildDashboardStoreForCurrentScope = async (): Promise<DashboardStore> => {
+    const liveResolution = await resolveScopeStorageKey(api)
+    const liveMemdirScopeKey = liveResolution.isFallback
+      ? 'default'
+      : liveResolution.storageKey
+
+    if (liveResolution.storageKey === store.stateStorageKey) {
       const dashboardStore = createDashboardStore(
         api,
         (mutator) => store.writeFirst(mutator),
@@ -701,6 +685,141 @@ export async function registerContinuityDirectorPlugin(api: RisuaiApi): Promise<
         const hasContent = Object.values(snap).some((v) => v.length > 0)
         return hasContent ? snap : null
       }
+      dashboardStore.rebuildForActiveScope = buildDashboardStoreForCurrentScope
+      return dashboardStore
+    }
+
+    const liveMemdirStore = new MemdirStore(api.pluginStorage, liveMemdirScopeKey)
+    const liveStore = new CanonicalStore(api.pluginStorage, {
+      storageKey: liveResolution.storageKey,
+      migrateFromFlatKey: !liveResolution.isFallback,
+      memdirStore: liveMemdirStore,
+      onMigrationError: (err) => api.log(`Memdir migration error: ${err}`),
+    })
+    const liveRefreshGuard = new RefreshGuard(
+      api.safeLocalStorage,
+      liveResolution.storageKey,
+    )
+    await liveRefreshGuard.load()
+    const liveDiagnostics = new DiagnosticsManager(
+      api.pluginStorage,
+      liveResolution.storageKey,
+    )
+    await liveDiagnostics.loadSnapshot()
+    const liveConsolidationLock = new ConsolidationLock(
+      api.pluginStorage,
+      liveMemdirScopeKey,
+      `dashboard-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    )
+    const liveDreamWorker = createAutoDreamWorker({
+      memdirStore: liveMemdirStore,
+      log(message: string): void {
+        api.log(message)
+      },
+      async runConsolidationModel(prompt: string): Promise<string> {
+        const state = await liveStore.load()
+        const result = await api.runLLMModel({
+          messages: [
+            { role: 'system', content: 'You are a memory consolidation assistant.' },
+            { role: 'user', content: prompt },
+          ],
+          staticModel: state.settings.directorModel,
+          mode: state.settings.directorMode,
+        })
+        if (result.type === 'fail') {
+          throw new Error(`Consolidation model call failed: ${result.result}`)
+        }
+        return result.result
+      },
+    })
+
+    const dashboardStore = createDashboardStore(
+      api,
+      (mutator) => liveStore.writeFirst(mutator),
+      liveStore.stateStorageKey,
+    )
+    dashboardStore.readCanonical = async () => liveStore.load()
+    dashboardStore.forceDream = async () => {
+      const blockStatus = liveRefreshGuard.checkBlocked()
+      if (blockStatus.blocked) {
+        throw new Error(`blocked:${blockStatus.reason}`)
+      }
+      await liveRefreshGuard.markMaintenance('force-dream')
+      const result = await liveConsolidationLock.withLock(() => liveDreamWorker.run())
+      if (result == null) {
+        throw new Error('Consolidation lock is held by another worker')
+      }
+    }
+    dashboardStore.getRecalledDocs = async () => []
+    dashboardStore.isMemoryLocked = () => liveConsolidationLock.isHeld()
+    dashboardStore.loadDiagnostics = () => liveDiagnostics.loadSnapshot()
+    dashboardStore.checkRefreshGuard = () => liveRefreshGuard.checkBlocked()
+    dashboardStore.markMaintenance = (kind) => liveRefreshGuard.markMaintenance(kind)
+    dashboardStore.refreshEmbeddings = async () => {
+      const currentState = await liveStore.load()
+      const client = buildEmbeddingClient(api, currentState.settings)
+      if (!client) return 0
+      const version = getVectorVersion(currentState.settings)
+      return embedDocuments({
+        memdirStore: liveMemdirStore,
+        embeddingClient: client,
+        vectorVersion: version,
+        log: (msg) => api.log(msg),
+      })
+    }
+    dashboardStore.getEmbeddingCacheStatus = async () => {
+      const currentState = await liveStore.load()
+      const docs = await liveMemdirStore.listDocuments()
+      const version = getVectorVersion(currentState.settings)
+      const enabled = currentState.settings.embeddingsEnabled
+      const supported = isProviderSupported(currentState.settings.embeddingProvider)
+      return computeEmbeddingCacheStatus(docs, version, enabled, supported)
+    }
+    dashboardStore.getWorkbenchDocuments = async () => {
+      const docs = await liveMemdirStore.listDocuments()
+      return docs.map((d) => ({
+        id: d.id,
+        type: d.type,
+        title: d.title,
+        source: d.source,
+        freshness: d.freshness,
+        updatedAt: d.updatedAt,
+        hasEmbedding: d.embedding != null,
+      }))
+    }
+    dashboardStore.getMemoryMdPreview = async () => {
+      return liveMemdirStore.getMemoryMd()
+    }
+    dashboardStore.getNotebookSnapshot = async () => null
+    dashboardStore.rebuildForActiveScope = buildDashboardStoreForCurrentScope
+    return dashboardStore
+  }
+
+  await bootstrapPlugin(api, {
+    director,
+    includeTypes: initialState.settings.includeTypes,
+    injectionMode: initialState.settings.injectionMode,
+    outputDebounceMs: initialState.settings.outputDebounceMs,
+    circuitBreaker,
+    turnCache,
+    sessionNotebook,
+    turnRecovery,
+    diagnostics,
+    onTurnFinalized: (ctx) => {
+      lastUserInteractionTs = Date.now()
+      dreamState.turnsSinceLastDream += 1
+      return housekeeping.afterTurn(ctx)
+    },
+    onShutdown: async () => {
+      try {
+        await refreshGuard.markShutdown()
+      } catch {
+        // Guard stamp failure must not prevent pending extraction flush
+      }
+      await housekeeping.shutdown()
+    },
+    openSettings: async () => {
+      const dashboardStore = await buildDashboardStoreForCurrentScope()
       await openDashboard(api, dashboardStore)
     }
   })

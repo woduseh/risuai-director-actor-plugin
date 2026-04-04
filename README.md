@@ -19,6 +19,7 @@ Narrative guidance and long-memory continuity plugin for **RisuAI Plugin V3**.
 - Includes a scoped canonical memory workbench for summaries, continuity facts, world facts, entities, and relations with live filtering, scope badges, quick navigation, internal section scrolling, bounded rerender updates, manual add/edit/delete, bulk delete, and two-step destructive arming safeguards
 - Adds a read-only Memory Workbench inspector for memory documents with type/status/source filters, embedding-state badges, `MEMORY.md` preview, and session notebook snapshots
 - Can backfill or fully regenerate memory from the current active chat into the scoped store
+- Automatically follows the currently active chat while the dashboard stays open, rebinding scoped memory/workbench data without forcing a close-and-reopen cycle
 - Stores and uses embedding provider/model settings for VoyageAI, OpenAI, Google, Vertex AI, and custom endpoints, with live runtime embedding support for OpenAI-compatible, VoyageAI, Google, Vertex AI, and custom providers
 
 ## Claude-Inspired Memory Lifecycle
@@ -72,7 +73,8 @@ The dashboard Memory Operations card provides operator controls:
 - **View Recalled Docs** — View the last recall result
 - **Toggle Fallback Retrieval** — Switch between model-based and keyword-based recall
 - **Refresh Embeddings** — Rebuild memory document embeddings for the active scope and update cache-status counts
-- **Settings Export** — Export the current dashboard settings, profiles, and locale as structured JSON from the fullscreen dashboard
+- **Settings Import / Export** — Save the current dashboard settings, profiles, and locale as structured JSON files and import them back into the fullscreen dashboard
+- **Progress Banner** — Show an in-dashboard sticky progress banner for longer-running memory operations so fullscreen users do not miss background work status
 - **Memory Navigation** — Keep the last-open tab, jump between memory sections, and preserve focus/scroll/filter context during memory CRUD updates
 - **Memory Workbench** — Inspect memory document metadata, embedding readiness, `MEMORY.md`, and the session notebook without exposing mutating controls
 
@@ -110,5 +112,6 @@ dist/risuai-continuity-director-plugin.js
 - The dashboard uses `showContainer('fullscreen')` with namespaced `.cd-` styles so it stays isolated without Shadow DOM.
 - Runtime state is keyed per character/chat and preserves the active scope as chats gain opening turns or later expose stable chat IDs.
 - Current chat extraction reuses the Director post-response review path so backfilled memory follows the same normalization rules as live turns.
+- When the active chat changes while the dashboard is open, the dashboard automatically reloads the new scoped memory state instead of keeping a stale scope until reopen.
 - In non-DOM test environments, the settings entry falls back to a plain alert summary.
 

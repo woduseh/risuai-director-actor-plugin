@@ -13,6 +13,7 @@ import {
   sidebarGroupLabel,
   profileDisplayName,
   embeddingProviderLabel,
+  progressLabel,
   getLocale,
 } from './i18n.js'
 import type { DashboardLocale } from './i18n.js'
@@ -61,6 +62,8 @@ export interface DashboardMarkupInput {
   scopeLabel?: string
   /** Read-only memory workbench input. */
   workbenchInput?: MemoryWorkbenchInput
+  /** Canonical busy-action keys currently in flight (drives progress banner). */
+  activeBusyActions?: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -104,6 +107,7 @@ function buildSidebar(activeTab: string): string {
       <div class="cd-sidebar-footer cd-footer">
         <button class="cd-btn" data-cd-action="switch-lang" data-cd-lang="${nextLocale}">${nextLabel}</button>
         <button class="cd-btn cd-btn--ghost" data-cd-action="export-settings">${t('btn.exportSettings')}</button>
+        <button class="cd-btn cd-btn--ghost" data-cd-action="import-settings">${t('btn.importSettings')}</button>
         <button class="cd-btn cd-btn--danger cd-close-btn" data-cd-action="close-dashboard" aria-label="${t('btn.close')}">${t('btn.close')}</button>
       </div>
     </aside>`
@@ -829,6 +833,19 @@ const PAGE_BUILDERS: Record<string, (input: DashboardMarkupInput) => string> = {
 }
 
 // ---------------------------------------------------------------------------
+// Progress banner
+// ---------------------------------------------------------------------------
+
+function buildProgressBanner(activeBusyActions?: string[]): string {
+  const labels = (activeBusyActions ?? [])
+    .map((a) => progressLabel(a))
+    .filter((l): l is string => l !== undefined)
+  const firstLabel = labels[0]
+  const inner = firstLabel ? escapeXml(firstLabel) : ''
+  return `<div class="cd-progress-banner" data-cd-role="progress-banner" role="status" aria-live="polite">${inner}</div>`
+}
+
+// ---------------------------------------------------------------------------
 // Content area
 // ---------------------------------------------------------------------------
 
@@ -843,6 +860,8 @@ function buildContent(input: DashboardMarkupInput): string {
     </div>`
   }).join('')
 
+  const bannerHtml = buildProgressBanner(input.activeBusyActions)
+
   return `
     <main class="cd-content">
       <section class="cd-toolbar">
@@ -855,7 +874,7 @@ function buildContent(input: DashboardMarkupInput): string {
           <button class="cd-btn cd-btn--primary" data-cd-action="save-settings">${t('btn.saveChanges')}</button>
           <button class="cd-btn" data-cd-action="reset-settings">${t('btn.reset')}</button>
         </div>
-      </section>${pages}
+      </section>${bannerHtml}${pages}
     </main>`
 }
 

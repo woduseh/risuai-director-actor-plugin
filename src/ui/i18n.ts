@@ -59,6 +59,7 @@ const EN_CATALOG = {
   'btn.closeIcon': '✕ Close',
   'btn.reset': 'Reset',
   'btn.exportSettings': 'Export Settings',
+  'btn.importSettings': 'Import Settings',
   'btn.testConnection': 'Test Connection',
   'btn.refreshModels': 'Refresh Models',
   'btn.newProfile': 'New Profile',
@@ -276,6 +277,14 @@ const EN_CATALOG = {
   'toast.invalidProfileFormat': 'Invalid profile format',
   'toast.failedParseProfile': 'Failed to parse profile JSON',
   'toast.settingsExported': 'Settings exported',
+  'toast.settingsImported': 'Settings imported',
+  'toast.settingsExportFailed': 'Failed to export settings',
+  'toast.invalidSettingsFormat': 'Invalid settings file format',
+  'toast.unsupportedSettingsVersion': 'Unsupported settings file version',
+  'toast.failedParseSettings': 'Failed to parse settings file',
+  'toast.scopeSwitched': 'Switched to the active chat',
+  'toast.scopeSwitchFailed': 'Failed to switch to the active chat: {{error}}',
+  'toast.scopeSwitchInProgress': 'Switching to the active chat…',
   'toast.backfillCompleted': 'Chat extraction completed ({{count}} updates)',
   'toast.backfillSkipped': 'No chat memories were extracted',
   'error.backfillScopeMismatch': 'The active chat changed while the dashboard was open. Return to the original chat and try again.',
@@ -333,6 +342,14 @@ const EN_CATALOG = {
   'workbench.notebookTitle': 'Session Notebook',
   'workbench.notebookEmpty': 'No notebook entries for this session.',
 
+  // Progress banner (in-dashboard busy indicator)
+  'progress.forceExtract': 'Extracting memories…',
+  'progress.backfillCurrentChat': 'Extracting current chat…',
+  'progress.regenerateCurrentChat': 'Regenerating from current chat…',
+  'progress.refreshEmbeddings': 'Refreshing embeddings…',
+  'progress.testConnection': 'Testing connection…',
+  'progress.refreshModels': 'Refreshing model list…',
+
   // Language selector
   'lang.label': 'Language',
   'lang.en': 'English',
@@ -375,6 +392,7 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'btn.closeIcon': '✕ 닫기',
   'btn.reset': '초기화',
   'btn.exportSettings': '설정 내보내기',
+  'btn.importSettings': '설정 가져오기',
   'btn.testConnection': '연결 테스트',
   'btn.refreshModels': '모델 새로고침',
   'btn.newProfile': '새 프로필',
@@ -590,6 +608,14 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'toast.invalidProfileFormat': '잘못된 프로필 형식입니다',
   'toast.failedParseProfile': '프로필 JSON 파싱에 실패했습니다',
   'toast.settingsExported': '설정이 내보내졌습니다',
+  'toast.settingsImported': '설정을 가져왔습니다',
+  'toast.settingsExportFailed': '설정 내보내기에 실패했습니다',
+  'toast.invalidSettingsFormat': '잘못된 설정 파일 형식입니다',
+  'toast.unsupportedSettingsVersion': '지원하지 않는 설정 파일 버전입니다',
+  'toast.failedParseSettings': '설정 파일 파싱에 실패했습니다',
+  'toast.scopeSwitched': '현재 활성 채팅으로 대시보드를 전환했습니다',
+  'toast.scopeSwitchFailed': '활성 채팅으로 전환하지 못했습니다: {{error}}',
+  'toast.scopeSwitchInProgress': '현재 활성 채팅으로 전환하는 중입니다…',
   'toast.backfillCompleted': '채팅 추출이 완료되었습니다 ({{count}}개 업데이트)',
   'toast.backfillSkipped': '추출된 채팅 메모리가 없습니다',
   'error.backfillScopeMismatch': '대시보드를 연 뒤 활성 채팅이 바뀌었습니다. 원래 채팅으로 돌아간 뒤 다시 시도하세요.',
@@ -646,6 +672,14 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'workbench.memoryMdTitle': 'MEMORY.md 미리보기',
   'workbench.notebookTitle': '세션 노트북',
   'workbench.notebookEmpty': '이 세션에 대한 노트북 항목이 없습니다.',
+
+  // Progress banner (in-dashboard busy indicator)
+  'progress.forceExtract': '메모리 추출 중…',
+  'progress.backfillCurrentChat': '현재 채팅 추출 중…',
+  'progress.regenerateCurrentChat': '현재 채팅 기준 재생성 중…',
+  'progress.refreshEmbeddings': '임베딩 새로고침 중…',
+  'progress.testConnection': '연결 테스트 중…',
+  'progress.refreshModels': '모델 목록 새로고침 중…',
 
   // Language selector
   'lang.label': '언어',
@@ -742,4 +776,23 @@ const BUILTIN_PROFILE_KEY_MAP: Record<string, TranslationKey> = {
 export function profileDisplayName(id: string, fallbackName: string): string {
   const key = BUILTIN_PROFILE_KEY_MAP[id]
   return key ? t(key) : fallbackName
+}
+
+// ---------------------------------------------------------------------------
+// Progress banner label mapping (used by dashboardDom)
+// ---------------------------------------------------------------------------
+
+const PROGRESS_LABEL_KEY_MAP: Record<string, TranslationKey> = {
+  'force-extract': 'progress.forceExtract',
+  'backfill-current-chat': 'progress.backfillCurrentChat',
+  'regenerate-current-chat': 'progress.regenerateCurrentChat',
+  'refresh-embeddings': 'progress.refreshEmbeddings',
+  'test-connection': 'progress.testConnection',
+  'refresh-models': 'progress.refreshModels',
+}
+
+/** Get the localized progress label for a long-running action, or `undefined` if the action has no progress label. */
+export function progressLabel(actionName: string): string | undefined {
+  const key = PROGRESS_LABEL_KEY_MAP[actionName]
+  return key ? t(key) : undefined
 }

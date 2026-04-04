@@ -15,6 +15,16 @@ import {
 import { createEmptyState, DEFAULT_DIRECTOR_SETTINGS } from '../src/contracts/types.js'
 import type { DirectorPluginState } from '../src/contracts/types.js'
 import { BUILTIN_PROMPT_PRESET_ID } from '../src/director/prompt.js'
+import * as fileTransfer from '../src/ui/fileTransfer.js'
+
+vi.mock('../src/ui/fileTransfer.js', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('../src/ui/fileTransfer.js')>()
+  return {
+    ...mod,
+    downloadJsonFile: vi.fn(),
+    pickJsonFile: vi.fn().mockResolvedValue(null),
+  }
+})
 
 function createTestStore(api: ReturnType<typeof createMockRisuaiApi>): DashboardStore {
   return { storage: api.pluginStorage }
@@ -25,6 +35,7 @@ describe('openDashboard', () => {
   let store: DashboardStore
 
   beforeEach(() => {
+    vi.clearAllMocks()
     api = createMockRisuaiApi()
     store = createTestStore(api)
     document.head.innerHTML = ''
@@ -1518,12 +1529,13 @@ describe('openDashboard', () => {
   test('GUARDED_ACTIONS set contains exactly the expected actions', async () => {
     const { GUARDED_ACTIONS } = await import('../src/ui/dashboardApp.js')
     expect(GUARDED_ACTIONS).toBeInstanceOf(Set)
-    expect(GUARDED_ACTIONS.size).toBe(11)
+    expect(GUARDED_ACTIONS.size).toBe(12)
     expect(GUARDED_ACTIONS.has('save')).toBe(true)
     expect(GUARDED_ACTIONS.has('discard')).toBe(true)
     expect(GUARDED_ACTIONS.has('test-connection')).toBe(true)
     expect(GUARDED_ACTIONS.has('refresh-models')).toBe(true)
     expect(GUARDED_ACTIONS.has('import-profile')).toBe(true)
+    expect(GUARDED_ACTIONS.has('import-settings')).toBe(true)
     expect(GUARDED_ACTIONS.has('backfill-current-chat')).toBe(true)
     expect(GUARDED_ACTIONS.has('regenerate-current-chat')).toBe(true)
     expect(GUARDED_ACTIONS.has('force-extract')).toBe(true)
@@ -1642,7 +1654,7 @@ describe('openDashboard', () => {
     expect(updatedSelect.value).toBe('light')
   })
 
-  test('export-settings sidebar button shows settings JSON via api.alert', async () => {
+  test('export-settings sidebar button triggers file download with settings JSON', async () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
@@ -1651,14 +1663,309 @@ describe('openDashboard', () => {
     exportBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
+    // The old behavior called api.alert — confirm it is NOT called anymore
+    expect(api.__alerts.length).toBe(0)
+
+    // downloadJsonFile should have been called with the settings payload
+    expect(vi.mocked(fileTransfer.downloadJsonFile)).toHaveBeenCalledTimes(1)
+    const [payload, filename] = vi.mocked(fileTransfer.downloadJsonFile).mock.calls[0]!
+    expect((payload as Record<string, unknown>).schema).toBe('continuity-director-dashboard-settings')
+    expect((payload as Record<string, unknown>).version).toBe(1)
+    expect((payload as Record<string, unknown>).settings).toBeDefined()
+    expect((payload as Record<string, unknown>).profiles).toBeDefined()
+    expect((payload as Record<string, unknown>).locale).toBeDefined()
+    expect(typeof (payload as Record<string, unknown>).exportedAt).toBe('number')
+    expect(filename).toMatch(/^continuity-director-settings-.*\.json$/)
+
+    // A success toast should still appear
+    const toast = document.querySelector('.cd-toast')
+    expect(toast).not.toBeNull()
+    expect(toast!.textContent).toContain('exported')
+  })
+
+  test('import-settings button exists in sidebar', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const importBtn = root.querySelector('[data-cd-action="import-settings"]') as HTMLElement
+    expect(importBtn).not.toBeNull()
+  })
+
+  test('import-settings with valid payload restores settings and profiles', async () => {
+    // Pre-populate storage with some settings
+    await store.storage.setItem(DASHBOARD_SETTINGS_KEY, {
+      ...DEFAULT_DIRECTOR_SETTINGS,
+      assertiveness: 'firm',
+    })
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    // Build a valid settings import payload
+    const importPayload = {
+      schema: 'continuity-director-dashboard-settings',
+      version: 1,
+      exportedAt: Date.now(),
+      locale: 'en',
+      settings: { ...DEFAULT_DIRECTOR_SETTINGS, assertiveness: 'light' },
+      profiles: {
+        version: 1,
+        activeProfileId: 'builtin-balanced',
+        profiles: [
+          {
+            id: 'builtin-balanced',
+            name: 'Balanced',
+            createdAt: 0,
+            updatedAt: 0,
+            basedOn: null,
+            overrides: { assertiveness: 'standard' },
+          },
+        ],
+      },
+    }
+
+    const mockFile = new File(
+      [JSON.stringify(importPayload)],
+      'settings.json',
+      { type: 'application/json' }
+    )
+    vi.mocked(fileTransfer.pickJsonFile).mockResolvedValueOnce(mockFile)
+
+    const importBtn = root.querySelector('[data-cd-action="import-settings"]') as HTMLElement
+    expect(importBtn).not.toBeNull()
+    importBtn.click()
+    await new Promise((r) => { setTimeout(r, 100) })
+
+    // Verify settings were persisted
+    const saved = await store.storage.getItem(DASHBOARD_SETTINGS_KEY) as Record<string, unknown>
+    expect(saved).toBeDefined()
+    expect(saved.assertiveness).toBe('light')
+
+    // Success toast
+    const toast = document.querySelector('.cd-toast')
+    expect(toast).not.toBeNull()
+    expect(toast!.textContent).toContain('imported')
+  })
+
+  test('import-settings rejects malformed JSON with error toast', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const mockFile = new File(
+      ['not valid json {{{'],
+      'bad.json',
+      { type: 'application/json' }
+    )
+    vi.mocked(fileTransfer.pickJsonFile).mockResolvedValueOnce(mockFile)
+
+    const importBtn = root.querySelector('[data-cd-action="import-settings"]') as HTMLElement
+    importBtn.click()
+    await new Promise((r) => { setTimeout(r, 100) })
+
+    // Should show error via alertError
     expect(api.__alerts.length).toBeGreaterThan(0)
-    const payload = JSON.parse(api.__alerts[api.__alerts.length - 1]!)
-    expect(payload.schema).toBe('continuity-director-dashboard-settings')
-    expect(payload.version).toBe(1)
-    expect(payload.settings).toBeDefined()
-    expect(payload.profiles).toBeDefined()
-    expect(payload.locale).toBeDefined()
-    expect(typeof payload.exportedAt).toBe('number')
+  })
+
+  test('import-settings rejects wrong schema with error toast', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const wrongPayload = {
+      schema: 'wrong-schema',
+      version: 1,
+      settings: {},
+    }
+
+    const mockFile = new File(
+      [JSON.stringify(wrongPayload)],
+      'wrong.json',
+      { type: 'application/json' }
+    )
+    vi.mocked(fileTransfer.pickJsonFile).mockResolvedValueOnce(mockFile)
+
+    const importBtn = root.querySelector('[data-cd-action="import-settings"]') as HTMLElement
+    importBtn.click()
+    await new Promise((r) => { setTimeout(r, 100) })
+
+    expect(api.__alerts.length).toBeGreaterThan(0)
+  })
+
+  test('import-settings rejects unsupported version with error toast', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const futurePayload = {
+      schema: 'continuity-director-dashboard-settings',
+      version: 999,
+      exportedAt: Date.now(),
+      locale: 'en',
+      settings: DEFAULT_DIRECTOR_SETTINGS,
+      profiles: { version: 1, activeProfileId: 'x', profiles: [] },
+    }
+
+    const mockFile = new File(
+      [JSON.stringify(futurePayload)],
+      'future.json',
+      { type: 'application/json' }
+    )
+    vi.mocked(fileTransfer.pickJsonFile).mockResolvedValueOnce(mockFile)
+
+    const importBtn = root.querySelector('[data-cd-action="import-settings"]') as HTMLElement
+    importBtn.click()
+    await new Promise((r) => { setTimeout(r, 100) })
+
+    expect(api.__alerts.length).toBeGreaterThan(0)
+  })
+
+  test('import-settings cancelled file picker does nothing', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    vi.mocked(fileTransfer.pickJsonFile).mockResolvedValueOnce(null)
+
+    const importBtn = root.querySelector('[data-cd-action="import-settings"]') as HTMLElement
+    importBtn.click()
+    await new Promise((r) => { setTimeout(r, 100) })
+
+    // No alerts, no toasts
+    expect(api.__alerts.length).toBe(0)
+    const toast = document.querySelector('.cd-toast')
+    expect(toast).toBeNull()
+  })
+
+  test('import-settings rebuilds modelOptions for the imported provider', async () => {
+    // Start with openai defaults
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    // Import settings that switch to anthropic with a custom model
+    const importPayload = {
+      schema: 'continuity-director-dashboard-settings',
+      version: 1,
+      exportedAt: Date.now(),
+      locale: 'en',
+      settings: {
+        ...DEFAULT_DIRECTOR_SETTINGS,
+        directorProvider: 'anthropic',
+        directorModel: 'claude-sonnet-4-6',
+      },
+      profiles: {
+        version: 1,
+        activeProfileId: 'builtin-balanced',
+        profiles: [
+          {
+            id: 'builtin-balanced',
+            name: 'Balanced',
+            createdAt: 0,
+            updatedAt: 0,
+            basedOn: null,
+            overrides: {},
+          },
+        ],
+      },
+    }
+
+    const mockFile = new File(
+      [JSON.stringify(importPayload)],
+      'settings.json',
+      { type: 'application/json' }
+    )
+    vi.mocked(fileTransfer.pickJsonFile).mockResolvedValueOnce(mockFile)
+
+    const importBtn = root.querySelector('[data-cd-action="import-settings"]') as HTMLElement
+    importBtn.click()
+    await new Promise((r) => { setTimeout(r, 100) })
+
+    // After import, the model select should contain anthropic curated models
+    const modelSelect = document.querySelector(
+      'select[data-cd-field="directorModel"]',
+    ) as HTMLSelectElement
+    expect(modelSelect).not.toBeNull()
+    const optionValues = Array.from(modelSelect.options).map((o) => o.value)
+    expect(optionValues).toContain('claude-sonnet-4-6')
+    expect(optionValues).toContain('claude-haiku-4-5')
+    // Should NOT contain openai models
+    expect(optionValues).not.toContain('gpt-4.1-mini')
+  })
+
+  test('import-settings rejects payload with malformed profiles shape', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    // Save original settings so we can verify they are NOT overwritten
+    const originalSettings = await store.storage.getItem(DASHBOARD_SETTINGS_KEY)
+
+    // profiles is an object but missing required manifest fields
+    const malformedPayload = {
+      schema: 'continuity-director-dashboard-settings',
+      version: 1,
+      exportedAt: Date.now(),
+      locale: 'en',
+      settings: { ...DEFAULT_DIRECTOR_SETTINGS, assertiveness: 'firm' },
+      profiles: {},
+    }
+
+    const mockFile = new File(
+      [JSON.stringify(malformedPayload)],
+      'malformed.json',
+      { type: 'application/json' }
+    )
+    vi.mocked(fileTransfer.pickJsonFile).mockResolvedValueOnce(mockFile)
+
+    const importBtn = root.querySelector('[data-cd-action="import-settings"]') as HTMLElement
+    importBtn.click()
+    await new Promise((r) => { setTimeout(r, 100) })
+
+    // Should show an error, not silently import defaults
+    expect(api.__alerts.length).toBeGreaterThan(0)
+
+    // Settings should NOT have been changed
+    const savedAfter = await store.storage.getItem(DASHBOARD_SETTINGS_KEY)
+    expect(savedAfter).toEqual(originalSettings)
+  })
+
+  test('import-settings normalizes imported profiles missing overrides and basedOn', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const payload = {
+      schema: 'continuity-director-dashboard-settings',
+      version: 1,
+      exportedAt: Date.now(),
+      locale: 'en',
+      settings: { ...DEFAULT_DIRECTOR_SETTINGS, assertiveness: 'firm' },
+      profiles: {
+        version: 1,
+        activeProfileId: 'imported-profile',
+        profiles: [
+          {
+            id: 'imported-profile',
+            name: 'Imported Profile',
+            createdAt: 1,
+            updatedAt: 2,
+          },
+        ],
+      },
+    }
+
+    const mockFile = new File(
+      [JSON.stringify(payload)],
+      'missing-profile-fields.json',
+      { type: 'application/json' },
+    )
+    vi.mocked(fileTransfer.pickJsonFile).mockResolvedValueOnce(mockFile)
+
+    const importBtn = root.querySelector('[data-cd-action="import-settings"]') as HTMLElement
+    importBtn.click()
+    await new Promise((r) => { setTimeout(r, 100) })
+
+    const manifest = await store.storage.getItem(DASHBOARD_PROFILE_MANIFEST_KEY) as {
+      activeProfileId: string
+      profiles: Array<Record<string, unknown>>
+    }
+
+    expect(manifest.activeProfileId).toBe('imported-profile')
+    expect(manifest.profiles).toHaveLength(1)
+    expect(manifest.profiles[0]?.basedOn).toBeNull()
+    expect(manifest.profiles[0]?.overrides).toEqual({})
   })
 
   // ── Accessibility: connection-status live-region semantics ──────────
@@ -1850,5 +2157,306 @@ describe('Memory Workbench integration in dashboard', () => {
     memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
     expect(memoryPage.textContent).toContain('Char Doc')
     expect(memoryPage.textContent).not.toContain('World Doc')
+  })
+
+  // ── Progress banner (in-dashboard busy indicator) ───────────────────
+
+  test('progress banner appears during a long-running force-extract action', async () => {
+    let resolveExtract!: () => void
+    const storeWithOps: DashboardStore = {
+      storage: api.pluginStorage,
+      forceExtract: () => new Promise<void>((r) => { resolveExtract = r }),
+    }
+
+    await openDashboard(api, storeWithOps)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    // Banner should be empty before the action
+    let banner = root.querySelector('[data-cd-role="progress-banner"]')
+    expect(banner).not.toBeNull()
+    expect(banner!.textContent!.trim()).toBe('')
+
+    // Trigger force-extract
+    const extractBtn = root.querySelector('[data-cd-action="force-extract"]') as HTMLButtonElement
+    extractBtn.click()
+    await new Promise((r) => { setTimeout(r, 10) })
+
+    // Banner should now show progress text
+    banner = root.querySelector('[data-cd-role="progress-banner"]')
+    expect(banner).not.toBeNull()
+    expect(banner!.textContent).toContain('Extracting memories')
+
+    // Complete the action
+    resolveExtract()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    // Banner should be empty again after completion
+    banner = document.querySelector('[data-cd-role="progress-banner"]')
+    expect(banner).not.toBeNull()
+    expect(banner!.textContent!.trim()).toBe('')
+  })
+
+  test('progress banner survives a fullReRender while action is still in flight', async () => {
+    let resolveExtract!: () => void
+    const storeWithOps: DashboardStore = {
+      storage: api.pluginStorage,
+      forceExtract: () => new Promise<void>((r) => { resolveExtract = r }),
+    }
+
+    await openDashboard(api, storeWithOps)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    const extractBtn = root.querySelector('[data-cd-action="force-extract"]') as HTMLButtonElement
+    extractBtn.click()
+    await new Promise((r) => { setTimeout(r, 10) })
+
+    // Trigger a tab switch which causes fullReRender
+    const generalTabBtn = document.querySelector('[data-cd-target="general"]') as HTMLElement
+    generalTabBtn.click()
+    await new Promise((r) => { setTimeout(r, 10) })
+
+    // Banner should still show progress text after rerender
+    const banner = document.querySelector('[data-cd-role="progress-banner"]')
+    expect(banner).not.toBeNull()
+    expect(banner!.textContent).toContain('Extracting memories')
+
+    // Cleanup
+    resolveExtract()
+    await new Promise((r) => { setTimeout(r, 50) })
+  })
+
+  test('short actions like save do not show the progress banner', async () => {
+    const resolvers: Array<() => void> = []
+    const slowStore: DashboardStore = {
+      storage: {
+        ...api.pluginStorage,
+        setItem: () => new Promise<void>((r) => { resolvers.push(r) }),
+        getItem: (k: string) => api.pluginStorage.getItem(k),
+        removeItem: (k: string) => api.pluginStorage.removeItem(k),
+        clear: () => api.pluginStorage.clear(),
+        keys: () => api.pluginStorage.keys(),
+        length: () => api.pluginStorage.length(),
+      },
+    }
+
+    await openDashboard(api, slowStore)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const saveBtn = root.querySelector('[data-cd-action="save"]') as HTMLButtonElement
+    saveBtn.click()
+    await new Promise((r) => { setTimeout(r, 10) })
+
+    // Save is busy, but banner should not show anything
+    const banner = root.querySelector('[data-cd-role="progress-banner"]')
+    expect(banner).not.toBeNull()
+    expect(banner!.textContent!.trim()).toBe('')
+
+    // Cleanup
+    for (let i = 0; i < 5; i++) {
+      while (resolvers.length) resolvers.shift()!()
+      await new Promise((r) => { setTimeout(r, 10) })
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Active chat auto-follow
+// ---------------------------------------------------------------------------
+
+describe('active chat auto-follow', () => {
+  let api: ReturnType<typeof createMockRisuaiApi>
+
+  beforeEach(() => {
+    api = createMockRisuaiApi()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    vi.useFakeTimers()
+  })
+
+  afterEach(async () => {
+    await closeDashboard()
+    vi.useRealTimers()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+  })
+
+  test('dashboard automatically follows the newly active chat while keeping the current tab open', async () => {
+    const host = api as unknown as Record<string, unknown>
+    const chatA = {
+      id: 'chat-a',
+      name: 'Session A',
+      lastDate: 1,
+      messages: [
+        { role: 'user', content: 'Alpha question' },
+        { role: 'assistant', content: 'Alpha answer' },
+      ],
+    }
+    const chatB = {
+      id: 'chat-b',
+      name: 'Session B',
+      lastDate: 2,
+      messages: [
+        { role: 'user', content: 'Beta question' },
+        { role: 'assistant', content: 'Beta answer' },
+      ],
+    }
+    let activeChat = chatA
+
+    host.getCharacter = async () => ({ chaId: 'cha-1', name: 'Hero' })
+    host.getCurrentCharacterIndex = async () => 0
+    host.getCurrentChatIndex = async () => (activeChat.id === 'chat-a' ? 0 : 1)
+    host.getChatFromIndex = async () => activeChat
+
+    const initialScope = await resolveScopeStorageKey(api)
+    activeChat = chatB
+    const nextScope = await resolveScopeStorageKey(api)
+    activeChat = chatA
+
+    const initialState = createEmptyState()
+    initialState.memory.summaries.push({
+      id: 'summary-a',
+      text: 'Memory from chat A',
+      recencyWeight: 0.4,
+      updatedAt: 1,
+    })
+
+    const nextState = createEmptyState()
+    nextState.memory.summaries.push({
+      id: 'summary-b',
+      text: 'Memory from chat B',
+      recencyWeight: 0.8,
+      updatedAt: 2,
+    })
+
+    const nextStore: DashboardStore = {
+      storage: api.pluginStorage,
+      stateStorageKey: nextScope.storageKey,
+      readCanonical: async () => structuredClone(nextState),
+    }
+
+    const store = {
+      storage: api.pluginStorage,
+      stateStorageKey: initialScope.storageKey,
+      readCanonical: async () => structuredClone(initialState),
+      rebuildForActiveScope: vi.fn(async () => nextStore),
+    } satisfies DashboardStore & {
+      rebuildForActiveScope: () => Promise<DashboardStore>
+    }
+
+    await openDashboard(api, store)
+    let root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    let memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
+    expect(memoryPage.classList.contains('cd-hidden')).toBe(false)
+    expect(memoryPage.textContent).toContain('Memory from chat A')
+
+    activeChat = chatB
+    await vi.advanceTimersByTimeAsync(5000)
+
+    root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
+    expect(store.rebuildForActiveScope).toHaveBeenCalledTimes(1)
+    expect(memoryPage.classList.contains('cd-hidden')).toBe(false)
+    expect(memoryPage.textContent).toContain('Memory from chat B')
+    expect(memoryPage.textContent).not.toContain('Memory from chat A')
+  })
+
+  test('dashboard retries scope follow after a failed scope reload', async () => {
+    const host = api as unknown as Record<string, unknown>
+    const chatA = {
+      id: 'chat-a',
+      name: 'Session A',
+      lastDate: 1,
+      messages: [
+        { role: 'user', content: 'Alpha question' },
+        { role: 'assistant', content: 'Alpha answer' },
+      ],
+    }
+    const chatB = {
+      id: 'chat-b',
+      name: 'Session B',
+      lastDate: 2,
+      messages: [
+        { role: 'user', content: 'Beta question' },
+        { role: 'assistant', content: 'Beta answer' },
+      ],
+    }
+    let activeChat = chatA
+
+    host.getCharacter = async () => ({ chaId: 'cha-1', name: 'Hero' })
+    host.getCurrentCharacterIndex = async () => 0
+    host.getCurrentChatIndex = async () => (activeChat.id === 'chat-a' ? 0 : 1)
+    host.getChatFromIndex = async () => activeChat
+
+    const initialScope = await resolveScopeStorageKey(api)
+    activeChat = chatB
+    const nextScope = await resolveScopeStorageKey(api)
+    activeChat = chatA
+
+    const initialState = createEmptyState()
+    initialState.memory.summaries.push({
+      id: 'summary-a',
+      text: 'Memory from chat A',
+      recencyWeight: 0.4,
+      updatedAt: 1,
+    })
+
+    const nextState = createEmptyState()
+    nextState.memory.summaries.push({
+      id: 'summary-b',
+      text: 'Memory from chat B',
+      recencyWeight: 0.8,
+      updatedAt: 2,
+    })
+
+    const rebuildForActiveScope = vi
+      .fn<() => Promise<DashboardStore>>()
+      .mockResolvedValueOnce({
+        storage: api.pluginStorage,
+        stateStorageKey: nextScope.storageKey,
+        readCanonical: async () => {
+          throw new Error('reload failed')
+        },
+      })
+      .mockResolvedValueOnce({
+        storage: api.pluginStorage,
+        stateStorageKey: nextScope.storageKey,
+        readCanonical: async () => structuredClone(nextState),
+      })
+
+    const store = {
+      storage: api.pluginStorage,
+      stateStorageKey: initialScope.storageKey,
+      readCanonical: async () => structuredClone(initialState),
+      rebuildForActiveScope,
+    } satisfies DashboardStore & {
+      rebuildForActiveScope: () => Promise<DashboardStore>
+    }
+
+    await openDashboard(api, store)
+    let root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    activeChat = chatB
+    await vi.advanceTimersByTimeAsync(2500)
+    await vi.advanceTimersByTimeAsync(2500)
+
+    root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
+    expect(rebuildForActiveScope).toHaveBeenCalledTimes(2)
+    expect(memoryPage.textContent).toContain('Memory from chat B')
+    expect(memoryPage.textContent).not.toContain('Memory from chat A')
   })
 })

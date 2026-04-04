@@ -443,7 +443,7 @@ describe('buildDashboardMarkup', () => {
 
   // ── Dead dashboard action buttons ───────────────────────────────────
 
-  test('renders sidebar close-dashboard and export-settings action buttons', () => {
+  test('renders sidebar close-dashboard, export-settings, and import-settings action buttons', () => {
     const markup = buildDashboardMarkup({
       settings: normalizePersistedSettings({}),
       pluginState: createEmptyState(),
@@ -455,6 +455,7 @@ describe('buildDashboardMarkup', () => {
 
     expect(markup).toContain('data-cd-action="close-dashboard"')
     expect(markup).toContain('data-cd-action="export-settings"')
+    expect(markup).toContain('data-cd-action="import-settings"')
   })
 
   test('renders settings page save-settings and reset-settings action buttons', () => {
@@ -702,6 +703,88 @@ describe('buildDashboardMarkup – workbench integration', () => {
     // Rest of the memory page still renders
     expect(markup).toContain('data-cd-role="memory-empty"')
     expect(markup).toContain('data-cd-action="backfill-current-chat"')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Progress banner (in-dashboard busy indicator)
+// ---------------------------------------------------------------------------
+
+describe('progress banner', () => {
+  afterEach(() => {
+    setLocale('en')
+  })
+
+  function renderMarkup(activeBusyActions?: string[]): string {
+    return buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'general',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+      ...(activeBusyActions ? { activeBusyActions } : {}),
+    })
+  }
+
+  test('banner container exists with stable data-cd-role and ARIA hooks', () => {
+    const markup = renderMarkup()
+    expect(markup).toContain('data-cd-role="progress-banner"')
+    expect(markup).toContain('role="status"')
+    expect(markup).toContain('aria-live="polite"')
+  })
+
+  test('banner is empty when no long-running action is active', () => {
+    const markup = renderMarkup()
+    // Banner container exists but has no visible label text inside
+    expect(markup).toContain('data-cd-role="progress-banner"')
+    // The banner should render as empty (no text content between tags)
+    expect(markup).toMatch(/data-cd-role="progress-banner"[^>]*><\/div>/)
+  })
+
+  test('banner is empty when only short actions are active', () => {
+    const markup = renderMarkup(['save', 'discard'])
+    expect(markup).toContain('data-cd-role="progress-banner"')
+    // Should not contain any long-running action text
+    expect(markup).not.toContain('Extracting')
+    expect(markup).not.toContain('Testing')
+    expect(markup).not.toContain('Refreshing')
+  })
+
+  test('banner shows correct text for force-extract', () => {
+    const markup = renderMarkup(['force-extract'])
+    expect(markup).toContain('Extracting memories')
+  })
+
+  test('banner shows correct text for backfill-current-chat', () => {
+    const markup = renderMarkup(['backfill-current-chat'])
+    expect(markup).toContain('Extracting current chat')
+  })
+
+  test('banner shows correct text for regenerate-current-chat', () => {
+    const markup = renderMarkup(['regenerate-current-chat'])
+    expect(markup).toContain('Regenerating from current chat')
+  })
+
+  test('banner shows correct text for refresh-embeddings', () => {
+    const markup = renderMarkup(['refresh-embeddings'])
+    expect(markup).toContain('Refreshing embeddings')
+  })
+
+  test('banner shows correct text for test-connection', () => {
+    const markup = renderMarkup(['test-connection'])
+    expect(markup).toContain('Testing connection')
+  })
+
+  test('banner shows correct text for refresh-models', () => {
+    const markup = renderMarkup(['refresh-models'])
+    expect(markup).toContain('Refreshing model list')
+  })
+
+  test('banner shows text in Korean when locale is ko', () => {
+    setLocale('ko')
+    const markup = renderMarkup(['force-extract'])
+    expect(markup).toContain('메모리 추출 중')
   })
 })
 

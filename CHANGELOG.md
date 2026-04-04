@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.9.0] - 2026-04-04
+
+### Added
+
+- File-based dashboard settings import/export for settings, profiles, and locale
+- Sticky in-dashboard progress banner for long-running extraction, regeneration, model refresh, connection test, and embedding refresh actions
+- Active-chat auto-follow so the fullscreen dashboard can rebind itself to the newly active scoped memory store without closing
+
+### Changed
+
+- Dashboard memory/workbench views now preserve the current tab while reloading scope-bound state after an active chat switch
+- README now documents file-based settings transfer, in-dashboard progress feedback, and automatic active-chat following
+
+### Fixed
+
+- Scoped dashboard store reload now rolls back cleanly if a scope refresh fails, allowing the next poll to retry instead of leaving mixed old/new scope state behind
+- Settings import now rebuilds provider model options and normalizes imported profile manifests before persisting them
+- Long-running dashboard progress tracking now uses a single source of truth for tracked actions
+
 ## [0.8.1] - 2026-04-04
 
 ### Changed
