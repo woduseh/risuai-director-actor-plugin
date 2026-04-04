@@ -4,6 +4,7 @@ import type { MemoryWorkbenchInput } from './memoryWorkbenchDom.js'
 import { buildMemoryWorkbench } from './memoryWorkbenchDom.js'
 import { DASHBOARD_ROOT_CLASS } from './dashboardCss.js'
 import { EMBEDDING_PROVIDER_CATALOG, directorAuthFields, embeddingAuthFields } from './dashboardModel.js'
+import type { ProviderAuthFieldDescriptor } from './dashboardModel.js'
 import { resolveSelectedPromptPreset } from './dashboardState.js'
 import { BUILTIN_PROMPT_PRESET_ID } from '../director/prompt.js'
 import {
@@ -287,6 +288,33 @@ function buildPromptTuningPage(input: DashboardMarkupInput): string {
       </div>`
 }
 
+// ---------------------------------------------------------------------------
+// Shared auth-field renderer
+// ---------------------------------------------------------------------------
+
+function renderAuthFieldHtml(
+  desc: ProviderAuthFieldDescriptor,
+  settings: DirectorSettings,
+): string {
+  const rawValue = String(settings[desc.field] ?? '')
+  const helpEl = desc.helpKey
+    ? `\n              <small class="cd-field-help">${t(desc.helpKey)}</small>`
+    : ''
+
+  if (desc.inputType === 'textarea') {
+    return `
+            <label class="cd-label">
+              <span class="cd-label-text">${t(desc.labelKey)}</span>
+              <textarea class="cd-input" data-cd-field="${desc.field}" rows="4">${escapeXml(rawValue)}</textarea>${helpEl}
+            </label>`
+  }
+  return `
+            <label class="cd-label">
+              <span class="cd-label-text">${t(desc.labelKey)}</span>
+              <input type="${desc.inputType}" class="cd-input" data-cd-field="${desc.field}" value="${escapeXml(rawValue)}" />${helpEl}
+            </label>`
+}
+
 function buildModelSettingsPage(input: DashboardMarkupInput): string {
   const { settings, modelOptions } = input
   const modelOptionEls = modelOptions
@@ -303,39 +331,11 @@ function buildModelSettingsPage(input: DashboardMarkupInput): string {
     .join('')
 
   const directorAuthFieldEls = directorAuthFields(settings.directorProvider)
-    .map((desc) => {
-      const rawValue = String(settings[desc.field] ?? '')
-      if (desc.inputType === 'textarea') {
-        return `
-            <label class="cd-label">
-              <span class="cd-label-text">${t(desc.labelKey)}</span>
-              <textarea class="cd-input" data-cd-field="${desc.field}" rows="4">${escapeXml(rawValue)}</textarea>
-            </label>`
-      }
-      return `
-            <label class="cd-label">
-              <span class="cd-label-text">${t(desc.labelKey)}</span>
-              <input type="${desc.inputType}" class="cd-input" data-cd-field="${desc.field}" value="${escapeXml(rawValue)}" />
-            </label>`
-    })
+    .map((desc) => renderAuthFieldHtml(desc, settings))
     .join('')
 
   const embeddingAuthFieldEls = embeddingAuthFields(settings.embeddingProvider)
-    .map((desc) => {
-      const rawValue = String(settings[desc.field] ?? '')
-      if (desc.inputType === 'textarea') {
-        return `
-            <label class="cd-label">
-              <span class="cd-label-text">${t(desc.labelKey)}</span>
-              <textarea class="cd-input" data-cd-field="${desc.field}" rows="4">${escapeXml(rawValue)}</textarea>
-            </label>`
-      }
-      return `
-            <label class="cd-label">
-              <span class="cd-label-text">${t(desc.labelKey)}</span>
-              <input type="${desc.inputType}" class="cd-input" data-cd-field="${desc.field}" value="${escapeXml(rawValue)}" />
-            </label>`
-    })
+    .map((desc) => renderAuthFieldHtml(desc, settings))
     .join('')
 
   const embeddingSection = `

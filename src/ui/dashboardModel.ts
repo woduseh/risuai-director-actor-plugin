@@ -175,6 +175,8 @@ export interface ProviderAuthFieldDescriptor {
   field: keyof DirectorSettings
   labelKey: TranslationKey
   inputType: 'text' | 'password' | 'textarea'
+  /** Optional i18n key for a short help-text hint rendered below the input. */
+  helpKey?: TranslationKey
 }
 
 const STANDARD_DIRECTOR_AUTH: readonly ProviderAuthFieldDescriptor[] = [
@@ -183,11 +185,11 @@ const STANDARD_DIRECTOR_AUTH: readonly ProviderAuthFieldDescriptor[] = [
 ]
 
 const COPILOT_DIRECTOR_AUTH: readonly ProviderAuthFieldDescriptor[] = [
-  { field: 'directorCopilotToken', labelKey: 'label.copilotToken', inputType: 'password' },
+  { field: 'directorCopilotToken', labelKey: 'label.copilotToken', inputType: 'password', helpKey: 'help.copilotToken' },
 ]
 
 const VERTEX_DIRECTOR_AUTH: readonly ProviderAuthFieldDescriptor[] = [
-  { field: 'directorVertexJsonKey', labelKey: 'label.vertexJsonKey', inputType: 'textarea' },
+  { field: 'directorVertexJsonKey', labelKey: 'label.vertexJsonKey', inputType: 'textarea', helpKey: 'help.vertexJsonKey' },
   { field: 'directorVertexProject', labelKey: 'label.vertexProject', inputType: 'text' },
   { field: 'directorVertexLocation', labelKey: 'label.vertexLocation', inputType: 'text' },
 ]

@@ -141,6 +141,13 @@ describe('provider auth – directorAuthFields', () => {
     expect(tokenField!.inputType).toBe('password')
   })
 
+  test('copilot token field carries helpKey metadata', () => {
+    const fields = directorAuthFields('copilot')
+    const tokenField = fields.find((f) => f.field === 'directorCopilotToken')
+    expect(tokenField).toBeDefined()
+    expect(tokenField!.helpKey).toBe('help.copilotToken')
+  })
+
   test('returns vertex-specific fields for vertex provider', () => {
     const fields = directorAuthFields('vertex')
     const fieldNames = fields.map((f) => f.field)
@@ -156,6 +163,20 @@ describe('provider auth – directorAuthFields', () => {
     const jsonField = fields.find((f) => f.field === 'directorVertexJsonKey')
     expect(jsonField).toBeDefined()
     expect(jsonField!.inputType).toBe('textarea')
+  })
+
+  test('vertex JSON key field carries helpKey metadata', () => {
+    const fields = directorAuthFields('vertex')
+    const jsonField = fields.find((f) => f.field === 'directorVertexJsonKey')
+    expect(jsonField).toBeDefined()
+    expect(jsonField!.helpKey).toBe('help.vertexJsonKey')
+  })
+
+  test('vertex project field has no helpKey', () => {
+    const fields = directorAuthFields('vertex')
+    const projectField = fields.find((f) => f.field === 'directorVertexProject')
+    expect(projectField).toBeDefined()
+    expect(projectField!.helpKey).toBeUndefined()
   })
 
   test('returns baseUrl and apiKey for custom provider', () => {
@@ -251,6 +272,23 @@ describe('provider auth – dashboard DOM rendering', () => {
     expect(markup).toContain('data-cd-field="embeddingBaseUrl"')
     expect(markup).toContain('data-cd-field="embeddingApiKey"')
     expect(markup).not.toContain('data-cd-field="embeddingVertexJsonKey"')
+  })
+
+  test('renders help text for Copilot token field', () => {
+    const markup = buildDashboardMarkup(defaultMarkupInput({ directorProvider: 'copilot' }))
+    expect(markup).toContain(t('help.copilotToken'))
+    expect(markup).toMatch(/cd-field-help/)
+  })
+
+  test('renders help text for Vertex JSON key field', () => {
+    const markup = buildDashboardMarkup(defaultMarkupInput({ directorProvider: 'vertex' }))
+    expect(markup).toContain(t('help.vertexJsonKey'))
+    expect(markup).toMatch(/cd-field-help/)
+  })
+
+  test('does not render help text for standard apiKey field', () => {
+    const markup = buildDashboardMarkup(defaultMarkupInput({ directorProvider: 'openai' }))
+    expect(markup).not.toMatch(/cd-field-help/)
   })
 })
 

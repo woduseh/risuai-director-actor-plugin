@@ -1182,7 +1182,11 @@ class DashboardInstance {
       this.markDirty()
     }
 
-    // Provider change → apply base URL defaults + re-render auth fields
+    // Provider change → apply base URL defaults + re-render auth fields.
+    // We use fullReRender() (not a targeted DOM patch) because the auth
+    // field set changes shape entirely per provider—different inputs,
+    // labels, and help text.  The cost is a full DOM rebuild, but provider
+    // switching is infrequent enough that simplicity wins over perf here.
     if (key === 'directorProvider') {
       const providerDefaults = resolveProviderDefaults(
         value as DirectorSettings['directorProvider'],
