@@ -8706,21 +8706,25 @@ ${lines.join("\n").trimEnd()}`;
       const turn = turnCache.begin(type, messages);
       currentTurnId = turn.turnId;
       try {
-        const brief = await director.preRequest({
+        const result = await director.preRequest({
           turnId: turn.turnId,
           type,
           messages
         });
         await diagnostics?.recordHook("beforeRequest", type);
-        if (!brief) {
+        if (!result) {
           clearActiveTurn();
           return messages;
         }
-        const injected = injectDirectorBrief(messages, brief, injectionMode);
-        turnCache.patch(turn.turnId, {
-          brief,
+        const injected = injectDirectorBrief(messages, result.brief, injectionMode);
+        const turnPatch = {
+          brief: result.brief,
           latestMessages: injected.messages
-        });
+        };
+        if (result.actorMemoryContext !== void 0) {
+          turnPatch.actorMemoryContext = result.actorMemoryContext;
+        }
+        turnCache.patch(turn.turnId, turnPatch);
         return injected.messages;
       } catch (err) {
         clearActiveTurn();
@@ -8840,6 +8844,57 @@ ${lines.join("\n").trimEnd()}`;
       );
     }
     return true;
+  }
+
+  // src/adapter/actorMemoryContext.ts
+  var CHARS_PER_TOKEN2 = 4;
+  var ACTOR_MEMORY_TOKEN_BUDGET = 3072;
+  function isBlank(text) {
+    return text.trim().length === 0;
+  }
+  function renderBudgetedSections(sections, tokenBudget) {
+    const maxChars = tokenBudget * CHARS_PER_TOKEN2;
+    const lines = [];
+    let charCount = 0;
+    for (const [heading, body] of sections) {
+      if (isBlank(body)) continue;
+      const sectionHeader = `## ${heading}`;
+      const sectionBody = body.trimEnd();
+      const sectionCost = sectionHeader.length + 1 + sectionBody.length + 1;
+      if (charCount + sectionCost > maxChars) {
+        const remaining = maxChars - charCount;
+        if (remaining > sectionHeader.length + 20) {
+          lines.push(sectionHeader);
+          const availableForBody = remaining - sectionHeader.length - 2;
+          lines.push(sectionBody.slice(0, Math.max(0, availableForBody)));
+          lines.push("");
+        }
+        break;
+      }
+      lines.push(sectionHeader);
+      lines.push(sectionBody);
+      lines.push("");
+      charCount += sectionCost;
+    }
+    return lines.join("\n").trimEnd();
+  }
+  function buildActorMemoryContext(input) {
+    const summariesBody = input.memorySummaries.filter((s) => !isBlank(s)).join("\n");
+    const hasContent = !isBlank(input.recalledDocsBlock) || !isBlank(input.notebookBlock) || !isBlank(summariesBody);
+    if (!hasContent) return "";
+    const rendered = renderBudgetedSections(
+      [
+        ["Recalled Documents", input.recalledDocsBlock],
+        ["Session Notebook", input.notebookBlock],
+        ["Canonical Summaries", summariesBody]
+      ],
+      ACTOR_MEMORY_TOKEN_BUDGET
+    );
+    if (isBlank(rendered)) return "";
+    const cleaned = rendered.replace(/\n{3,}/g, "\n\n");
+    return `# Director Long Memory
+
+${cleaned}`;
   }
 
   // src/runtime/refreshGuard.ts
@@ -9493,11 +9548,12 @@ ${doc.description}`;
         }
         const promptPreset = resolvePromptPreset(state.settings);
         const notebookBlock = formatNotebookBlock(sessionNotebook.snapshot());
+        const projectedMemory = projectRetrievedMemory(state, retrieved);
         const service = createDirectorService(api, state.settings);
         const result = await service.preRequest({
           messages: input.messages,
           directorState: state.director,
-          memory: projectRetrievedMemory(state, retrieved),
+          memory: projectedMemory,
           assertiveness: state.settings.assertiveness,
           briefTokenCap: state.settings.briefTokenCap,
           promptPreset,
@@ -9508,8 +9564,17 @@ ${doc.description}`;
           await store.writeFirst((current) => recordDirectorFailure(current, result.error));
           throw new Error(result.error);
         }
+        const memorySummaries = projectedMemory.summaries.slice().sort((a, b) => b.recencyWeight - a.recencyWeight).slice(0, 10).map((s) => s.text);
+        const actorMemoryContext = buildActorMemoryContext({
+          notebookBlock: notebookBlock || "",
+          recalledDocsBlock,
+          memorySummaries
+        });
         await store.writeFirst((current) => recordDirectorSuccess(current));
-        return result.brief;
+        return {
+          brief: result.brief,
+          ...actorMemoryContext ? { actorMemoryContext } : {}
+        };
       },
       async postResponse(input) {
         const state = await store.load();
