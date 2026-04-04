@@ -87,6 +87,16 @@ export interface MemdirDocument {
   embedding?: EmbeddingMeta
 }
 
+/** Dashboard-facing summary of embedding cache health for a scope. */
+export interface EmbeddingCacheStatus {
+  enabled: boolean
+  supported: boolean
+  readyCount: number
+  staleCount: number
+  missingCount: number
+  currentVersion: string
+}
+
 /** Manifest / index for a scope's memdir documents. */
 export interface MemdirIndex {
   scopeKey: string

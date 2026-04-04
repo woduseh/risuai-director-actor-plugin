@@ -353,19 +353,29 @@ describe('Embedding integration', () => {
       makeMemdirDoc({ id: 'd3' }),
     ]
 
-    const status = computeEmbeddingCacheStatus(docs, 'emb-v2', true)
+    const status = computeEmbeddingCacheStatus(docs, 'emb-v2', true, true)
     expect(status.readyCount).toBe(1)
     expect(status.staleCount).toBe(1)
     expect(status.missingCount).toBe(1)
     expect(status.enabled).toBe(true)
+    expect(status.supported).toBe(true)
     expect(status.currentVersion).toBe('emb-v2')
   })
 
   test('computeEmbeddingCacheStatus returns disabled status when embeddings off', async () => {
     const { computeEmbeddingCacheStatus } = await import('../src/memory/embeddingIntegration.js')
 
-    const status = computeEmbeddingCacheStatus([], '', false)
+    const status = computeEmbeddingCacheStatus([], '', false, true)
     expect(status.enabled).toBe(false)
+    expect(status.supported).toBe(true)
     expect(status.readyCount).toBe(0)
+  })
+
+  test('computeEmbeddingCacheStatus reflects unsupported provider', async () => {
+    const { computeEmbeddingCacheStatus } = await import('../src/memory/embeddingIntegration.js')
+
+    const status = computeEmbeddingCacheStatus([], 'v1', true, false)
+    expect(status.supported).toBe(false)
+    expect(status.enabled).toBe(true)
   })
 })

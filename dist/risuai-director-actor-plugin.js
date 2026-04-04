@@ -522,6 +522,8 @@
     "continuity",
     "operator"
   ];
+  var MEMDIR_FRESHNESS_VALUES = ["current", "stale", "archived"];
+  var MEMDIR_SOURCE_VALUES = ["extraction", "operator", "migration", "manual"];
   var DEFAULT_DIRECTOR_SETTINGS = {
     enabled: true,
     assertiveness: "standard",
@@ -3237,6 +3239,7 @@ ${lines.join("\n").trimEnd()}`;
     "workbench.copy": "Read-only inspector for memdir documents in the current scope.",
     "workbench.loading": "Loading memdir documents\u2026",
     "workbench.emptyHint": "No memdir documents in this scope yet.",
+    "workbench.noMatchHint": "No documents match the current filters.",
     "workbench.filterAll": "All",
     "workbench.filterType": "Type",
     "workbench.filterFreshness": "Freshness",
@@ -3506,6 +3509,7 @@ ${lines.join("\n").trimEnd()}`;
     "workbench.copy": "\uD604\uC7AC \uBC94\uC704\uC758 memdir \uBB38\uC11C\uB97C \uC704\uD55C \uC77D\uAE30 \uC804\uC6A9 \uC778\uC2A4\uD399\uD130.",
     "workbench.loading": "memdir \uBB38\uC11C \uB85C\uB529 \uC911\u2026",
     "workbench.emptyHint": "\uC774 \uBC94\uC704\uC5D0 memdir \uBB38\uC11C\uAC00 \uC544\uC9C1 \uC5C6\uC2B5\uB2C8\uB2E4.",
+    "workbench.noMatchHint": "\uD604\uC7AC \uD544\uD130\uC5D0 \uC77C\uCE58\uD558\uB294 \uBB38\uC11C\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.",
     "workbench.filterAll": "\uC804\uCCB4",
     "workbench.filterType": "\uC720\uD615",
     "workbench.filterFreshness": "\uC2E0\uC120\uB3C4",
@@ -5126,8 +5130,8 @@ ${lines.join("\n").trimEnd()}`;
   }
 
   // src/ui/memoryWorkbenchDom.ts
-  var FRESHNESS_VALUES = ["current", "stale", "archived"];
-  var SOURCE_VALUES = ["extraction", "operator", "migration", "manual"];
+  var FRESHNESS_VALUES = MEMDIR_FRESHNESS_VALUES;
+  var SOURCE_VALUES = MEMDIR_SOURCE_VALUES;
   var NOTEBOOK_SECTION_LABELS = {
     currentState: "Current State",
     immediateGoals: "Immediate Goals",
@@ -5181,12 +5185,15 @@ ${lines.join("\n").trimEnd()}`;
     const freshnessBadge = `<span class="da-badge da-badge--sm" data-kind="${doc.freshness === "current" ? "success" : doc.freshness === "stale" ? "stale" : "neutral"}">${escapeXml(doc.freshness)}</span>`;
     return `<li class="da-memory-item" data-da-role="workbench-doc-item" data-da-doc-id="${escapeXml(doc.id)}">
     <span class="da-workbench-doc-title">${escapeXml(doc.title)}</span>
-    <span class="da-workbench-doc-meta">${escapeXml(doc.type)} \xB7 ${escapeXml(doc.source)} \xB7 ${formatTimestamp(doc.updatedAt)}</span>
+    <span class="da-workbench-doc-meta">${escapeXml(doc.type)} \xB7 ${escapeXml(doc.source)} \xB7 ${escapeXml(formatTimestamp(doc.updatedAt))}</span>
     ${freshnessBadge}${embeddingBadge}
   </li>`;
   }
-  function buildDocumentList(docs) {
+  function buildDocumentList(docs, hasUnfilteredDocs) {
     if (docs.length === 0) {
+      if (hasUnfilteredDocs) {
+        return `<p class="da-empty" data-da-role="workbench-no-match">${t("workbench.noMatchHint")}</p>`;
+      }
       return `<p class="da-empty" data-da-role="workbench-empty">${t("workbench.emptyHint")}</p>`;
     }
     const items = docs.map(buildDocumentItem).join("");
@@ -5222,7 +5229,7 @@ ${lines.join("\n").trimEnd()}`;
     </section>`;
     }
     const filtered = applyFilters(input.documents, input.filters);
-    const listHtml = input.documents.length > 0 ? buildDocumentList(filtered) : buildDocumentList([]);
+    const listHtml = input.documents.length > 0 ? buildDocumentList(filtered, true) : buildDocumentList([], false);
     const filterHtml = input.documents.length > 0 ? buildFilterControls(input.filters) : "";
     const memoryMdHtml = input.memoryMdPreview != null ? buildMemoryMdPreview(input.memoryMdPreview) : "";
     const notebookHtml = input.notebookSnapshot != null ? buildNotebookSnapshot(input.notebookSnapshot) : "";
@@ -6436,11 +6443,11 @@ ${lines.join("\n").trimEnd()}`;
     handleWorkbenchFilterChange(role, value) {
       const filters = { ...this.workbenchInput.filters };
       if (role === "workbench-filter-type") {
-        filters.type = value ? value : null;
+        filters.type = value === "" ? null : MEMDIR_DOCUMENT_TYPES.includes(value) ? value : null;
       } else if (role === "workbench-filter-freshness") {
-        filters.freshness = value ? value : null;
+        filters.freshness = value === "" ? null : MEMDIR_FRESHNESS_VALUES.includes(value) ? value : null;
       } else if (role === "workbench-filter-source") {
-        filters.source = value ? value : null;
+        filters.source = value === "" ? null : MEMDIR_SOURCE_VALUES.includes(value) ? value : null;
       }
       this.workbenchInput = { ...this.workbenchInput, filters };
       this.memoryPageReRender();
@@ -8334,12 +8341,12 @@ ${doc.description}`;
     }
     return embedded;
   }
-  async function embedSingleDocument(doc, memdirStore, embeddingClient, vectorVersion, log) {
+  async function tryEnrichWithEmbedding(doc, embeddingClient, vectorVersion, log) {
     const text = `${doc.title}
 ${doc.description}`;
     const result = await embeddingClient.embed(text);
     if (result.ok) {
-      const updated = {
+      return {
         ...doc,
         embedding: {
           vector: result.vector,
@@ -8347,17 +8354,15 @@ ${doc.description}`;
           embeddedAt: Date.now()
         }
       };
-      await memdirStore.putDocument(updated);
-      return true;
     }
     log(`Failed to embed doc "${doc.id}": ${result.error}`);
-    return false;
+    return doc;
   }
-  function computeEmbeddingCacheStatus(docs, currentVersion, enabled) {
+  function computeEmbeddingCacheStatus(docs, currentVersion, enabled, supported) {
     if (!enabled) {
       return {
         enabled: false,
-        supported: true,
+        supported,
         readyCount: 0,
         staleCount: 0,
         missingCount: 0,
@@ -8378,7 +8383,7 @@ ${doc.description}`;
     }
     return {
       enabled: true,
-      supported: true,
+      supported,
       readyCount,
       staleCount,
       missingCount,
@@ -8387,6 +8392,7 @@ ${doc.description}`;
   }
 
   // src/index.ts
+  var QUERY_EMBEDDING_TEXT_LIMIT = 2e3;
   function createId3(prefix) {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
@@ -8551,10 +8557,8 @@ ${doc.description}`;
           const client = buildEmbeddingClient(api, settings);
           const version = client ? getVectorVersion(settings) : "";
           for (const doc of docs) {
-            await memdirStore.putDocument(doc);
-            if (client) {
-              await embedSingleDocument(doc, memdirStore, client, version, (msg) => api.log(msg));
-            }
+            const final = client ? await tryEnrichWithEmbedding(doc, client, version, (msg) => api.log(msg)) : doc;
+            await memdirStore.putDocument(final);
           }
         },
         log(message) {
@@ -8693,7 +8697,7 @@ ${doc.description}`;
         if (embeddingClient) {
           vectorVersion = getVectorVersion(settings);
           try {
-            const embResult = await embeddingClient.embed(recentText.slice(0, 2e3));
+            const embResult = await embeddingClient.embed(recentText.slice(0, QUERY_EMBEDDING_TEXT_LIMIT));
             if (embResult.ok) {
               queryVector = embResult.vector;
             }
@@ -8857,8 +8861,7 @@ ${doc.description}`;
           const version = getVectorVersion(currentState.settings);
           const enabled = currentState.settings.embeddingsEnabled;
           const supported = isProviderSupported(currentState.settings.embeddingProvider);
-          const status = computeEmbeddingCacheStatus(docs, version, enabled);
-          return { ...status, supported };
+          return computeEmbeddingCacheStatus(docs, version, enabled, supported);
         };
         dashboardStore.getWorkbenchDocuments = async () => {
           const docs = await memdirStore.listDocuments();

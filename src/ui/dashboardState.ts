@@ -5,8 +5,12 @@ import type {
   DirectorPluginState,
   StoredDirectorPromptPreset,
   CanonicalMemory,
+  EmbeddingCacheStatus,
 } from '../contracts/types.js'
 import { DEFAULT_DIRECTOR_SETTINGS } from '../contracts/types.js'
+
+// Re-export so existing consumers that import from this module keep working.
+export type { EmbeddingCacheStatus } from '../contracts/types.js'
 import type { DiagnosticsSnapshot } from '../runtime/diagnostics.js'
 import { createDefaultDiagnosticsSnapshot } from '../runtime/diagnostics.js'
 import {
@@ -518,15 +522,6 @@ export interface RecalledDocEntry {
   id: string
   title: string
   freshness: 'current' | 'stale' | 'archived'
-}
-
-export interface EmbeddingCacheStatus {
-  enabled: boolean
-  supported: boolean
-  readyCount: number
-  staleCount: number
-  missingCount: number
-  currentVersion: string
 }
 
 export interface MemoryOpsStatus {

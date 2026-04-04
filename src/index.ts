@@ -53,7 +53,14 @@ import { RefreshGuard } from './runtime/refreshGuard.js'
 import { openDashboard, createDashboardStore } from './ui/dashboardApp.js'
 import { createEmbeddingClient, isProviderSupported, type EmbeddingClient } from './memory/embeddingClient.js'
 import { computeVectorVersion } from './memory/vectorVersion.js'
-import { embedSingleDocument, embedDocuments, computeEmbeddingCacheStatus } from './memory/embeddingIntegration.js'
+import { tryEnrichWithEmbedding, embedDocuments, computeEmbeddingCacheStatus } from './memory/embeddingIntegration.js'
+
+/**
+ * Cap for the text snippet sent to the embedding API when computing a
+ * query vector.  Keeps latency and token cost bounded; 2 000 chars is
+ * well within every supported provider's context window.
+ */
+const QUERY_EMBEDDING_TEXT_LIMIT = 2_000
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -272,12 +279,11 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
         const version = client ? getVectorVersion(settings) : ''
 
         for (const doc of docs) {
-          await memdirStore.putDocument(doc)
-
-          // Embed newly persisted doc if embeddings are enabled
-          if (client) {
-            await embedSingleDocument(doc, memdirStore, client, version, (msg) => api.log(msg))
-          }
+          // Enrich with embedding (if enabled) then persist once
+          const final = client
+            ? await tryEnrichWithEmbedding(doc, client, version, (msg) => api.log(msg))
+            : doc
+          await memdirStore.putDocument(final)
         }
       },
 
@@ -444,7 +450,7 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
       if (embeddingClient) {
         vectorVersion = getVectorVersion(settings)
         try {
-          const embResult = await embeddingClient.embed(recentText.slice(0, 2000))
+          const embResult = await embeddingClient.embed(recentText.slice(0, QUERY_EMBEDDING_TEXT_LIMIT))
           if (embResult.ok) {
             queryVector = embResult.vector
           }
@@ -626,8 +632,7 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
         const version = getVectorVersion(currentState.settings)
         const enabled = currentState.settings.embeddingsEnabled
         const supported = isProviderSupported(currentState.settings.embeddingProvider)
-        const status = computeEmbeddingCacheStatus(docs, version, enabled)
-        return { ...status, supported }
+        return computeEmbeddingCacheStatus(docs, version, enabled, supported)
       }
       dashboardStore.getWorkbenchDocuments = async () => {
         const docs = await memdirStore.listDocuments()

@@ -8,10 +8,9 @@
  *  - computing embedding cache status for dashboard reporting
  */
 
-import type { MemdirDocument } from '../contracts/types.js'
+import type { MemdirDocument, EmbeddingCacheStatus } from '../contracts/types.js'
 import type { EmbeddingClient } from './embeddingClient.js'
 import type { MemdirStore } from './memdirStore.js'
-import type { EmbeddingCacheStatus } from '../ui/dashboardState.js'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -75,21 +74,24 @@ export async function embedDocuments(
 // ---------------------------------------------------------------------------
 
 /**
- * Embed a single document if embeddings are enabled.
- * Returns true if embedding was successful, false otherwise.
+ * Attempt to compute an embedding for a document and return an enriched
+ * copy.  Does **not** persist — the caller is responsible for writing
+ * the returned document to the store exactly once.
+ *
+ * If embedding fails the original document is returned unchanged so the
+ * caller can still persist it without an embedding (fail-safe).
  */
-export async function embedSingleDocument(
+export async function tryEnrichWithEmbedding(
   doc: MemdirDocument,
-  memdirStore: MemdirStore,
   embeddingClient: EmbeddingClient,
   vectorVersion: string,
   log: (message: string) => void,
-): Promise<boolean> {
+): Promise<MemdirDocument> {
   const text = `${doc.title}\n${doc.description}`
   const result = await embeddingClient.embed(text)
 
   if (result.ok) {
-    const updated: MemdirDocument = {
+    return {
       ...doc,
       embedding: {
         vector: result.vector,
@@ -97,12 +99,10 @@ export async function embedSingleDocument(
         embeddedAt: Date.now(),
       },
     }
-    await memdirStore.putDocument(updated)
-    return true
   }
 
   log(`Failed to embed doc "${doc.id}": ${result.error}`)
-  return false
+  return doc
 }
 
 // ---------------------------------------------------------------------------
@@ -112,16 +112,21 @@ export async function embedSingleDocument(
 /**
  * Compute embedding cache status from the current set of documents
  * and the active vector version.
+ *
+ * @param supported - whether the configured embedding provider is
+ *   recognised by the client.  Determined at the call-site in index.ts
+ *   via `isProviderSupported()`.
  */
 export function computeEmbeddingCacheStatus(
   docs: MemdirDocument[],
   currentVersion: string,
   enabled: boolean,
+  supported: boolean,
 ): EmbeddingCacheStatus {
   if (!enabled) {
     return {
       enabled: false,
-      supported: true,
+      supported,
       readyCount: 0,
       staleCount: 0,
       missingCount: 0,
@@ -145,7 +150,7 @@ export function computeEmbeddingCacheStatus(
 
   return {
     enabled: true,
-    supported: true,
+    supported,
     readyCount,
     staleCount,
     missingCount,

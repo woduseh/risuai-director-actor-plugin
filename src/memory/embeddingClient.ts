@@ -105,6 +105,8 @@ async function embedGemini(
   nativeFetch: NativeFetchFn,
 ): Promise<EmbeddingResult> {
   const base = config.baseUrl.replace(/\/+$/, '')
+  // Google's REST embedding API authenticates via query-string API key
+  // (not a Bearer header) for this non-OAuth flow.
   const url = `${base}/models/${config.model}:embedContent?key=${config.apiKey}`
 
   const response = await nativeFetch(url, {
