@@ -175,10 +175,16 @@ describe('director prompt presets', () => {
   test('default pre-request preset omits empty context layers gracefully', () => {
     const messages = buildPreRequestPrompt(makeDirectorContext())
 
-    // Without notebook/recalled docs, the user template should not contain leftover headers
+    // Without notebook/recalled docs, the empty placeholders collapse to blank lines.
+    // The newline-collapse logic should reduce runs of 3+ newlines to pairs.
     const userContent = messages[1]?.content ?? ''
-    expect(userContent).not.toContain('Session Notebook')
-    expect(userContent).not.toContain('Recalled Documents')
+    
+    // The template has "# Layer 2 · Warm Memory" followed by notebookBlock and recalledDocsBlock
+    // When both are empty strings, there should be no runs of 3+ consecutive newlines in the output
+    expect(userContent).toMatch(/Layer 2 · Warm Memory\n\n## Memory Summaries/)
+    
+    // No more than 2 consecutive newlines should appear anywhere in the content
+    expect(userContent).not.toMatch(/\n{3,}/)
   })
 
   test('dynamic prompt content keeps placeholder-like text literal', () => {
