@@ -49,12 +49,12 @@ describe('Memory Workbench – loading state', () => {
 
   test('renders a loading indicator when loading is true', () => {
     const html = buildMemoryWorkbench(defaultInput({ loading: true }))
-    expect(html).toContain('data-da-role="workbench-loading"')
+    expect(html).toContain('data-cd-role="workbench-loading"')
   })
 
   test('does not render document list while loading', () => {
     const html = buildMemoryWorkbench(defaultInput({ loading: true, documents: [makeDoc()] }))
-    expect(html).not.toContain('data-da-role="workbench-doc-list"')
+    expect(html).not.toContain('data-cd-role="workbench-doc-list"')
   })
 })
 
@@ -67,13 +67,13 @@ describe('Memory Workbench – error state', () => {
 
   test('renders an inline error message when error is set', () => {
     const html = buildMemoryWorkbench(defaultInput({ error: 'Failed to load memdir' }))
-    expect(html).toContain('data-da-role="workbench-error"')
+    expect(html).toContain('data-cd-role="workbench-error"')
     expect(html).toContain('Failed to load memdir')
   })
 
   test('error state does not prevent the rest of the section from rendering', () => {
     const html = buildMemoryWorkbench(defaultInput({ error: 'Some error' }))
-    expect(html).toContain('data-da-role="workbench-section"')
+    expect(html).toContain('data-cd-role="workbench-section"')
   })
 })
 
@@ -86,14 +86,14 @@ describe('Memory Workbench – empty state', () => {
 
   test('renders a clear no-documents state when documents array is empty', () => {
     const html = buildMemoryWorkbench(defaultInput({ documents: [] }))
-    expect(html).toContain('data-da-role="workbench-empty"')
+    expect(html).toContain('data-cd-role="workbench-empty"')
   })
 
   test('empty state text is not blank', () => {
     const html = buildMemoryWorkbench(defaultInput({ documents: [] }))
     const container = document.createElement('div')
     container.innerHTML = html
-    const empty = container.querySelector('[data-da-role="workbench-empty"]')
+    const empty = container.querySelector('[data-cd-role="workbench-empty"]')
     expect(empty).not.toBeNull()
     expect(empty!.textContent!.trim().length).toBeGreaterThan(0)
   })
@@ -115,7 +115,7 @@ describe('Memory Workbench – document list', () => {
       updatedAt: 1700000000000,
     })
     const html = buildMemoryWorkbench(defaultInput({ documents: [doc] }))
-    expect(html).toContain('data-da-role="workbench-doc-list"')
+    expect(html).toContain('data-cd-role="workbench-doc-list"')
     expect(html).toContain('My Character')
     expect(html).toContain('character')
     expect(html).toContain('extraction')
@@ -128,7 +128,7 @@ describe('Memory Workbench – document list', () => {
     const html = buildMemoryWorkbench(defaultInput({ documents: [withEmbed, withoutEmbed] }))
     const container = document.createElement('div')
     container.innerHTML = html
-    const items = container.querySelectorAll('[data-da-role="workbench-doc-item"]')
+    const items = container.querySelectorAll('[data-cd-role="workbench-doc-item"]')
     expect(items.length).toBe(2)
   })
 
@@ -149,9 +149,9 @@ describe('Memory Workbench – filter controls', () => {
 
   test('renders filter controls for type, freshness, and source', () => {
     const html = buildMemoryWorkbench(defaultInput({ documents: [makeDoc()] }))
-    expect(html).toContain('data-da-role="workbench-filter-type"')
-    expect(html).toContain('data-da-role="workbench-filter-freshness"')
-    expect(html).toContain('data-da-role="workbench-filter-source"')
+    expect(html).toContain('data-cd-role="workbench-filter-type"')
+    expect(html).toContain('data-cd-role="workbench-filter-freshness"')
+    expect(html).toContain('data-cd-role="workbench-filter-source"')
   })
 
   test('filters narrow the visible document list by type', () => {
@@ -221,13 +221,13 @@ describe('Memory Workbench – MEMORY.md preview', () => {
   test('renders MEMORY.md preview when provided', () => {
     const md = '# MEMORY.md\n## Characters\n- **Hero** [current]: A brave warrior'
     const html = buildMemoryWorkbench(defaultInput({ memoryMdPreview: md }))
-    expect(html).toContain('data-da-role="workbench-memory-md"')
+    expect(html).toContain('data-cd-role="workbench-memory-md"')
     expect(html).toContain('MEMORY.md')
   })
 
   test('does not render MEMORY.md section when null', () => {
     const html = buildMemoryWorkbench(defaultInput({ memoryMdPreview: null }))
-    expect(html).not.toContain('data-da-role="workbench-memory-md"')
+    expect(html).not.toContain('data-cd-role="workbench-memory-md"')
   })
 
   test('escapes MEMORY.md content', () => {
@@ -253,14 +253,14 @@ describe('Memory Workbench – notebook snapshot', () => {
       recentMistakes: '',
     }
     const html = buildMemoryWorkbench(defaultInput({ notebookSnapshot: snap }))
-    expect(html).toContain('data-da-role="workbench-notebook"')
+    expect(html).toContain('data-cd-role="workbench-notebook"')
     expect(html).toContain('The hero is resting.')
     expect(html).toContain('Find the sword.')
   })
 
   test('does not render notebook section when null', () => {
     const html = buildMemoryWorkbench(defaultInput({ notebookSnapshot: null }))
-    expect(html).not.toContain('data-da-role="workbench-notebook"')
+    expect(html).not.toContain('data-cd-role="workbench-notebook"')
   })
 
   test('renders only non-empty notebook sections', () => {
@@ -274,7 +274,7 @@ describe('Memory Workbench – notebook snapshot', () => {
     const html = buildMemoryWorkbench(defaultInput({ notebookSnapshot: snap }))
     const container = document.createElement('div')
     container.innerHTML = html
-    const items = container.querySelectorAll('[data-da-role="workbench-notebook-entry"]')
+    const items = container.querySelectorAll('[data-cd-role="workbench-notebook-entry"]')
     expect(items.length).toBe(1)
   })
 })
@@ -290,6 +290,6 @@ describe('Memory Workbench – i18n', () => {
     setLocale('ko')
     const html = buildMemoryWorkbench(defaultInput())
     // The card title should be in Korean
-    expect(html).toContain('data-da-role="workbench-section"')
+    expect(html).toContain('data-cd-role="workbench-section"')
   })
 })

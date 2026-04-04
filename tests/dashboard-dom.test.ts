@@ -33,8 +33,8 @@ describe('buildDashboardMarkup', () => {
     })
 
     for (const tab of DASHBOARD_TABS) {
-      expect(markup).toContain(`data-da-target="${tab.id}"`)
-      expect(markup).toContain(`id="da-page-${tab.id}"`)
+      expect(markup).toContain(`data-cd-target="${tab.id}"`)
+      expect(markup).toContain(`id="cd-page-${tab.id}"`)
     }
 
     expect(markup).toContain('Continuity Console')
@@ -72,11 +72,11 @@ describe('buildDashboardMarkup', () => {
       connectionStatus: { kind: 'idle', message: '' }
     })
 
-    expect(markup).toContain('data-da-role="prompt-preset-select"')
-    expect(markup).toContain('data-da-role="prompt-preset-name"')
-    expect(markup).toContain('data-da-role="prompt-pre-request-system"')
-    expect(markup).toContain('data-da-role="prompt-post-response-user"')
-    expect(markup).toContain('data-da-action="create-prompt-preset"')
+    expect(markup).toContain('data-cd-role="prompt-preset-select"')
+    expect(markup).toContain('data-cd-role="prompt-preset-name"')
+    expect(markup).toContain('data-cd-role="prompt-pre-request-system"')
+    expect(markup).toContain('data-cd-role="prompt-post-response-user"')
+    expect(markup).toContain('data-cd-action="create-prompt-preset"')
     expect(markup).toContain(DEFAULT_DIRECTOR_PROMPT_PRESET.preRequestSystemTemplate.slice(0, 32))
   })
 
@@ -92,11 +92,11 @@ describe('buildDashboardMarkup', () => {
 
     expect(markup).toContain('value="copilot"')
     expect(markup).toContain('value="vertex"')
-    expect(markup).toContain('data-da-field="embeddingProvider"')
-    expect(markup).toContain('data-da-field="embeddingBaseUrl"')
-    expect(markup).toContain('data-da-field="embeddingApiKey"')
-    expect(markup).toContain('data-da-field="embeddingModel"')
-    expect(markup).toContain('data-da-field="embeddingDimensions"')
+    expect(markup).toContain('data-cd-field="embeddingProvider"')
+    expect(markup).toContain('data-cd-field="embeddingBaseUrl"')
+    expect(markup).toContain('data-cd-field="embeddingApiKey"')
+    expect(markup).toContain('data-cd-field="embeddingModel"')
+    expect(markup).toContain('data-cd-field="embeddingDimensions"')
     expect(markup).toContain('value="voyageai"')
   })
 
@@ -110,8 +110,8 @@ describe('buildDashboardMarkup', () => {
       connectionStatus: { kind: 'idle', message: '' },
     })
 
-    expect(markup).toContain('data-da-action="backfill-current-chat"')
-    expect(markup).toContain('data-da-action="regenerate-current-chat"')
+    expect(markup).toContain('data-cd-action="backfill-current-chat"')
+    expect(markup).toContain('data-cd-action="regenerate-current-chat"')
   })
 
   test('escapes settings field values and model option ids in model-settings markup', () => {
@@ -170,12 +170,12 @@ describe('buildDashboardMarkup', () => {
       },
     })
 
-    expect(markup).toContain('data-da-role="memory-ops-status"')
-    expect(markup).toContain('data-da-action="force-extract"')
-    expect(markup).toContain('data-da-action="force-dream"')
-    expect(markup).toContain('data-da-action="inspect-recalled"')
-    expect(markup).toContain('data-da-action="toggle-fallback-retrieval"')
-    expect(markup).toContain('data-da-action="refresh-embeddings"')
+    expect(markup).toContain('data-cd-role="memory-ops-status"')
+    expect(markup).toContain('data-cd-action="force-extract"')
+    expect(markup).toContain('data-cd-action="force-dream"')
+    expect(markup).toContain('data-cd-action="inspect-recalled"')
+    expect(markup).toContain('data-cd-action="toggle-fallback-retrieval"')
+    expect(markup).toContain('data-cd-action="refresh-embeddings"')
   })
 
   test('renders embedding status section in memory ops card', () => {
@@ -199,7 +199,7 @@ describe('buildDashboardMarkup', () => {
       },
     })
 
-    expect(markup).toContain('data-da-role="embedding-status"')
+    expect(markup).toContain('data-cd-role="embedding-status"')
     expect(markup).toContain('emb-abc123')
     // Should contain counts
     expect(markup).toContain('5')
@@ -228,7 +228,7 @@ describe('buildDashboardMarkup', () => {
       },
     })
 
-    expect(markup).toContain('data-da-role="embedding-status"')
+    expect(markup).toContain('data-cd-role="embedding-status"')
     expect(markup).toContain('Disabled')
   })
 
@@ -254,7 +254,7 @@ describe('buildDashboardMarkup', () => {
       },
     })
 
-    expect(markup).toContain('data-da-role="stale-warnings"')
+    expect(markup).toContain('data-cd-role="stale-warnings"')
     expect(markup).toContain('Character A')
   })
 
@@ -280,7 +280,7 @@ describe('buildDashboardMarkup', () => {
       },
     })
 
-    expect(markup).toContain('data-da-role="memory-locked"')
+    expect(markup).toContain('data-cd-role="memory-locked"')
   })
 
   test('locked badge does not appear in stale-warnings list', () => {
@@ -305,8 +305,8 @@ describe('buildDashboardMarkup', () => {
       },
     })
 
-    expect(markup).toContain('data-da-role="memory-locked"')
-    expect(markup).not.toContain('data-da-role="stale-warnings"')
+    expect(markup).toContain('data-cd-role="memory-locked"')
+    expect(markup).not.toContain('data-cd-role="stale-warnings"')
   })
 
   // ── Diagnostics section ─────────────────────────────────────────────
@@ -322,14 +322,14 @@ describe('buildDashboardMarkup', () => {
       memoryOpsStatus: createDefaultMemoryOpsStatus(),
     })
 
-    expect(markup).toContain('data-da-role="diagnostics"')
-    expect(markup).toContain('data-da-role="diag-last-hook"')
-    expect(markup).toContain('data-da-role="diag-last-error"')
-    expect(markup).toContain('data-da-role="diag-worker-extraction"')
-    expect(markup).toContain('data-da-role="diag-worker-dream"')
-    expect(markup).toContain('data-da-role="diag-worker-recovery"')
+    expect(markup).toContain('data-cd-role="diagnostics"')
+    expect(markup).toContain('data-cd-role="diag-last-hook"')
+    expect(markup).toContain('data-cd-role="diag-last-error"')
+    expect(markup).toContain('data-cd-role="diag-worker-extraction"')
+    expect(markup).toContain('data-cd-role="diag-worker-dream"')
+    expect(markup).toContain('data-cd-role="diag-worker-recovery"')
     // Should show "No recent activity" when breadcrumbs are empty
-    expect(markup).not.toContain('data-da-role="diag-breadcrumbs"')
+    expect(markup).not.toContain('data-cd-role="diag-breadcrumbs"')
   })
 
   test('renders diagnostics with populated hook and error info', () => {
@@ -381,7 +381,7 @@ describe('buildDashboardMarkup', () => {
       memoryOpsStatus: { ...createDefaultMemoryOpsStatus(), diagnostics: diag },
     })
 
-    expect(markup).toContain('data-da-role="diag-breadcrumbs"')
+    expect(markup).toContain('data-cd-role="diag-breadcrumbs"')
     expect(markup).toContain('hook:beforeRequest')
     expect(markup).toContain('error:preRequest')
     expect(markup).toContain('timeout')
@@ -419,8 +419,8 @@ describe('buildDashboardMarkup', () => {
       connectionStatus: { kind: 'idle', message: '' },
     })
 
-    expect(markup).toContain('data-da-action="close-dashboard"')
-    expect(markup).toContain('data-da-action="export-settings"')
+    expect(markup).toContain('data-cd-action="close-dashboard"')
+    expect(markup).toContain('data-cd-action="export-settings"')
   })
 
   test('renders settings page save-settings and reset-settings action buttons', () => {
@@ -433,8 +433,8 @@ describe('buildDashboardMarkup', () => {
       connectionStatus: { kind: 'idle', message: '' },
     })
 
-    expect(markup).toContain('data-da-action="save-settings"')
-    expect(markup).toContain('data-da-action="reset-settings"')
+    expect(markup).toContain('data-cd-action="save-settings"')
+    expect(markup).toContain('data-cd-action="reset-settings"')
   })
 
   // ── Accessibility: aria-label coverage ─────────────────────────────
@@ -449,7 +449,7 @@ describe('buildDashboardMarkup', () => {
       connectionStatus: { kind: 'idle', message: '' },
     })
 
-    expect(markup).toMatch(/data-da-role="memory-filter"[^>]*aria-label="[^"]+"/);
+    expect(markup).toMatch(/data-cd-role="memory-filter"[^>]*aria-label="[^"]+"/);
   })
 
   test('add-row inputs have aria-labels', () => {
@@ -473,7 +473,7 @@ describe('buildDashboardMarkup', () => {
     ]
     for (const role of addRoles) {
       expect(markup, `aria-label on ${role}`).toMatch(
-        new RegExp(`data-da-role="${role}"[^>]*aria-label="[^"]+"`)
+        new RegExp(`data-cd-role="${role}"[^>]*aria-label="[^"]+"`)
       )
     }
   })
@@ -492,7 +492,7 @@ describe('buildDashboardMarkup', () => {
       connectionStatus: { kind: 'idle', message: '' },
     })
 
-    expect(markup).toMatch(/data-da-role="memory-select"[^>]*aria-label="[^"]+"/);
+    expect(markup).toMatch(/data-cd-role="memory-select"[^>]*aria-label="[^"]+"/);
   })
 
   test('memory item edit and delete buttons have aria-labels', () => {
@@ -508,8 +508,8 @@ describe('buildDashboardMarkup', () => {
       connectionStatus: { kind: 'idle', message: '' },
     })
 
-    expect(markup).toMatch(/data-da-action="edit-memory-item"[^>]*aria-label="[^"]+"/);
-    expect(markup).toMatch(/data-da-action="delete-summary"[^>]*aria-label="[^"]+"/);
+    expect(markup).toMatch(/data-cd-action="edit-memory-item"[^>]*aria-label="[^"]+"/);
+    expect(markup).toMatch(/data-cd-action="delete-summary"[^>]*aria-label="[^"]+"/);
   })
 
   test('close-dashboard button has aria-label', () => {
@@ -522,7 +522,7 @@ describe('buildDashboardMarkup', () => {
       connectionStatus: { kind: 'idle', message: '' },
     })
 
-    expect(markup).toMatch(/data-da-action="close-dashboard"[^>]*aria-label="[^"]+"/);
+    expect(markup).toMatch(/data-cd-action="close-dashboard"[^>]*aria-label="[^"]+"/);
   })
 
   test('connection-status surface has role="status" and aria-live="polite"', () => {
@@ -535,8 +535,8 @@ describe('buildDashboardMarkup', () => {
       connectionStatus: { kind: 'idle', message: 'Not tested' },
     })
 
-    expect(markup).toMatch(/da-connection-status[^>]*role="status"/);
-    expect(markup).toMatch(/da-connection-status[^>]*aria-live="polite"/);
+    expect(markup).toMatch(/cd-connection-status[^>]*role="status"/);
+    expect(markup).toMatch(/cd-connection-status[^>]*aria-live="polite"/);
   })
 })
 
@@ -549,9 +549,9 @@ describe('buildPageTitle', () => {
     setLocale('en')
   })
 
-  test('returns an h2 with da-page-title class and translated label', () => {
+  test('returns an h2 with cd-page-title class and translated label', () => {
     const html = buildPageTitle('memory-cache')
-    expect(html).toBe('<h2 class="da-page-title">Memory & Cache</h2>')
+    expect(html).toBe('<h2 class="cd-page-title">Memory & Cache</h2>')
   })
 
   test('produces the same title used inside buildDashboardMarkup pages', () => {
@@ -572,7 +572,7 @@ describe('buildPageTitle', () => {
   test('respects locale changes', () => {
     setLocale('ko')
     const html = buildPageTitle('memory-cache')
-    expect(html).toContain('da-page-title')
+    expect(html).toContain('cd-page-title')
     expect(html).not.toContain('Memory')
   })
 })
@@ -606,7 +606,7 @@ describe('buildDashboardMarkup – workbench integration', () => {
       },
     })
 
-    expect(markup).toContain('data-da-role="workbench-section"')
+    expect(markup).toContain('data-cd-role="workbench-section"')
     expect(markup).toContain('Test Doc')
   })
 
@@ -628,7 +628,7 @@ describe('buildDashboardMarkup – workbench integration', () => {
       },
     })
 
-    expect(markup).toContain('data-da-role="workbench-empty"')
+    expect(markup).toContain('data-cd-role="workbench-empty"')
   })
 
   test('does not render workbench section when workbenchInput is not provided', () => {
@@ -641,7 +641,7 @@ describe('buildDashboardMarkup – workbench integration', () => {
       connectionStatus: { kind: 'idle', message: '' },
     })
 
-    expect(markup).not.toContain('data-da-role="workbench-section"')
+    expect(markup).not.toContain('data-cd-role="workbench-section"')
   })
 
   test('workbench load failure does not break the rest of the memory page', () => {
@@ -663,11 +663,11 @@ describe('buildDashboardMarkup – workbench integration', () => {
     })
 
     // Workbench error shows inline
-    expect(markup).toContain('data-da-role="workbench-error"')
+    expect(markup).toContain('data-cd-role="workbench-error"')
     expect(markup).toContain('Failed to load memdir documents')
     // Rest of the memory page still renders
-    expect(markup).toContain('data-da-role="memory-empty"')
-    expect(markup).toContain('data-da-action="backfill-current-chat"')
+    expect(markup).toContain('data-cd-role="memory-empty"')
+    expect(markup).toContain('data-cd-action="backfill-current-chat"')
   })
 })
 

@@ -95,7 +95,7 @@ dist/risuai-continuity-director-plugin.js
 
 - The bundle includes Plugin V3 metadata comments at the top.
 - The entrypoint auto-registers when it detects a RisuAI Plugin V3 API object on `globalThis`.
-- The dashboard uses `showContainer('fullscreen')` with namespaced `.da-` styles so it stays isolated without Shadow DOM.
+- The dashboard uses `showContainer('fullscreen')` with namespaced `.cd-` styles so it stays isolated without Shadow DOM.
 - Runtime state is keyed per character/chat and preserves the active scope as chats gain opening turns or later expose stable chat IDs.
 - Current chat extraction reuses the Director post-response review path so backfilled memory follows the same normalization rules as live turns.
 - In non-DOM test environments, the settings entry falls back to a plain alert summary.

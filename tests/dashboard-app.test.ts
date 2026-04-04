@@ -52,7 +52,7 @@ describe('openDashboard', () => {
     expect(style).not.toBeNull()
     expect(style?.tagName.toLowerCase()).toBe('style')
     expect(style?.textContent).toContain(`.${DASHBOARD_ROOT_CLASS}`)
-    expect(style?.textContent).toContain('.da-sidebar')
+    expect(style?.textContent).toContain('.cd-sidebar')
   })
 
   // ── Requirement 3: Renders dashboard markup ─────────────────────────
@@ -61,16 +61,16 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`)
     expect(root).not.toBeNull()
-    expect(root?.querySelector('.da-sidebar')).not.toBeNull()
-    expect(root?.querySelector('.da-content')).not.toBeNull()
+    expect(root?.querySelector('.cd-sidebar')).not.toBeNull()
+    expect(root?.querySelector('.cd-content')).not.toBeNull()
     expect(root?.innerHTML).toContain('Continuity Console')
   })
 
   test('renders the general page content by default', async () => {
     await openDashboard(api, store)
-    const generalPage = document.querySelector('#da-page-general')
+    const generalPage = document.querySelector('#cd-page-general')
     expect(generalPage).not.toBeNull()
-    expect(generalPage?.classList.contains('da-hidden')).toBe(false)
+    expect(generalPage?.classList.contains('cd-hidden')).toBe(false)
   })
 
   // ── Requirement 4: Sidebar tab switching ────────────────────────────
@@ -79,28 +79,28 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const modelBtn = root.querySelector('[data-da-target="model-settings"]') as HTMLElement
+    const modelBtn = root.querySelector('[data-cd-target="model-settings"]') as HTMLElement
     expect(modelBtn).not.toBeNull()
     modelBtn.click()
 
-    const generalPage = document.querySelector('#da-page-general')
-    const modelPage = document.querySelector('#da-page-model-settings')
+    const generalPage = document.querySelector('#cd-page-general')
+    const modelPage = document.querySelector('#cd-page-model-settings')
 
-    expect(generalPage?.classList.contains('da-hidden')).toBe(true)
-    expect(modelPage?.classList.contains('da-hidden')).toBe(false)
+    expect(generalPage?.classList.contains('cd-hidden')).toBe(true)
+    expect(modelPage?.classList.contains('cd-hidden')).toBe(false)
   })
 
   test('updates sidebar button active class on tab switch', async () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const modelBtn = root.querySelector('[data-da-target="model-settings"]') as HTMLElement
+    const modelBtn = root.querySelector('[data-cd-target="model-settings"]') as HTMLElement
     modelBtn.click()
 
-    expect(modelBtn.classList.contains('da-sidebar-btn--active')).toBe(true)
+    expect(modelBtn.classList.contains('cd-sidebar-btn--active')).toBe(true)
 
-    const generalBtn = root.querySelector('[data-da-target="general"]') as HTMLElement
-    expect(generalBtn.classList.contains('da-sidebar-btn--active')).toBe(false)
+    const generalBtn = root.querySelector('[data-cd-target="general"]') as HTMLElement
+    expect(generalBtn.classList.contains('cd-sidebar-btn--active')).toBe(false)
   })
 
   // ── Requirement 5: Form controls bind to in-memory draft ───────────
@@ -109,28 +109,28 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const select = root.querySelector('[data-da-field="assertiveness"]') as HTMLSelectElement
+    const select = root.querySelector('[data-cd-field="assertiveness"]') as HTMLSelectElement
     expect(select).not.toBeNull()
 
     select.value = 'firm'
     select.dispatchEvent(new Event('change', { bubbles: true }))
 
-    const dirtyIndicator = root.querySelector('[data-da-role="dirty"]')
-    expect(dirtyIndicator?.classList.contains('da-hidden')).toBe(false)
+    const dirtyIndicator = root.querySelector('[data-cd-role="dirty"]')
+    expect(dirtyIndicator?.classList.contains('cd-hidden')).toBe(false)
   })
 
   test('changing a checkbox field toggles the boolean value', async () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const checkbox = root.querySelector('[data-da-field="enabled"]') as HTMLInputElement
+    const checkbox = root.querySelector('[data-cd-field="enabled"]') as HTMLInputElement
     expect(checkbox).not.toBeNull()
 
     checkbox.checked = false
     checkbox.dispatchEvent(new Event('change', { bubbles: true }))
 
-    const dirtyIndicator = root.querySelector('[data-da-role="dirty"]')
-    expect(dirtyIndicator?.classList.contains('da-hidden')).toBe(false)
+    const dirtyIndicator = root.querySelector('[data-cd-role="dirty"]')
+    expect(dirtyIndicator?.classList.contains('cd-hidden')).toBe(false)
   })
 
   // ── Requirement 6: Load/save settings from pluginStorage ────────────
@@ -145,10 +145,10 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const select = root.querySelector('[data-da-field="assertiveness"]') as HTMLSelectElement
+    const select = root.querySelector('[data-cd-field="assertiveness"]') as HTMLSelectElement
     expect(select.value).toBe('firm')
 
-    const capInput = root.querySelector('[data-da-field="briefTokenCap"]') as HTMLInputElement
+    const capInput = root.querySelector('[data-cd-field="briefTokenCap"]') as HTMLInputElement
     expect(capInput.value).toBe('500')
   })
 
@@ -166,24 +166,24 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const modelBtn = root.querySelector('[data-da-target="model-settings"]') as HTMLElement
+    const modelBtn = root.querySelector('[data-cd-target="model-settings"]') as HTMLElement
     modelBtn.click()
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     const providerSelect = updatedRoot.querySelector(
-      '[data-da-field="embeddingProvider"]',
+      '[data-cd-field="embeddingProvider"]',
     ) as HTMLSelectElement | null
     const baseUrlInput = updatedRoot.querySelector(
-      '[data-da-field="embeddingBaseUrl"]',
+      '[data-cd-field="embeddingBaseUrl"]',
     ) as HTMLInputElement | null
     const apiKeyInput = updatedRoot.querySelector(
-      '[data-da-field="embeddingApiKey"]',
+      '[data-cd-field="embeddingApiKey"]',
     ) as HTMLInputElement | null
     const modelInput = updatedRoot.querySelector(
-      '[data-da-field="embeddingModel"]',
+      '[data-cd-field="embeddingModel"]',
     ) as HTMLInputElement | HTMLSelectElement | null
     const dimensionsInput = updatedRoot.querySelector(
-      '[data-da-field="embeddingDimensions"]',
+      '[data-cd-field="embeddingDimensions"]',
     ) as HTMLInputElement | null
 
     expect(providerSelect).not.toBeNull()
@@ -198,15 +198,15 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const modelBtn = root.querySelector('[data-da-target="model-settings"]') as HTMLElement
+    const modelBtn = root.querySelector('[data-cd-target="model-settings"]') as HTMLElement
     modelBtn.click()
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     const providerSelect = updatedRoot.querySelector(
-      '[data-da-field="embeddingProvider"]',
+      '[data-cd-field="embeddingProvider"]',
     ) as HTMLSelectElement
     const baseUrlInput = updatedRoot.querySelector(
-      '[data-da-field="embeddingBaseUrl"]',
+      '[data-cd-field="embeddingBaseUrl"]',
     ) as HTMLInputElement
 
     providerSelect.value = 'voyageai'
@@ -230,11 +230,11 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const modelBtn = root.querySelector('[data-da-target="model-settings"]') as HTMLElement
+    const modelBtn = root.querySelector('[data-cd-target="model-settings"]') as HTMLElement
     modelBtn.click()
 
     const modelSelect = document.querySelector(
-      '[data-da-field="directorModel"]',
+      '[data-cd-field="directorModel"]',
     ) as HTMLSelectElement
     const values = Array.from(modelSelect.options).map((option) => option.value)
 
@@ -245,11 +245,11 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const select = root.querySelector('[data-da-field="assertiveness"]') as HTMLSelectElement
+    const select = root.querySelector('[data-cd-field="assertiveness"]') as HTMLSelectElement
     select.value = 'firm'
     select.dispatchEvent(new Event('change', { bubbles: true }))
 
-    const saveBtn = root.querySelector('[data-da-action="save"]') as HTMLElement
+    const saveBtn = root.querySelector('[data-cd-action="save"]') as HTMLElement
     expect(saveBtn).not.toBeNull()
     saveBtn.click()
 
@@ -272,11 +272,11 @@ describe('openDashboard', () => {
     await openDashboard(api, storeWithMirror)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const select = root.querySelector('[data-da-field="assertiveness"]') as HTMLSelectElement
+    const select = root.querySelector('[data-cd-field="assertiveness"]') as HTMLSelectElement
     select.value = 'light'
     select.dispatchEvent(new Event('change', { bubbles: true }))
 
-    const saveBtn = root.querySelector('[data-da-action="save"]') as HTMLElement
+    const saveBtn = root.querySelector('[data-cd-action="save"]') as HTMLElement
     saveBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
@@ -291,10 +291,10 @@ describe('openDashboard', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
     // Switch to profiles tab
-    const profileTabBtn = root.querySelector('[data-da-target="settings-profiles"]') as HTMLElement
+    const profileTabBtn = root.querySelector('[data-cd-target="settings-profiles"]') as HTMLElement
     profileTabBtn.click()
 
-    const createBtn = root.querySelector('[data-da-action="create-profile"]') as HTMLElement
+    const createBtn = root.querySelector('[data-cd-action="create-profile"]') as HTMLElement
     expect(createBtn).not.toBeNull()
     createBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
@@ -311,14 +311,14 @@ describe('openDashboard', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
     // Switch to profiles tab
-    const profileTabBtn = root.querySelector('[data-da-target="settings-profiles"]') as HTMLElement
+    const profileTabBtn = root.querySelector('[data-cd-target="settings-profiles"]') as HTMLElement
     profileTabBtn.click()
 
-    const items = root.querySelectorAll('.da-profile-item')
+    const items = root.querySelectorAll('.cd-profile-item')
     expect(items.length).toBeGreaterThanOrEqual(3)
 
     const gentleItem = Array.from(items).find(
-      (el) => el.getAttribute('data-da-profile-id') === 'builtin-gentle',
+      (el) => el.getAttribute('data-cd-profile-id') === 'builtin-gentle',
     ) as HTMLElement | undefined
     expect(gentleItem).not.toBeUndefined()
     gentleItem!.click()
@@ -326,10 +326,10 @@ describe('openDashboard', () => {
     // After re-render, the root may be replaced — re-query
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     // Switch back to general tab to see the settings
-    const generalBtn = updatedRoot.querySelector('[data-da-target="general"]') as HTMLElement
+    const generalBtn = updatedRoot.querySelector('[data-cd-target="general"]') as HTMLElement
     generalBtn.click()
 
-    const select = updatedRoot.querySelector('[data-da-field="assertiveness"]') as HTMLSelectElement
+    const select = updatedRoot.querySelector('[data-cd-field="assertiveness"]') as HTMLSelectElement
     expect(select.value).toBe('light')
   })
 
@@ -353,13 +353,13 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const testBtn = root.querySelector('[data-da-action="test-connection"]') as HTMLElement
+    const testBtn = root.querySelector('[data-cd-action="test-connection"]') as HTMLElement
     expect(testBtn).not.toBeNull()
     testBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const status = document.querySelector('.da-connection-status')
-    expect(status?.getAttribute('data-da-status')).toBe('ok')
+    const status = document.querySelector('.cd-connection-status')
+    expect(status?.getAttribute('data-cd-status')).toBe('ok')
     expect(status?.textContent).toContain('2 models')
   })
 
@@ -380,13 +380,13 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const refreshBtn = root.querySelector('[data-da-action="refresh-models"]') as HTMLElement
+    const refreshBtn = root.querySelector('[data-cd-action="refresh-models"]') as HTMLElement
     expect(refreshBtn).not.toBeNull()
     refreshBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
     const modelSelect = document.querySelector(
-      '[data-da-field="directorModel"]',
+      '[data-cd-field="directorModel"]',
     ) as HTMLSelectElement
     const values = Array.from(modelSelect.options).map((option) => option.value)
     expect(values).toEqual(expect.arrayContaining(['gpt-5.4', 'gpt-5.4-pro']))
@@ -410,12 +410,12 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const testBtn = root.querySelector('[data-da-action="test-connection"]') as HTMLElement
+    const testBtn = root.querySelector('[data-cd-action="test-connection"]') as HTMLElement
     testBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
     const select = document.querySelector(
-      'select[data-da-field="directorModel"]',
+      'select[data-cd-field="directorModel"]',
     ) as HTMLSelectElement
     const injectedOption = Array.from(select.options).find(
       (option) => option.value === injectedModel,
@@ -459,7 +459,7 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const closeBtn = root.querySelector('[data-da-action="close"]') as HTMLElement
+    const closeBtn = root.querySelector('[data-cd-action="close"]') as HTMLElement
     expect(closeBtn).not.toBeNull()
     closeBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
@@ -479,16 +479,16 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const select = root.querySelector('[data-da-field="assertiveness"]') as HTMLSelectElement
+    const select = root.querySelector('[data-cd-field="assertiveness"]') as HTMLSelectElement
     select.value = 'firm'
     select.dispatchEvent(new Event('change', { bubbles: true }))
 
-    const discardBtn = root.querySelector('[data-da-action="discard"]') as HTMLElement
+    const discardBtn = root.querySelector('[data-cd-action="discard"]') as HTMLElement
     discardBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const updatedSelect = updatedRoot.querySelector('[data-da-field="assertiveness"]') as HTMLSelectElement
+    const updatedSelect = updatedRoot.querySelector('[data-cd-field="assertiveness"]') as HTMLSelectElement
     expect(updatedSelect.value).toBe('standard')
   })
 
@@ -499,10 +499,10 @@ describe('openDashboard', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
     // Switch to profiles tab
-    const profileTabBtn = root.querySelector('[data-da-target="settings-profiles"]') as HTMLElement
+    const profileTabBtn = root.querySelector('[data-cd-target="settings-profiles"]') as HTMLElement
     profileTabBtn.click()
 
-    const exportBtn = root.querySelector('[data-da-action="export-profile"]') as HTMLElement
+    const exportBtn = root.querySelector('[data-cd-action="export-profile"]') as HTMLElement
     expect(exportBtn).not.toBeNull()
     exportBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
@@ -533,10 +533,10 @@ describe('openDashboard', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
     // Switch to profiles tab
-    const profileTabBtn = root.querySelector('[data-da-target="settings-profiles"]') as HTMLElement
+    const profileTabBtn = root.querySelector('[data-cd-target="settings-profiles"]') as HTMLElement
     profileTabBtn.click()
 
-    const importBtn = root.querySelector('[data-da-action="import-profile"]') as HTMLElement
+    const importBtn = root.querySelector('[data-cd-action="import-profile"]') as HTMLElement
     expect(importBtn).not.toBeNull()
     importBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
@@ -555,18 +555,18 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     let root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const promptTabBtn = root.querySelector('[data-da-target="prompt-tuning"]') as HTMLElement
+    const promptTabBtn = root.querySelector('[data-cd-target="prompt-tuning"]') as HTMLElement
     promptTabBtn.click()
 
-    const createBtn = root.querySelector('[data-da-action="create-prompt-preset"]') as HTMLElement
+    const createBtn = root.querySelector('[data-cd-action="create-prompt-preset"]') as HTMLElement
     expect(createBtn).not.toBeNull()
     createBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
     root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const presetSelect = root.querySelector('[data-da-role="prompt-preset-select"]') as HTMLSelectElement
-    const presetName = root.querySelector('[data-da-role="prompt-preset-name"]') as HTMLInputElement
-    const systemTemplate = root.querySelector('[data-da-role="prompt-pre-request-system"]') as HTMLTextAreaElement
+    const presetSelect = root.querySelector('[data-cd-role="prompt-preset-select"]') as HTMLSelectElement
+    const presetName = root.querySelector('[data-cd-role="prompt-preset-name"]') as HTMLInputElement
+    const systemTemplate = root.querySelector('[data-cd-role="prompt-pre-request-system"]') as HTMLTextAreaElement
 
     expect(presetSelect.value).not.toBe(BUILTIN_PROMPT_PRESET_ID)
     expect(presetName.value).toBeTruthy()
@@ -574,7 +574,7 @@ describe('openDashboard', () => {
     systemTemplate.value = 'Custom preset system template'
     systemTemplate.dispatchEvent(new Event('input', { bubbles: true }))
 
-    const saveBtn = root.querySelector('[data-da-action="save"]') as HTMLElement
+    const saveBtn = root.querySelector('[data-cd-action="save"]') as HTMLElement
     saveBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
@@ -626,16 +626,16 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     let root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memoryTabBtn.click()
 
-    const backfillBtn = root.querySelector('[data-da-action="backfill-current-chat"]') as HTMLElement
+    const backfillBtn = root.querySelector('[data-cd-action="backfill-current-chat"]') as HTMLElement
     expect(backfillBtn).not.toBeNull()
     backfillBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
     root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
     expect(memoryPage.textContent).toContain('The key is hidden under the altar.')
   })
 
@@ -682,17 +682,17 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     let root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memoryTabBtn.click()
 
-    const regenerateBtn = root.querySelector('[data-da-action="regenerate-current-chat"]') as HTMLElement
+    const regenerateBtn = root.querySelector('[data-cd-action="regenerate-current-chat"]') as HTMLElement
     expect(regenerateBtn).not.toBeNull()
     regenerateBtn.click() // arm
     regenerateBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 50) })
 
     root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
     expect(memoryPage.textContent).toContain('The key is hidden under the altar.')
     expect(memoryPage.textContent).not.toContain('Outdated memory')
   })
@@ -739,28 +739,28 @@ describe('openDashboard', () => {
 
     await openDashboard(api, store)
     let root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memoryTabBtn.click()
 
     // Type a filter query
-    const filterInput = root.querySelector('[data-da-role="memory-filter"]') as HTMLInputElement
+    const filterInput = root.querySelector('[data-cd-role="memory-filter"]') as HTMLInputElement
     filterInput.value = 'Outdated'
     filterInput.dispatchEvent(new Event('input', { bubbles: true }))
 
     // Regenerate
-    const regenerateBtn = root.querySelector('[data-da-action="regenerate-current-chat"]') as HTMLElement
+    const regenerateBtn = root.querySelector('[data-cd-action="regenerate-current-chat"]') as HTMLElement
     regenerateBtn.click() // arm
     regenerateBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 50) })
 
     // After regenerate, the filter should be cleared
     root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const newFilterInput = root.querySelector('[data-da-role="memory-filter"]') as HTMLInputElement
+    const newFilterInput = root.querySelector('[data-cd-role="memory-filter"]') as HTMLInputElement
     expect(newFilterInput?.value ?? '').toBe('')
 
     // No items should be hidden by a stale filter
-    const items = root.querySelectorAll('.da-memory-item')
-    const hiddenItems = Array.from(items).filter((i) => i.classList.contains('da-hidden'))
+    const items = root.querySelectorAll('.cd-memory-item')
+    const hiddenItems = Array.from(items).filter((i) => i.classList.contains('cd-hidden'))
     expect(hiddenItems.length).toBe(0)
   })
 
@@ -770,11 +770,11 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memoryTabBtn.click()
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const statusCard = updatedRoot.querySelector('[data-da-role="memory-ops-status"]')
+    const statusCard = updatedRoot.querySelector('[data-cd-role="memory-ops-status"]')
     expect(statusCard).not.toBeNull()
     expect(statusCard?.textContent).toContain('Summaries')
   })
@@ -789,10 +789,10 @@ describe('openDashboard', () => {
     await openDashboard(api, storeWithOps)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memoryTabBtn.click()
 
-    const extractBtn = root.querySelector('[data-da-action="force-extract"]') as HTMLElement
+    const extractBtn = root.querySelector('[data-cd-action="force-extract"]') as HTMLElement
     expect(extractBtn).not.toBeNull()
     extractBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
@@ -810,10 +810,10 @@ describe('openDashboard', () => {
     await openDashboard(api, storeWithOps)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memoryTabBtn.click()
 
-    const dreamBtn = root.querySelector('[data-da-action="force-dream"]') as HTMLElement
+    const dreamBtn = root.querySelector('[data-cd-action="force-dream"]') as HTMLElement
     expect(dreamBtn).not.toBeNull()
     dreamBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
@@ -830,14 +830,14 @@ describe('openDashboard', () => {
     await openDashboard(api, storeWithOps)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memoryTabBtn.click()
 
-    const extractBtn = root.querySelector('[data-da-action="force-extract"]') as HTMLElement
+    const extractBtn = root.querySelector('[data-cd-action="force-extract"]') as HTMLElement
     extractBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const toast = document.querySelector('.da-toast')
+    const toast = document.querySelector('.cd-toast')
     expect(toast).not.toBeNull()
     expect(toast!.textContent).toContain('extract-boom')
   })
@@ -851,14 +851,14 @@ describe('openDashboard', () => {
     await openDashboard(api, storeWithOps)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memoryTabBtn.click()
 
-    const dreamBtn = root.querySelector('[data-da-action="force-dream"]') as HTMLElement
+    const dreamBtn = root.querySelector('[data-cd-action="force-dream"]') as HTMLElement
     dreamBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const toast = document.querySelector('.da-toast')
+    const toast = document.querySelector('.cd-toast')
     expect(toast).not.toBeNull()
     expect(toast!.textContent).toContain('dream-boom')
   })
@@ -867,10 +867,10 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memoryTabBtn.click()
 
-    const toggleBtn = root.querySelector('[data-da-action="toggle-fallback-retrieval"]') as HTMLElement
+    const toggleBtn = root.querySelector('[data-cd-action="toggle-fallback-retrieval"]') as HTMLElement
     expect(toggleBtn).not.toBeNull()
     toggleBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
@@ -894,15 +894,15 @@ describe('openDashboard', () => {
     await openDashboard(api, storeWithGuard)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memoryTabBtn.click()
 
-    const dreamBtn = root.querySelector('[data-da-action="force-dream"]') as HTMLElement
+    const dreamBtn = root.querySelector('[data-cd-action="force-dream"]') as HTMLElement
     expect(dreamBtn).not.toBeNull()
     dreamBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const toast = document.querySelector('.da-toast')
+    const toast = document.querySelector('.cd-toast')
     expect(toast).not.toBeNull()
     expect(toast!.textContent).toContain('starting up')
   })
@@ -918,10 +918,10 @@ describe('openDashboard', () => {
     await openDashboard(api, storeWithGuard)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memoryTabBtn.click()
 
-    const dreamBtn = root.querySelector('[data-da-action="force-dream"]') as HTMLElement
+    const dreamBtn = root.querySelector('[data-cd-action="force-dream"]') as HTMLElement
     dreamBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
@@ -941,10 +941,10 @@ describe('openDashboard', () => {
     await openDashboard(api, storeWithGuard)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memoryTabBtn.click()
 
-    const dreamBtn = root.querySelector('[data-da-action="force-dream"]') as HTMLElement
+    const dreamBtn = root.querySelector('[data-cd-action="force-dream"]') as HTMLElement
     dreamBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
@@ -973,11 +973,11 @@ describe('openDashboard', () => {
     await openDashboard(api, storeWithGuard)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memoryTabBtn.click()
 
     // Tick a memory checkbox so bulk-delete is enabled
-    const checkbox = root.querySelector('input[data-da-role="memory-select"]') as HTMLInputElement
+    const checkbox = root.querySelector('input[data-cd-role="memory-select"]') as HTMLInputElement
     if (!checkbox) {
       // If no checkbox was rendered (no memory items) the test is vacuously true
       return
@@ -985,13 +985,13 @@ describe('openDashboard', () => {
     checkbox.checked = true
     checkbox.dispatchEvent(new Event('change', { bubbles: true }))
 
-    const bulkDeleteBtn = root.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLElement
+    const bulkDeleteBtn = root.querySelector('[data-cd-action="bulk-delete-memory"]') as HTMLElement
     expect(bulkDeleteBtn).not.toBeNull()
     bulkDeleteBtn.click() // arm
     bulkDeleteBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const toast = document.querySelector('.da-toast')
+    const toast = document.querySelector('.cd-toast')
     expect(toast).not.toBeNull()
     expect(toast!.textContent).toContain('maintenance')
   })
@@ -1002,17 +1002,17 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const select = root.querySelector('[data-da-field="assertiveness"]') as HTMLSelectElement
+    const select = root.querySelector('[data-cd-field="assertiveness"]') as HTMLSelectElement
     select.value = 'firm'
     select.dispatchEvent(new Event('change', { bubbles: true }))
 
-    const saveBtn = root.querySelector('[data-da-action="save"]') as HTMLElement
+    const saveBtn = root.querySelector('[data-cd-action="save"]') as HTMLElement
     saveBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const toast = document.querySelector('.da-toast')
+    const toast = document.querySelector('.cd-toast')
     expect(toast).not.toBeNull()
-    expect(toast!.classList.contains('da-toast--success')).toBe(true)
+    expect(toast!.classList.contains('cd-toast--success')).toBe(true)
     expect(toast!.getAttribute('role')).toBe('status')
     expect(toast!.getAttribute('aria-live')).toBe('polite')
   })
@@ -1026,16 +1026,16 @@ describe('openDashboard', () => {
     await openDashboard(api, storeWithOps)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memoryTabBtn.click()
 
-    const extractBtn = root.querySelector('[data-da-action="force-extract"]') as HTMLElement
+    const extractBtn = root.querySelector('[data-cd-action="force-extract"]') as HTMLElement
     extractBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const toast = document.querySelector('.da-toast')
+    const toast = document.querySelector('.cd-toast')
     expect(toast).not.toBeNull()
-    expect(toast!.classList.contains('da-toast--error')).toBe(true)
+    expect(toast!.classList.contains('cd-toast--error')).toBe(true)
     expect(toast!.getAttribute('role')).toBe('alert')
     expect(toast!.getAttribute('aria-live')).toBe('assertive')
   })
@@ -1050,30 +1050,30 @@ describe('openDashboard', () => {
     await openDashboard(api, storeWithGuard)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memoryTabBtn.click()
 
     // backfill is guarded by checkRefreshGuard
-    const backfillBtn = root.querySelector('[data-da-action="backfill-current-chat"]') as HTMLElement
+    const backfillBtn = root.querySelector('[data-cd-action="backfill-current-chat"]') as HTMLElement
     backfillBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const toast = document.querySelector('.da-toast')
+    const toast = document.querySelector('.cd-toast')
     expect(toast).not.toBeNull()
-    expect(toast!.classList.contains('da-toast--warning')).toBe(true)
+    expect(toast!.classList.contains('cd-toast--warning')).toBe(true)
   })
 
   test('discard action shows an info toast', async () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const discardBtn = root.querySelector('[data-da-action="discard"]') as HTMLElement
+    const discardBtn = root.querySelector('[data-cd-action="discard"]') as HTMLElement
     discardBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const toast = document.querySelector('.da-toast')
+    const toast = document.querySelector('.cd-toast')
     expect(toast).not.toBeNull()
-    expect(toast!.classList.contains('da-toast--info')).toBe(true)
+    expect(toast!.classList.contains('cd-toast--info')).toBe(true)
   })
 
   // ── UI-2: Async busy guards ──────────────────────────────────────────
@@ -1095,7 +1095,7 @@ describe('openDashboard', () => {
     await openDashboard(api, slowStore)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const saveBtn = root.querySelector('[data-da-action="save"]') as HTMLButtonElement
+    const saveBtn = root.querySelector('[data-cd-action="save"]') as HTMLButtonElement
     expect(saveBtn.disabled).toBe(false)
 
     saveBtn.click()
@@ -1130,7 +1130,7 @@ describe('openDashboard', () => {
 
     await openDashboard(api, slowStore)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const saveBtn = root.querySelector('[data-da-action="save"]') as HTMLButtonElement
+    const saveBtn = root.querySelector('[data-cd-action="save"]') as HTMLButtonElement
 
     // Click save twice rapidly
     saveBtn.click()
@@ -1157,10 +1157,10 @@ describe('openDashboard', () => {
     await openDashboard(api, storeWithOps)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memoryTabBtn.click()
 
-    const extractBtn = root.querySelector('[data-da-action="force-extract"]') as HTMLButtonElement
+    const extractBtn = root.querySelector('[data-cd-action="force-extract"]') as HTMLButtonElement
     expect(extractBtn.disabled).toBe(false)
 
     extractBtn.click()
@@ -1171,7 +1171,7 @@ describe('openDashboard', () => {
     await new Promise((r) => { setTimeout(r, 50) })
 
     // After fullReRender the button is a new DOM node
-    const newExtractBtn = document.querySelector('[data-da-action="force-extract"]') as HTMLButtonElement
+    const newExtractBtn = document.querySelector('[data-cd-action="force-extract"]') as HTMLButtonElement
     expect(newExtractBtn.disabled).toBe(false)
   })
 
@@ -1185,10 +1185,10 @@ describe('openDashboard', () => {
     await openDashboard(api, storeWithOps)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memoryTabBtn.click()
 
-    const extractBtn = root.querySelector('[data-da-action="force-extract"]') as HTMLButtonElement
+    const extractBtn = root.querySelector('[data-cd-action="force-extract"]') as HTMLButtonElement
     extractBtn.click()
     await new Promise((r) => { setTimeout(r, 10) })
     expect(extractBtn.disabled).toBe(true)
@@ -1196,7 +1196,7 @@ describe('openDashboard', () => {
     rejectExtract(new Error('extract-fail'))
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const newExtractBtn = document.querySelector('[data-da-action="force-extract"]') as HTMLButtonElement
+    const newExtractBtn = document.querySelector('[data-cd-action="force-extract"]') as HTMLButtonElement
     expect(newExtractBtn.disabled).toBe(false)
   })
 
@@ -1210,10 +1210,10 @@ describe('openDashboard', () => {
     await openDashboard(api, storeWithOps)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memoryTabBtn.click()
 
-    const dreamBtn = root.querySelector('[data-da-action="force-dream"]') as HTMLButtonElement
+    const dreamBtn = root.querySelector('[data-cd-action="force-dream"]') as HTMLButtonElement
     expect(dreamBtn.disabled).toBe(false)
 
     dreamBtn.click()
@@ -1223,7 +1223,7 @@ describe('openDashboard', () => {
     resolveDream()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const newDreamBtn = document.querySelector('[data-da-action="force-dream"]') as HTMLButtonElement
+    const newDreamBtn = document.querySelector('[data-cd-action="force-dream"]') as HTMLButtonElement
     expect(newDreamBtn.disabled).toBe(false)
   })
 
@@ -1252,10 +1252,10 @@ describe('openDashboard', () => {
       return origFetch(...args)
     }
 
-    const modelTabBtn = root.querySelector('[data-da-target="model-settings"]') as HTMLElement
+    const modelTabBtn = root.querySelector('[data-cd-target="model-settings"]') as HTMLElement
     modelTabBtn.click()
 
-    const testBtn = root.querySelector('[data-da-action="test-connection"]') as HTMLButtonElement
+    const testBtn = root.querySelector('[data-cd-action="test-connection"]') as HTMLButtonElement
     expect(testBtn).not.toBeNull()
     expect(testBtn.disabled).toBe(false)
 
@@ -1266,7 +1266,7 @@ describe('openDashboard', () => {
     resolveTest()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const newTestBtn = document.querySelector('[data-da-action="test-connection"]') as HTMLButtonElement
+    const newTestBtn = document.querySelector('[data-cd-action="test-connection"]') as HTMLButtonElement
     expect(newTestBtn.disabled).toBe(false)
   })
 
@@ -1300,7 +1300,7 @@ describe('openDashboard', () => {
     await openDashboard(api, slowStore)
     const root2 = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const discardBtn = root2.querySelector('[data-da-action="discard"]') as HTMLButtonElement
+    const discardBtn = root2.querySelector('[data-cd-action="discard"]') as HTMLButtonElement
     expect(discardBtn.disabled).toBe(false)
 
     // Now enable the intercept for the discard getItem call
@@ -1312,7 +1312,7 @@ describe('openDashboard', () => {
     resolveGet()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const newDiscardBtn = document.querySelector('[data-da-action="discard"]') as HTMLButtonElement
+    const newDiscardBtn = document.querySelector('[data-cd-action="discard"]') as HTMLButtonElement
     expect(newDiscardBtn.disabled).toBe(false)
   })
 
@@ -1335,8 +1335,8 @@ describe('openDashboard', () => {
     await openDashboard(api, slowStore)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const saveSettingsBtn = root.querySelector('[data-da-action="save-settings"]') as HTMLButtonElement
-    const footerSaveBtn = root.querySelector('[data-da-action="save"]') as HTMLButtonElement
+    const saveSettingsBtn = root.querySelector('[data-cd-action="save-settings"]') as HTMLButtonElement
+    const footerSaveBtn = root.querySelector('[data-cd-action="save"]') as HTMLButtonElement
     expect(saveSettingsBtn).not.toBeNull()
     expect(saveSettingsBtn.disabled).toBe(false)
 
@@ -1383,8 +1383,8 @@ describe('openDashboard', () => {
     await openDashboard(api, slowStore)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const resetSettingsBtn = root.querySelector('[data-da-action="reset-settings"]') as HTMLButtonElement
-    const footerDiscardBtn = root.querySelector('[data-da-action="discard"]') as HTMLButtonElement
+    const resetSettingsBtn = root.querySelector('[data-cd-action="reset-settings"]') as HTMLButtonElement
+    const footerDiscardBtn = root.querySelector('[data-cd-action="discard"]') as HTMLButtonElement
     expect(resetSettingsBtn).not.toBeNull()
     expect(resetSettingsBtn.disabled).toBe(false)
 
@@ -1400,7 +1400,7 @@ describe('openDashboard', () => {
     resolveGet()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const newResetBtn = document.querySelector('[data-da-action="reset-settings"]') as HTMLButtonElement
+    const newResetBtn = document.querySelector('[data-cd-action="reset-settings"]') as HTMLButtonElement
     expect(newResetBtn.disabled).toBe(false)
   })
 
@@ -1424,7 +1424,7 @@ describe('openDashboard', () => {
 
     await openDashboard(api, slowStore)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const saveSettingsBtn = root.querySelector('[data-da-action="save-settings"]') as HTMLButtonElement
+    const saveSettingsBtn = root.querySelector('[data-cd-action="save-settings"]') as HTMLButtonElement
 
     saveSettingsBtn.click()
     saveSettingsBtn.click()
@@ -1478,16 +1478,16 @@ describe('openDashboard', () => {
     await openDashboard(api, storeWithWrite)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memoryTabBtn.click()
 
     // Select an item
-    const checkbox = root.querySelector('input[data-da-role="memory-select"]') as HTMLInputElement
+    const checkbox = root.querySelector('input[data-cd-role="memory-select"]') as HTMLInputElement
     expect(checkbox).not.toBeNull()
     checkbox.checked = true
     checkbox.dispatchEvent(new Event('change', { bubbles: true }))
 
-    const bulkDeleteBtn = root.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLButtonElement
+    const bulkDeleteBtn = root.querySelector('[data-cd-action="bulk-delete-memory"]') as HTMLButtonElement
     expect(bulkDeleteBtn.disabled).toBe(false)
 
     bulkDeleteBtn.click() // arm
@@ -1496,14 +1496,14 @@ describe('openDashboard', () => {
 
     // The button should be disabled during the operation
     // (it's been re-rendered by fullReRender, find it again)
-    const busyBtn = document.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLButtonElement
+    const busyBtn = document.querySelector('[data-cd-action="bulk-delete-memory"]') as HTMLButtonElement
     expect(busyBtn.disabled).toBe(true)
 
     resolveWrite()
     await new Promise((r) => { setTimeout(r, 50) })
 
     // After completion, bulk-delete should stay disabled because selectedMemoryKeys is now empty
-    const finalBtn = document.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLButtonElement
+    const finalBtn = document.querySelector('[data-cd-action="bulk-delete-memory"]') as HTMLButtonElement
     expect(finalBtn.disabled).toBe(true)
   })
 
@@ -1513,7 +1513,7 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const closeDashboardBtn = root.querySelector('[data-da-action="close-dashboard"]') as HTMLElement
+    const closeDashboardBtn = root.querySelector('[data-cd-action="close-dashboard"]') as HTMLElement
     expect(closeDashboardBtn).not.toBeNull()
     closeDashboardBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
@@ -1526,11 +1526,11 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const select = root.querySelector('[data-da-field="assertiveness"]') as HTMLSelectElement
+    const select = root.querySelector('[data-cd-field="assertiveness"]') as HTMLSelectElement
     select.value = 'firm'
     select.dispatchEvent(new Event('change', { bubbles: true }))
 
-    const saveSettingsBtn = root.querySelector('[data-da-action="save-settings"]') as HTMLElement
+    const saveSettingsBtn = root.querySelector('[data-cd-action="save-settings"]') as HTMLElement
     expect(saveSettingsBtn).not.toBeNull()
     saveSettingsBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
@@ -1550,18 +1550,18 @@ describe('openDashboard', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
     // Change to firm
-    const select = root.querySelector('[data-da-field="assertiveness"]') as HTMLSelectElement
+    const select = root.querySelector('[data-cd-field="assertiveness"]') as HTMLSelectElement
     select.value = 'firm'
     select.dispatchEvent(new Event('change', { bubbles: true }))
 
-    const resetBtn = root.querySelector('[data-da-action="reset-settings"]') as HTMLElement
+    const resetBtn = root.querySelector('[data-cd-action="reset-settings"]') as HTMLElement
     expect(resetBtn).not.toBeNull()
     resetBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
     // After re-render, assertiveness should be back to persisted value
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const updatedSelect = updatedRoot.querySelector('[data-da-field="assertiveness"]') as HTMLSelectElement
+    const updatedSelect = updatedRoot.querySelector('[data-cd-field="assertiveness"]') as HTMLSelectElement
     expect(updatedSelect.value).toBe('light')
   })
 
@@ -1569,7 +1569,7 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const exportBtn = root.querySelector('[data-da-action="export-settings"]') as HTMLElement
+    const exportBtn = root.querySelector('[data-cd-action="export-settings"]') as HTMLElement
     expect(exportBtn).not.toBeNull()
     exportBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
@@ -1590,7 +1590,7 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const status = root.querySelector('.da-connection-status')
+    const status = root.querySelector('.cd-connection-status')
     expect(status).not.toBeNull()
     expect(status!.getAttribute('role')).toBe('status')
     expect(status!.getAttribute('aria-live')).toBe('polite')
@@ -1600,7 +1600,7 @@ describe('openDashboard', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    const closeBtn = root.querySelector('[data-da-action="close"]') as HTMLElement
+    const closeBtn = root.querySelector('[data-cd-action="close"]') as HTMLElement
     expect(closeBtn).not.toBeNull()
     expect(closeBtn.getAttribute('aria-label')).toBeTruthy()
   })
@@ -1632,7 +1632,7 @@ describe('last-open tab persistence', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
     // Switch to memory-cache tab
-    const memBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memBtn.click()
 
     // Close and reopen
@@ -1641,11 +1641,11 @@ describe('last-open tab persistence', () => {
     await openDashboard(api, store)
 
     const newRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = newRoot.querySelector('#da-page-memory-cache') as HTMLElement
-    const generalPage = newRoot.querySelector('#da-page-general') as HTMLElement
+    const memoryPage = newRoot.querySelector('#cd-page-memory-cache') as HTMLElement
+    const generalPage = newRoot.querySelector('#cd-page-general') as HTMLElement
 
-    expect(memoryPage.classList.contains('da-hidden')).toBe(false)
-    expect(generalPage.classList.contains('da-hidden')).toBe(true)
+    expect(memoryPage.classList.contains('cd-hidden')).toBe(false)
+    expect(generalPage.classList.contains('cd-hidden')).toBe(true)
   })
 
   test('sidebar button for the restored tab has the active class', async () => {
@@ -1653,7 +1653,7 @@ describe('last-open tab persistence', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
     // Switch to prompt-tuning tab
-    const ptBtn = root.querySelector('[data-da-target="prompt-tuning"]') as HTMLElement
+    const ptBtn = root.querySelector('[data-cd-target="prompt-tuning"]') as HTMLElement
     ptBtn.click()
 
     await closeDashboard()
@@ -1661,9 +1661,9 @@ describe('last-open tab persistence', () => {
     await openDashboard(api, store)
 
     const newRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const activeBtn = newRoot.querySelector('.da-sidebar-btn--active') as HTMLElement
+    const activeBtn = newRoot.querySelector('.cd-sidebar-btn--active') as HTMLElement
     expect(activeBtn).not.toBeNull()
-    expect(activeBtn.getAttribute('data-da-target')).toBe('prompt-tuning')
+    expect(activeBtn.getAttribute('data-cd-target')).toBe('prompt-tuning')
   })
 })
 
@@ -1707,10 +1707,10 @@ describe('Memory Workbench integration in dashboard', () => {
     await new Promise((r) => setTimeout(r, 50))
 
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memBtn.click()
 
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
     expect(memoryPage.textContent).toContain('Hero')
     expect(memoryPage.textContent).toContain('MEMORY.md')
   })
@@ -1720,11 +1720,11 @@ describe('Memory Workbench integration in dashboard', () => {
     await new Promise((r) => setTimeout(r, 50))
 
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memBtn.click()
 
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
-    expect(memoryPage.querySelector('[data-da-role="workbench-empty"]')).not.toBeNull()
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
+    expect(memoryPage.querySelector('[data-cd-role="workbench-empty"]')).not.toBeNull()
   })
 
   test('workbench shows inline error when load fails', async () => {
@@ -1734,15 +1734,15 @@ describe('Memory Workbench integration in dashboard', () => {
     await new Promise((r) => setTimeout(r, 50))
 
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memBtn.click()
 
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
-    const errorEl = memoryPage.querySelector('[data-da-role="workbench-error"]')
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
+    const errorEl = memoryPage.querySelector('[data-cd-role="workbench-error"]')
     expect(errorEl).not.toBeNull()
     expect(errorEl?.textContent).toContain('Storage unavailable')
     // Rest of memory page should still be functional
-    expect(memoryPage.querySelector('[data-da-action="backfill-current-chat"]')).not.toBeNull()
+    expect(memoryPage.querySelector('[data-cd-action="backfill-current-chat"]')).not.toBeNull()
   })
 
   test('workbench filter change updates the visible document list', async () => {
@@ -1755,22 +1755,22 @@ describe('Memory Workbench integration in dashboard', () => {
     await new Promise((r) => setTimeout(r, 50))
 
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    const memBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
     memBtn.click()
 
     // Both docs should be visible initially
-    let memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    let memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
     expect(memoryPage.textContent).toContain('Char Doc')
     expect(memoryPage.textContent).toContain('World Doc')
 
     // Apply type filter
-    const typeFilter = memoryPage.querySelector('[data-da-role="workbench-filter-type"]') as HTMLSelectElement
+    const typeFilter = memoryPage.querySelector('[data-cd-role="workbench-filter-type"]') as HTMLSelectElement
     expect(typeFilter).not.toBeNull()
     typeFilter.value = 'character'
     typeFilter.dispatchEvent(new Event('change', { bubbles: true }))
 
     // Re-query after rerender
-    memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
     expect(memoryPage.textContent).toContain('Char Doc')
     expect(memoryPage.textContent).not.toContain('World Doc')
   })

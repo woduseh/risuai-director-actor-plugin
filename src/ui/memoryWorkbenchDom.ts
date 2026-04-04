@@ -123,10 +123,10 @@ function buildFilterControls(filters: WorkbenchFilters): string {
     ),
   ].join('')
 
-  return `<div class="da-inline da-workbench-filters">
-    <label class="da-label"><span class="da-label-text">${t('workbench.filterType')}</span><select class="da-select da-select--sm" data-da-role="workbench-filter-type">${typeOptions}</select></label>
-    <label class="da-label"><span class="da-label-text">${t('workbench.filterFreshness')}</span><select class="da-select da-select--sm" data-da-role="workbench-filter-freshness">${freshnessOptions}</select></label>
-    <label class="da-label"><span class="da-label-text">${t('workbench.filterSource')}</span><select class="da-select da-select--sm" data-da-role="workbench-filter-source">${sourceOptions}</select></label>
+  return `<div class="cd-inline cd-workbench-filters">
+    <label class="cd-label"><span class="cd-label-text">${t('workbench.filterType')}</span><select class="cd-select cd-select--sm" data-cd-role="workbench-filter-type">${typeOptions}</select></label>
+    <label class="cd-label"><span class="cd-label-text">${t('workbench.filterFreshness')}</span><select class="cd-select cd-select--sm" data-cd-role="workbench-filter-freshness">${freshnessOptions}</select></label>
+    <label class="cd-label"><span class="cd-label-text">${t('workbench.filterSource')}</span><select class="cd-select cd-select--sm" data-cd-role="workbench-filter-source">${sourceOptions}</select></label>
   </div>`
 }
 
@@ -136,16 +136,16 @@ function buildFilterControls(filters: WorkbenchFilters): string {
 
 function buildDocumentItem(doc: WorkbenchDocEntry): string {
   const embeddingBadge = doc.hasEmbedding
-    ? `<span class="da-badge da-badge--sm" data-kind="success">${t('workbench.embedded')}</span>`
-    : `<span class="da-badge da-badge--sm" data-kind="neutral">${t('workbench.notEmbedded')}</span>`
+    ? `<span class="cd-badge cd-badge--sm" data-kind="success">${t('workbench.embedded')}</span>`
+    : `<span class="cd-badge cd-badge--sm" data-kind="neutral">${t('workbench.notEmbedded')}</span>`
 
-  const freshnessBadge = `<span class="da-badge da-badge--sm" data-kind="${
+  const freshnessBadge = `<span class="cd-badge cd-badge--sm" data-kind="${
     doc.freshness === 'current' ? 'success' : doc.freshness === 'stale' ? 'stale' : 'neutral'
   }">${escapeXml(doc.freshness)}</span>`
 
-  return `<li class="da-memory-item" data-da-role="workbench-doc-item" data-da-doc-id="${escapeXml(doc.id)}">
-    <span class="da-workbench-doc-title">${escapeXml(doc.title)}</span>
-    <span class="da-workbench-doc-meta">${escapeXml(doc.type)} · ${escapeXml(doc.source)} · ${escapeXml(formatTimestamp(doc.updatedAt))}</span>
+  return `<li class="cd-memory-item" data-cd-role="workbench-doc-item" data-cd-doc-id="${escapeXml(doc.id)}">
+    <span class="cd-workbench-doc-title">${escapeXml(doc.title)}</span>
+    <span class="cd-workbench-doc-meta">${escapeXml(doc.type)} · ${escapeXml(doc.source)} · ${escapeXml(formatTimestamp(doc.updatedAt))}</span>
     ${freshnessBadge}${embeddingBadge}
   </li>`
 }
@@ -153,12 +153,12 @@ function buildDocumentItem(doc: WorkbenchDocEntry): string {
 function buildDocumentList(docs: WorkbenchDocEntry[], hasUnfilteredDocs: boolean): string {
   if (docs.length === 0) {
     if (hasUnfilteredDocs) {
-      return `<p class="da-empty" data-da-role="workbench-no-match">${t('workbench.noMatchHint')}</p>`
+      return `<p class="cd-empty" data-cd-role="workbench-no-match">${t('workbench.noMatchHint')}</p>`
     }
-    return `<p class="da-empty" data-da-role="workbench-empty">${t('workbench.emptyHint')}</p>`
+    return `<p class="cd-empty" data-cd-role="workbench-empty">${t('workbench.emptyHint')}</p>`
   }
   const items = docs.map(buildDocumentItem).join('')
-  return `<ul class="da-memory-list" data-da-role="workbench-doc-list">${items}</ul>`
+  return `<ul class="cd-memory-list" data-cd-role="workbench-doc-list">${items}</ul>`
 }
 
 // ---------------------------------------------------------------------------
@@ -166,9 +166,9 @@ function buildDocumentList(docs: WorkbenchDocEntry[], hasUnfilteredDocs: boolean
 // ---------------------------------------------------------------------------
 
 function buildMemoryMdPreview(content: string): string {
-  return `<section class="da-card" data-da-role="workbench-memory-md">
-    <div class="da-card-header"><div><h4 class="da-card-title">${t('workbench.memoryMdTitle')}</h4></div></div>
-    <pre class="da-workbench-preview">${escapeXml(content)}</pre>
+  return `<section class="cd-card" data-cd-role="workbench-memory-md">
+    <div class="cd-card-header"><div><h4 class="cd-card-title">${t('workbench.memoryMdTitle')}</h4></div></div>
+    <pre class="cd-workbench-preview">${escapeXml(content)}</pre>
   </section>`
 }
 
@@ -181,20 +181,20 @@ function buildNotebookSnapshot(snap: WorkbenchNotebookSnapshot): string {
     .filter((key) => snap[key].length > 0)
     .map(
       (key) =>
-        `<li class="da-metric-item" data-da-role="workbench-notebook-entry"><span>${escapeXml(NOTEBOOK_SECTION_LABELS[key])}</span><strong>${escapeXml(snap[key])}</strong></li>`,
+        `<li class="cd-metric-item" data-cd-role="workbench-notebook-entry"><span>${escapeXml(NOTEBOOK_SECTION_LABELS[key])}</span><strong>${escapeXml(snap[key])}</strong></li>`,
     )
     .join('')
 
   if (entries.length === 0) {
-    return `<section class="da-card" data-da-role="workbench-notebook">
-      <div class="da-card-header"><div><h4 class="da-card-title">${t('workbench.notebookTitle')}</h4></div></div>
-      <p class="da-empty">${t('workbench.notebookEmpty')}</p>
+    return `<section class="cd-card" data-cd-role="workbench-notebook">
+      <div class="cd-card-header"><div><h4 class="cd-card-title">${t('workbench.notebookTitle')}</h4></div></div>
+      <p class="cd-empty">${t('workbench.notebookEmpty')}</p>
     </section>`
   }
 
-  return `<section class="da-card" data-da-role="workbench-notebook">
-    <div class="da-card-header"><div><h4 class="da-card-title">${t('workbench.notebookTitle')}</h4></div></div>
-    <ul class="da-metric-list">${entries}</ul>
+  return `<section class="cd-card" data-cd-role="workbench-notebook">
+    <div class="cd-card-header"><div><h4 class="cd-card-title">${t('workbench.notebookTitle')}</h4></div></div>
+    <ul class="cd-metric-list">${entries}</ul>
   </section>`
 }
 
@@ -209,14 +209,14 @@ function buildNotebookSnapshot(snap: WorkbenchNotebookSnapshot): string {
 export function buildMemoryWorkbench(input: MemoryWorkbenchInput): string {
   // Error state (inline, does not suppress the card wrapper)
   const errorHtml = input.error
-    ? `<p class="da-empty da-workbench-error" data-da-role="workbench-error">${escapeXml(input.error)}</p>`
+    ? `<p class="cd-empty cd-workbench-error" data-cd-role="workbench-error">${escapeXml(input.error)}</p>`
     : ''
 
   // Loading state
   if (input.loading) {
-    return `<section class="da-card" data-da-role="workbench-section">
-      <div class="da-card-header"><div><h4 class="da-card-title">${t('workbench.title')}</h4><p class="da-card-copy">${t('workbench.copy')}</p></div></div>
-      <p class="da-empty" data-da-role="workbench-loading">${t('workbench.loading')}</p>
+    return `<section class="cd-card" data-cd-role="workbench-section">
+      <div class="cd-card-header"><div><h4 class="cd-card-title">${t('workbench.title')}</h4><p class="cd-card-copy">${t('workbench.copy')}</p></div></div>
+      <p class="cd-empty" data-cd-role="workbench-loading">${t('workbench.loading')}</p>
     </section>`
   }
 
@@ -243,8 +243,8 @@ export function buildMemoryWorkbench(input: MemoryWorkbenchInput): string {
     ? buildNotebookSnapshot(input.notebookSnapshot)
     : ''
 
-  return `<section class="da-card" data-da-role="workbench-section">
-    <div class="da-card-header"><div><h4 class="da-card-title">${t('workbench.title')}</h4><p class="da-card-copy">${t('workbench.copy')}</p></div></div>
+  return `<section class="cd-card" data-cd-role="workbench-section">
+    <div class="cd-card-header"><div><h4 class="cd-card-title">${t('workbench.title')}</h4><p class="cd-card-copy">${t('workbench.copy')}</p></div></div>
     ${errorHtml}${filterHtml}${listHtml}
   </section>
   ${memoryMdHtml}${notebookHtml}`

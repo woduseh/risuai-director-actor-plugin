@@ -2,7 +2,7 @@ import { buildDashboardCss, DASHBOARD_ROOT_CLASS } from '../src/ui/dashboardCss.
 
 describe('buildDashboardCss', () => {
   test('uses a stable namespace root class', () => {
-    expect(DASHBOARD_ROOT_CLASS).toBe('da-root')
+    expect(DASHBOARD_ROOT_CLASS).toBe('cd-root')
   })
 
   test('includes theme-aware CSS variables and key component selectors', () => {
@@ -10,72 +10,72 @@ describe('buildDashboardCss', () => {
 
     expect(css).toContain('--risu-theme-bgcolor')
     expect(css).toContain(`.${DASHBOARD_ROOT_CLASS}`)
-    expect(css).toContain('.da-sidebar')
-    expect(css).toContain('.da-card')
-    expect(css).toContain('.da-toggle')
+    expect(css).toContain('.cd-sidebar')
+    expect(css).toContain('.cd-card')
+    expect(css).toContain('.cd-toggle')
   })
 
   test('includes selectors required for dashboard integration', () => {
     const css = buildDashboardCss()
     const selectors = [
-      '.da-dashboard',
-      '.da-sidebar-header',
-      '.da-kicker',
-      '.da-title',
-      '.da-subtitle',
-      '.da-sidebar-nav',
-      '.da-sidebar-btn',
-      '.da-sidebar-btn--active',
-      '.da-sidebar-footer',
-      '.da-nav-group',
-      '.da-nav-group-label',
-      '.da-content',
-      '.da-toolbar',
-      '.da-toolbar-meta',
-      '.da-toolbar-actions',
-      '.da-page',
-      '.da-page-title',
-      '.da-page-section',
-      '.da-hidden',
-      '.da-grid',
-      '.da-card-header',
-      '.da-card-title',
-      '.da-card-copy',
-      '.da-form-grid',
-      '.da-label',
-      '.da-label-text',
-      '.da-select',
-      '.da-input',
-      '.da-checkbox',
-      '.da-btn',
-      '.da-btn--primary',
-      '.da-btn--ghost',
-      '.da-btn--danger',
-      '.da-badge',
-      '.da-badge[data-kind="success"]',
-      '.da-badge[data-kind="error"]',
-      '.da-hint',
-      '.da-inline',
-      '.da-toggle',
-      '.da-toggle-track',
-      '.da-toggle-dot',
-      '.da-connection-status',
-      '.da-connection-status[data-da-status="ok"]',
-      '.da-connection-status[data-da-status="error"]',
-      '.da-connection-status[data-da-status="testing"]',
-      '.da-connection-status[data-da-status="idle"]',
-      '.da-connection-status[data-da-status="loading"]',
-      '.da-connection-status[data-da-status="success"]',
-      '.da-profile-list',
-      '.da-profile-item',
-      '.da-profile--active',
-      '.da-metric-list',
-      '.da-metric-item',
-      '.da-split',
-      '.da-close-btn',
-      '.da-toast',
-      '.da-footer',
-      '.da-dirty-indicator',
+      '.cd-dashboard',
+      '.cd-sidebar-header',
+      '.cd-kicker',
+      '.cd-title',
+      '.cd-subtitle',
+      '.cd-sidebar-nav',
+      '.cd-sidebar-btn',
+      '.cd-sidebar-btn--active',
+      '.cd-sidebar-footer',
+      '.cd-nav-group',
+      '.cd-nav-group-label',
+      '.cd-content',
+      '.cd-toolbar',
+      '.cd-toolbar-meta',
+      '.cd-toolbar-actions',
+      '.cd-page',
+      '.cd-page-title',
+      '.cd-page-section',
+      '.cd-hidden',
+      '.cd-grid',
+      '.cd-card-header',
+      '.cd-card-title',
+      '.cd-card-copy',
+      '.cd-form-grid',
+      '.cd-label',
+      '.cd-label-text',
+      '.cd-select',
+      '.cd-input',
+      '.cd-checkbox',
+      '.cd-btn',
+      '.cd-btn--primary',
+      '.cd-btn--ghost',
+      '.cd-btn--danger',
+      '.cd-badge',
+      '.cd-badge[data-kind="success"]',
+      '.cd-badge[data-kind="error"]',
+      '.cd-hint',
+      '.cd-inline',
+      '.cd-toggle',
+      '.cd-toggle-track',
+      '.cd-toggle-dot',
+      '.cd-connection-status',
+      '.cd-connection-status[data-cd-status="ok"]',
+      '.cd-connection-status[data-cd-status="error"]',
+      '.cd-connection-status[data-cd-status="testing"]',
+      '.cd-connection-status[data-cd-status="idle"]',
+      '.cd-connection-status[data-cd-status="loading"]',
+      '.cd-connection-status[data-cd-status="success"]',
+      '.cd-profile-list',
+      '.cd-profile-item',
+      '.cd-profile--active',
+      '.cd-metric-list',
+      '.cd-metric-item',
+      '.cd-split',
+      '.cd-close-btn',
+      '.cd-toast',
+      '.cd-footer',
+      '.cd-dirty-indicator',
     ]
 
     for (const selector of selectors) {
@@ -88,15 +88,15 @@ describe('buildDashboardCss', () => {
   test('includes styles for diagnostic/warning/recalled/breadcrumb DOM classes', () => {
     const css = buildDashboardCss()
     const selectors = [
-      '.da-warning',
-      '.da-warning-list',
-      '.da-warning-item',
-      '.da-recalled-list',
-      '.da-recalled-item',
-      '.da-breadcrumb-list',
-      '.da-breadcrumb-item',
-      '.da-badge--sm',
-      '.da-diag-section',
+      '.cd-warning',
+      '.cd-warning-list',
+      '.cd-warning-item',
+      '.cd-recalled-list',
+      '.cd-recalled-item',
+      '.cd-breadcrumb-list',
+      '.cd-breadcrumb-item',
+      '.cd-badge--sm',
+      '.cd-diag-section',
     ]
 
     for (const selector of selectors) {
@@ -108,30 +108,30 @@ describe('buildDashboardCss', () => {
 
   test('includes disabled styling for buttons and form controls', () => {
     const css = buildDashboardCss()
-    expect(css).toContain('.da-btn:disabled')
-    expect(css).toContain('.da-input:disabled')
-    expect(css).toContain('.da-select:disabled')
-    expect(css).toContain('.da-textarea:disabled')
+    expect(css).toContain('.cd-btn:disabled')
+    expect(css).toContain('.cd-input:disabled')
+    expect(css).toContain('.cd-select:disabled')
+    expect(css).toContain('.cd-textarea:disabled')
   })
 
   // ── UI-1: Focus-visible on toggle ───────────────────────────────────
 
   test('includes :focus-visible styling for toggle controls', () => {
     const css = buildDashboardCss()
-    expect(css).toContain('.da-toggle')
+    expect(css).toContain('.cd-toggle')
     expect(css).toContain('focus-visible')
     // Toggle should have a visible focus ring
-    expect(css).toMatch(/\.da-toggle.*focus-visible/)
+    expect(css).toMatch(/\.cd-toggle.*focus-visible/)
   })
 
   // ── UI-1: Toast severity variants ───────────────────────────────────
 
   test('includes toast severity variant CSS', () => {
     const css = buildDashboardCss()
-    expect(css).toContain('.da-toast--success')
-    expect(css).toContain('.da-toast--info')
-    expect(css).toContain('.da-toast--warning')
-    expect(css).toContain('.da-toast--error')
+    expect(css).toContain('.cd-toast--success')
+    expect(css).toContain('.cd-toast--info')
+    expect(css).toContain('.cd-toast--warning')
+    expect(css).toContain('.cd-toast--error')
   })
 
   // ── Toast gradient opacity regression ─────────────────────────────
@@ -139,7 +139,7 @@ describe('buildDashboardCss', () => {
   test('toast gradient color-mix top stops sum to 100% (no unintended transparency)', () => {
     const css = buildDashboardCss()
     // Extract all color-mix() calls from toast rules
-    const toastSection = css.slice(css.indexOf('.da-toast'))
+    const toastSection = css.slice(css.indexOf('.cd-toast'))
     const colorMixPattern = /color-mix\(in srgb,\s*[^)]+?(\d+)%,\s*(?:white|black)\s+(\d+)%\)/g
     let match: RegExpExecArray | null
     const results: Array<{ full: string; sum: number }> = []
@@ -166,8 +166,8 @@ describe('buildDashboardCss', () => {
 
   test('toast has pointer-events: none so it is click-through', () => {
     const css = buildDashboardCss()
-    // The .da-toast rule should include pointer-events: none
-    const toastSection = css.slice(css.indexOf('.da-toast'))
+    // The .cd-toast rule should include pointer-events: none
+    const toastSection = css.slice(css.indexOf('.cd-toast'))
     expect(toastSection).toContain('pointer-events')
     expect(toastSection).toMatch(/pointer-events\s*:\s*none/)
   })
@@ -182,9 +182,9 @@ describe('buildDashboardCss', () => {
 
   // ── Task B: Memory list bounded scrolling ────────────────────────────
 
-  test('.da-memory-list has max-height and overflow-y for bounded scrolling', () => {
+  test('.cd-memory-list has max-height and overflow-y for bounded scrolling', () => {
     const css = buildDashboardCss()
-    const idx = css.indexOf('.da-memory-list')
+    const idx = css.indexOf('.cd-memory-list')
     expect(idx).toBeGreaterThan(-1)
     const block = css.slice(idx, css.indexOf('}', idx) + 1)
     expect(block).toContain('max-height')

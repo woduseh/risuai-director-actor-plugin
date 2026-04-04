@@ -79,12 +79,12 @@ function buildSidebar(activeTab: string): string {
       const buttons = DASHBOARD_TABS
         .filter((tab) => tab.group === group.id)
         .map((tab) => {
-          const activeClass = tab.id === activeTab ? ' da-sidebar-btn--active' : ''
-          return `<button class="da-sidebar-btn${activeClass}" data-da-target="${tab.id}"><span>${tabLabel(tab.id)}</span><span aria-hidden="true">›</span></button>`
+          const activeClass = tab.id === activeTab ? ' cd-sidebar-btn--active' : ''
+          return `<button class="cd-sidebar-btn${activeClass}" data-cd-target="${tab.id}"><span>${tabLabel(tab.id)}</span><span aria-hidden="true">›</span></button>`
         })
         .join('\n')
 
-      return `<section class="da-nav-group"><div class="da-nav-group-label">${sidebarGroupLabel(group.id)}</div>${buttons}</section>`
+      return `<section class="cd-nav-group"><div class="cd-nav-group-label">${sidebarGroupLabel(group.id)}</div>${buttons}</section>`
     })
     .join('\n')
 
@@ -93,17 +93,17 @@ function buildSidebar(activeTab: string): string {
   const nextLabel = currentLocale === 'en' ? t('lang.ko') : t('lang.en')
 
   return `
-    <aside class="da-sidebar">
-      <div class="da-sidebar-header">
-        <div class="da-kicker">${t('sidebar.kicker')}</div>
-        <h1 class="da-title">${t('sidebar.title')}</h1>
-        <p class="da-subtitle">${t('sidebar.subtitle')}</p>
+    <aside class="cd-sidebar">
+      <div class="cd-sidebar-header">
+        <div class="cd-kicker">${t('sidebar.kicker')}</div>
+        <h1 class="cd-title">${t('sidebar.title')}</h1>
+        <p class="cd-subtitle">${t('sidebar.subtitle')}</p>
       </div>
-      <nav class="da-sidebar-nav">${sections}</nav>
-      <div class="da-sidebar-footer da-footer">
-        <button class="da-btn" data-da-action="switch-lang" data-da-lang="${nextLocale}">${nextLabel}</button>
-        <button class="da-btn da-btn--ghost" data-da-action="export-settings">${t('btn.exportSettings')}</button>
-        <button class="da-btn da-btn--danger da-close-btn" data-da-action="close-dashboard" aria-label="${t('btn.close')}">${t('btn.close')}</button>
+      <nav class="cd-sidebar-nav">${sections}</nav>
+      <div class="cd-sidebar-footer cd-footer">
+        <button class="cd-btn" data-cd-action="switch-lang" data-cd-lang="${nextLocale}">${nextLabel}</button>
+        <button class="cd-btn cd-btn--ghost" data-cd-action="export-settings">${t('btn.exportSettings')}</button>
+        <button class="cd-btn cd-btn--danger cd-close-btn" data-cd-action="close-dashboard" aria-label="${t('btn.close')}">${t('btn.close')}</button>
       </div>
     </aside>`
 }
@@ -115,39 +115,39 @@ function buildSidebar(activeTab: string): string {
 function buildGeneralPage(input: DashboardMarkupInput): string {
   const { settings, connectionStatus } = input
   return `
-      <div class="da-grid">
-        <section class="da-card">
-          <div class="da-card-header">
+      <div class="cd-grid">
+        <section class="cd-card">
+          <div class="cd-card-header">
             <div>
-              <h3 class="da-card-title">${t('card.pluginStatus.title')}</h3>
-              <p class="da-card-copy">${t('card.pluginStatus.copy')}</p>
+              <h3 class="cd-card-title">${t('card.pluginStatus.title')}</h3>
+              <p class="cd-card-copy">${t('card.pluginStatus.copy')}</p>
             </div>
-            <span class="da-badge" data-kind="${connectionStatus.kind === 'error' ? 'error' : connectionStatus.kind === 'success' ? 'success' : 'neutral'}">${connectionStatus.kind}</span>
+            <span class="cd-badge" data-kind="${connectionStatus.kind === 'error' ? 'error' : connectionStatus.kind === 'success' ? 'success' : 'neutral'}">${connectionStatus.kind}</span>
           </div>
-          <label class="da-toggle">
-            <input type="checkbox" data-da-field="enabled"${settings.enabled ? ' checked' : ''} />
-            <span class="da-toggle-track"><span class="da-toggle-dot"></span></span>
+          <label class="cd-toggle">
+            <input type="checkbox" data-cd-field="enabled"${settings.enabled ? ' checked' : ''} />
+            <span class="cd-toggle-track"><span class="cd-toggle-dot"></span></span>
             <span>${t('label.enabled')}</span>
           </label>
-          <label class="da-label">
-            <span class="da-label-text">${t('label.assertiveness')}</span>
-            <select class="da-select" data-da-field="assertiveness">
+          <label class="cd-label">
+            <span class="cd-label-text">${t('label.assertiveness')}</span>
+            <select class="cd-select" data-cd-field="assertiveness">
             <option value="light"${settings.assertiveness === 'light' ? ' selected' : ''}>${t('option.light')}</option>
             <option value="standard"${settings.assertiveness === 'standard' ? ' selected' : ''}>${t('option.standard')}</option>
             <option value="firm"${settings.assertiveness === 'firm' ? ' selected' : ''}>${t('option.firm')}</option>
             </select>
           </label>
-          <div class="da-inline">
-            <label class="da-label">
-              <span class="da-label-text">${t('label.mode')}</span>
-              <select class="da-select" data-da-field="directorMode">
+          <div class="cd-inline">
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.mode')}</span>
+              <select class="cd-select" data-cd-field="directorMode">
                 <option value="otherAx"${settings.directorMode === 'otherAx' ? ' selected' : ''}>${t('option.risuAux')}</option>
                 <option value="model"${settings.directorMode === 'model' ? ' selected' : ''}>${t('option.independentProvider')}</option>
               </select>
             </label>
-            <label class="da-label">
-              <span class="da-label-text">${t('label.injectionMode')}</span>
-              <select class="da-select" data-da-field="injectionMode">
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.injectionMode')}</span>
+              <select class="cd-select" data-cd-field="injectionMode">
                 <option value="auto"${settings.injectionMode === 'auto' ? ' selected' : ''}>${t('option.auto')}</option>
                 <option value="author-note"${settings.injectionMode === 'author-note' ? ' selected' : ''}>${t('option.authorNote')}</option>
                 <option value="adjacent-user"${settings.injectionMode === 'adjacent-user' ? ' selected' : ''}>${t('option.adjacentUser')}</option>
@@ -156,20 +156,20 @@ function buildGeneralPage(input: DashboardMarkupInput): string {
               </select>
             </label>
           </div>
-          <span class="da-connection-status" data-da-status="${connectionStatus.kind}" role="status" aria-live="polite">${connectionStatus.message}</span>
+          <span class="cd-connection-status" data-cd-status="${connectionStatus.kind}" role="status" aria-live="polite">${connectionStatus.message}</span>
         </section>
-        <section class="da-card">
-          <div class="da-card-header">
+        <section class="cd-card">
+          <div class="cd-card-header">
             <div>
-              <h3 class="da-card-title">${t('card.metricsSnapshot.title')}</h3>
-              <p class="da-card-copy">${t('card.metricsSnapshot.copy')}</p>
+              <h3 class="cd-card-title">${t('card.metricsSnapshot.title')}</h3>
+              <p class="cd-card-copy">${t('card.metricsSnapshot.copy')}</p>
             </div>
           </div>
-          <ul class="da-metric-list">
-            <li class="da-metric-item"><span>${t('metric.totalDirectorCalls')}</span><strong>${input.pluginState.metrics.totalDirectorCalls}</strong></li>
-            <li class="da-metric-item"><span>${t('metric.totalFailures')}</span><strong>${input.pluginState.metrics.totalDirectorFailures}</strong></li>
-            <li class="da-metric-item"><span>${t('metric.memoryWrites')}</span><strong>${input.pluginState.metrics.totalMemoryWrites}</strong></li>
-            <li class="da-metric-item"><span>${t('metric.scenePhase')}</span><strong>${input.pluginState.director.scenePhase}</strong></li>
+          <ul class="cd-metric-list">
+            <li class="cd-metric-item"><span>${t('metric.totalDirectorCalls')}</span><strong>${input.pluginState.metrics.totalDirectorCalls}</strong></li>
+            <li class="cd-metric-item"><span>${t('metric.totalFailures')}</span><strong>${input.pluginState.metrics.totalDirectorFailures}</strong></li>
+            <li class="cd-metric-item"><span>${t('metric.memoryWrites')}</span><strong>${input.pluginState.metrics.totalMemoryWrites}</strong></li>
+            <li class="cd-metric-item"><span>${t('metric.scenePhase')}</span><strong>${input.pluginState.director.scenePhase}</strong></li>
           </ul>
         </section>
       </div>`
@@ -194,93 +194,93 @@ function buildPromptTuningPage(input: DashboardMarkupInput): string {
   ].join('')
 
   return `
-      <div class="da-grid">
-        <section class="da-card">
-          <div class="da-card-header">
+      <div class="cd-grid">
+        <section class="cd-card">
+          <div class="cd-card-header">
             <div>
-              <h3 class="da-card-title">${t('card.promptTuning.title')}</h3>
-              <p class="da-card-copy">${t('card.promptTuning.copy')}</p>
+              <h3 class="cd-card-title">${t('card.promptTuning.title')}</h3>
+              <p class="cd-card-copy">${t('card.promptTuning.copy')}</p>
             </div>
           </div>
-          <div class="da-form-grid">
-            <label class="da-label">
-              <span class="da-label-text">${t('label.briefTokenCap')}</span>
-              <input type="number" class="da-input" data-da-field="briefTokenCap" value="${settings.briefTokenCap}" />
+          <div class="cd-form-grid">
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.briefTokenCap')}</span>
+              <input type="number" class="cd-input" data-cd-field="briefTokenCap" value="${settings.briefTokenCap}" />
             </label>
-            <label class="da-toggle">
-              <input type="checkbox" data-da-field="postReviewEnabled"${settings.postReviewEnabled ? ' checked' : ''} />
-              <span class="da-toggle-track"><span class="da-toggle-dot"></span></span>
+            <label class="cd-toggle">
+              <input type="checkbox" data-cd-field="postReviewEnabled"${settings.postReviewEnabled ? ' checked' : ''} />
+              <span class="cd-toggle-track"><span class="cd-toggle-dot"></span></span>
               <span>${t('label.postReview')}</span>
             </label>
-            <label class="da-toggle">
-              <input type="checkbox" data-da-field="embeddingsEnabled"${settings.embeddingsEnabled ? ' checked' : ''} />
-              <span class="da-toggle-track"><span class="da-toggle-dot"></span></span>
+            <label class="cd-toggle">
+              <input type="checkbox" data-cd-field="embeddingsEnabled"${settings.embeddingsEnabled ? ' checked' : ''} />
+              <span class="cd-toggle-track"><span class="cd-toggle-dot"></span></span>
               <span>${t('label.embeddings')}</span>
             </label>
           </div>
         </section>
-        <section class="da-card">
-          <div class="da-card-header">
+        <section class="cd-card">
+          <div class="cd-card-header">
             <div>
-              <h3 class="da-card-title">${t('card.promptPresets.title')}</h3>
-              <p class="da-card-copy">${t('card.promptPresets.copy')}</p>
+              <h3 class="cd-card-title">${t('card.promptPresets.title')}</h3>
+              <p class="cd-card-copy">${t('card.promptPresets.copy')}</p>
             </div>
           </div>
-          <div class="da-form-grid">
-            <label class="da-label">
-              <span class="da-label-text">${t('label.promptPreset')}</span>
-              <select class="da-select" data-da-role="prompt-preset-select">${promptPresetOptions}</select>
+          <div class="cd-form-grid">
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.promptPreset')}</span>
+              <select class="cd-select" data-cd-role="prompt-preset-select">${promptPresetOptions}</select>
             </label>
-            <div class="da-inline">
-              <button class="da-btn da-btn--primary" data-da-action="create-prompt-preset">${t('btn.newPromptPreset')}</button>
-              <button class="da-btn da-btn--danger" data-da-action="delete-prompt-preset"${isBuiltinPreset ? ' disabled' : ''}>${t('btn.deletePromptPreset')}</button>
+            <div class="cd-inline">
+              <button class="cd-btn cd-btn--primary" data-cd-action="create-prompt-preset">${t('btn.newPromptPreset')}</button>
+              <button class="cd-btn cd-btn--danger" data-cd-action="delete-prompt-preset"${isBuiltinPreset ? ' disabled' : ''}>${t('btn.deletePromptPreset')}</button>
             </div>
-            ${isBuiltinPreset ? `<p class="da-hint">${t('promptPreset.readOnlyHint')}</p>` : ''}
-            <label class="da-label">
-              <span class="da-label-text">${t('label.promptPresetName')}</span>
-              <input type="text" class="da-input" data-da-role="prompt-preset-name" value="${escapeXml(isBuiltinPreset ? t('promptPreset.defaultName') : selectedPreset.name)}"${presetDisabled} />
+            ${isBuiltinPreset ? `<p class="cd-hint">${t('promptPreset.readOnlyHint')}</p>` : ''}
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.promptPresetName')}</span>
+              <input type="text" class="cd-input" data-cd-role="prompt-preset-name" value="${escapeXml(isBuiltinPreset ? t('promptPreset.defaultName') : selectedPreset.name)}"${presetDisabled} />
             </label>
-            <label class="da-label">
-              <span class="da-label-text">${t('label.preRequestSystemTemplate')}</span>
-              <textarea class="da-textarea" data-da-role="prompt-pre-request-system"${presetDisabled}>${escapeXml(selectedPreset.preset.preRequestSystemTemplate)}</textarea>
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.preRequestSystemTemplate')}</span>
+              <textarea class="cd-textarea" data-cd-role="prompt-pre-request-system"${presetDisabled}>${escapeXml(selectedPreset.preset.preRequestSystemTemplate)}</textarea>
             </label>
-            <label class="da-label">
-              <span class="da-label-text">${t('label.preRequestUserTemplate')}</span>
-              <textarea class="da-textarea" data-da-role="prompt-pre-request-user"${presetDisabled}>${escapeXml(selectedPreset.preset.preRequestUserTemplate)}</textarea>
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.preRequestUserTemplate')}</span>
+              <textarea class="cd-textarea" data-cd-role="prompt-pre-request-user"${presetDisabled}>${escapeXml(selectedPreset.preset.preRequestUserTemplate)}</textarea>
             </label>
-            <label class="da-label">
-              <span class="da-label-text">${t('label.postResponseSystemTemplate')}</span>
-              <textarea class="da-textarea" data-da-role="prompt-post-response-system"${presetDisabled}>${escapeXml(selectedPreset.preset.postResponseSystemTemplate)}</textarea>
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.postResponseSystemTemplate')}</span>
+              <textarea class="cd-textarea" data-cd-role="prompt-post-response-system"${presetDisabled}>${escapeXml(selectedPreset.preset.postResponseSystemTemplate)}</textarea>
             </label>
-            <label class="da-label">
-              <span class="da-label-text">${t('label.postResponseUserTemplate')}</span>
-              <textarea class="da-textarea" data-da-role="prompt-post-response-user"${presetDisabled}>${escapeXml(selectedPreset.preset.postResponseUserTemplate)}</textarea>
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.postResponseUserTemplate')}</span>
+              <textarea class="cd-textarea" data-cd-role="prompt-post-response-user"${presetDisabled}>${escapeXml(selectedPreset.preset.postResponseUserTemplate)}</textarea>
             </label>
-            <label class="da-label">
-              <span class="da-label-text">${t('label.maxRecentMessages')}</span>
-              <input type="number" class="da-input" data-da-role="prompt-max-recent-messages" value="${selectedPreset.preset.maxRecentMessages}"${presetDisabled} />
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.maxRecentMessages')}</span>
+              <input type="number" class="cd-input" data-cd-role="prompt-max-recent-messages" value="${selectedPreset.preset.maxRecentMessages}"${presetDisabled} />
             </label>
           </div>
         </section>
-        <section class="da-card">
-          <div class="da-card-header">
+        <section class="cd-card">
+          <div class="cd-card-header">
             <div>
-              <h3 class="da-card-title">${t('card.timingLimits.title')}</h3>
-              <p class="da-card-copy">${t('card.timingLimits.copy')}</p>
+              <h3 class="cd-card-title">${t('card.timingLimits.title')}</h3>
+              <p class="cd-card-copy">${t('card.timingLimits.copy')}</p>
             </div>
           </div>
-          <div class="da-form-grid">
-            <label class="da-label">
-              <span class="da-label-text">${t('label.cooldownFailures')}</span>
-              <input type="number" class="da-input" data-da-field="cooldownFailureThreshold" value="${settings.cooldownFailureThreshold}" />
+          <div class="cd-form-grid">
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.cooldownFailures')}</span>
+              <input type="number" class="cd-input" data-cd-field="cooldownFailureThreshold" value="${settings.cooldownFailureThreshold}" />
             </label>
-            <label class="da-label">
-              <span class="da-label-text">${t('label.cooldownMs')}</span>
-              <input type="number" class="da-input" data-da-field="cooldownMs" value="${settings.cooldownMs}" />
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.cooldownMs')}</span>
+              <input type="number" class="cd-input" data-cd-field="cooldownMs" value="${settings.cooldownMs}" />
             </label>
-            <label class="da-label">
-              <span class="da-label-text">${t('label.outputDebounceMs')}</span>
-              <input type="number" class="da-input" data-da-field="outputDebounceMs" value="${settings.outputDebounceMs}" />
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.outputDebounceMs')}</span>
+              <input type="number" class="cd-input" data-cd-field="outputDebounceMs" value="${settings.outputDebounceMs}" />
             </label>
           </div>
         </section>
@@ -303,50 +303,50 @@ function buildModelSettingsPage(input: DashboardMarkupInput): string {
     .join('')
 
   const embeddingSection = `
-        <section class="da-card">
-          <div class="da-card-header">
+        <section class="cd-card">
+          <div class="cd-card-header">
             <div>
-              <h3 class="da-card-title">${t('card.embeddingSettings.title')}</h3>
-              <p class="da-card-copy">${t('card.embeddingSettings.copy')}</p>
+              <h3 class="cd-card-title">${t('card.embeddingSettings.title')}</h3>
+              <p class="cd-card-copy">${t('card.embeddingSettings.copy')}</p>
             </div>
           </div>
-          <div class="da-form-grid">
-            <label class="da-label">
-              <span class="da-label-text">${t('label.embeddingProvider')}</span>
-              <select class="da-select" data-da-field="embeddingProvider">${embeddingProviderOptionEls}</select>
+          <div class="cd-form-grid">
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.embeddingProvider')}</span>
+              <select class="cd-select" data-cd-field="embeddingProvider">${embeddingProviderOptionEls}</select>
             </label>
-            <label class="da-label">
-              <span class="da-label-text">${t('label.embeddingBaseUrl')}</span>
-              <input type="text" class="da-input" data-da-field="embeddingBaseUrl" value="${escapeXml(settings.embeddingBaseUrl)}" />
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.embeddingBaseUrl')}</span>
+              <input type="text" class="cd-input" data-cd-field="embeddingBaseUrl" value="${escapeXml(settings.embeddingBaseUrl)}" />
             </label>
-            <label class="da-label">
-              <span class="da-label-text">${t('label.embeddingApiKey')}</span>
-              <input type="password" class="da-input" data-da-field="embeddingApiKey" value="${escapeXml(settings.embeddingApiKey)}" />
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.embeddingApiKey')}</span>
+              <input type="password" class="cd-input" data-cd-field="embeddingApiKey" value="${escapeXml(settings.embeddingApiKey)}" />
             </label>
-            <label class="da-label">
-              <span class="da-label-text">${t('label.embeddingModel')}</span>
-              <input type="text" class="da-input" data-da-field="embeddingModel" value="${escapeXml(settings.embeddingModel)}" />
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.embeddingModel')}</span>
+              <input type="text" class="cd-input" data-cd-field="embeddingModel" value="${escapeXml(settings.embeddingModel)}" />
             </label>
-            <label class="da-label">
-              <span class="da-label-text">${t('label.embeddingDimensions')}</span>
-              <input type="number" class="da-input" data-da-field="embeddingDimensions" value="${settings.embeddingDimensions}" />
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.embeddingDimensions')}</span>
+              <input type="number" class="cd-input" data-cd-field="embeddingDimensions" value="${settings.embeddingDimensions}" />
             </label>
           </div>
         </section>`
 
   return `
-      <div class="da-grid">
-        <section class="da-card">
-          <div class="da-card-header">
+      <div class="cd-grid">
+        <section class="cd-card">
+          <div class="cd-card-header">
             <div>
-              <h3 class="da-card-title">${t('card.directorModel.title')}</h3>
-              <p class="da-card-copy">${t('card.directorModel.copy')}</p>
+              <h3 class="cd-card-title">${t('card.directorModel.title')}</h3>
+              <p class="cd-card-copy">${t('card.directorModel.copy')}</p>
             </div>
           </div>
-          <div class="da-form-grid">
-            <label class="da-label">
-              <span class="da-label-text">${t('label.provider')}</span>
-              <select class="da-select" data-da-field="directorProvider">
+          <div class="cd-form-grid">
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.provider')}</span>
+              <select class="cd-select" data-cd-field="directorProvider">
                 <option value="openai"${settings.directorProvider === 'openai' ? ' selected' : ''}>${t('option.openai')}</option>
                 <option value="anthropic"${settings.directorProvider === 'anthropic' ? ' selected' : ''}>${t('option.anthropic')}</option>
                 <option value="google"${settings.directorProvider === 'google' ? ' selected' : ''}>${t('option.google')}</option>
@@ -355,27 +355,27 @@ function buildModelSettingsPage(input: DashboardMarkupInput): string {
                 <option value="custom"${settings.directorProvider === 'custom' ? ' selected' : ''}>${t('option.custom')}</option>
               </select>
             </label>
-            <div class="da-split">
-              <label class="da-label">
-                <span class="da-label-text">${t('label.baseUrl')}</span>
-                <input type="text" class="da-input" data-da-field="directorBaseUrl" value="${escapeXml(settings.directorBaseUrl)}" />
+            <div class="cd-split">
+              <label class="cd-label">
+                <span class="cd-label-text">${t('label.baseUrl')}</span>
+                <input type="text" class="cd-input" data-cd-field="directorBaseUrl" value="${escapeXml(settings.directorBaseUrl)}" />
               </label>
-              <label class="da-label">
-                <span class="da-label-text">${t('label.apiKey')}</span>
-                <input type="password" class="da-input" data-da-field="directorApiKey" value="${escapeXml(settings.directorApiKey)}" />
+              <label class="cd-label">
+                <span class="cd-label-text">${t('label.apiKey')}</span>
+                <input type="password" class="cd-input" data-cd-field="directorApiKey" value="${escapeXml(settings.directorApiKey)}" />
               </label>
             </div>
-            <label class="da-label">
-              <span class="da-label-text">${t('label.model')}</span>
-              <select class="da-select" data-da-field="directorModel">${modelOptionEls}</select>
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.model')}</span>
+              <select class="cd-select" data-cd-field="directorModel">${modelOptionEls}</select>
             </label>
-            <label class="da-label">
-              <span class="da-label-text">${t('label.customModelId')}</span>
-              <input type="text" class="da-input" data-da-field="directorModel" value="${escapeXml(settings.directorModel)}" placeholder="${t('placeholder.customModelId')}" />
+            <label class="cd-label">
+              <span class="cd-label-text">${t('label.customModelId')}</span>
+              <input type="text" class="cd-input" data-cd-field="directorModel" value="${escapeXml(settings.directorModel)}" placeholder="${t('placeholder.customModelId')}" />
             </label>
-            <div class="da-inline">
-              <button class="da-btn da-btn--primary" data-da-action="test-connection">${t('btn.testConnection')}</button>
-              <button class="da-btn" data-da-action="refresh-models">${t('btn.refreshModels')}</button>
+            <div class="cd-inline">
+              <button class="cd-btn cd-btn--primary" data-cd-action="test-connection">${t('btn.testConnection')}</button>
+              <button class="cd-btn" data-cd-action="refresh-models">${t('btn.refreshModels')}</button>
             </div>
           </div>
         </section>${embeddingSection}
@@ -423,16 +423,16 @@ function embeddingStatusLabel(cache: EmbeddingCacheStatus): string {
 }
 
 function buildEmbeddingStatusSection(cache: EmbeddingCacheStatus): string {
-  const badge = `<span class="da-badge da-badge--sm" data-kind="${embeddingStatusBadgeKind(cache)}">${embeddingStatusLabel(cache)}</span>`
+  const badge = `<span class="cd-badge cd-badge--sm" data-kind="${embeddingStatusBadgeKind(cache)}">${embeddingStatusLabel(cache)}</span>`
   const countsLabel = `${t('embeddingStatus.ready')}: ${cache.readyCount} · ${t('embeddingStatus.stale')}: ${cache.staleCount} · ${t('embeddingStatus.missing')}: ${cache.missingCount}`
   const versionLabel = cache.currentVersion || '—'
 
   return `
-          <div class="da-embedding-status" data-da-role="embedding-status">
-            <h4 class="da-card-title">${t('embeddingStatus.title')} ${badge}</h4>
-            <ul class="da-metric-list">
-              <li class="da-metric-item"><span>${t('embeddingStatus.counts')}</span><strong>${countsLabel}</strong></li>
-              <li class="da-metric-item"><span>${t('embeddingStatus.version')}</span><strong>${escapeXml(versionLabel)}</strong></li>
+          <div class="cd-embedding-status" data-cd-role="embedding-status">
+            <h4 class="cd-card-title">${t('embeddingStatus.title')} ${badge}</h4>
+            <ul class="cd-metric-list">
+              <li class="cd-metric-item"><span>${t('embeddingStatus.counts')}</span><strong>${countsLabel}</strong></li>
+              <li class="cd-metric-item"><span>${t('embeddingStatus.version')}</span><strong>${escapeXml(versionLabel)}</strong></li>
             </ul>
           </div>`
 }
@@ -443,14 +443,14 @@ function buildEmbeddingStatusSection(cache: EmbeddingCacheStatus): string {
 
 function buildMemoryOpsCard(status: MemoryOpsStatus): string {
   const { documentCounts: dc } = status
-  const freshnessBadge = `<span class="da-badge" data-kind="${status.notebookFreshness === 'stale' ? 'error' : status.notebookFreshness === 'current' ? 'success' : 'neutral'}">${freshnessLabel(status.notebookFreshness)}</span>`
+  const freshnessBadge = `<span class="cd-badge" data-kind="${status.notebookFreshness === 'stale' ? 'error' : status.notebookFreshness === 'current' ? 'success' : 'neutral'}">${freshnessLabel(status.notebookFreshness)}</span>`
 
   const lockedHtml = status.isMemoryLocked
-    ? `<div class="da-warning" data-da-role="memory-locked"><span class="da-badge" data-kind="error">${escapeXml(t('memoryOps.locked'))}</span></div>`
+    ? `<div class="cd-warning" data-cd-role="memory-locked"><span class="cd-badge" data-kind="error">${escapeXml(t('memoryOps.locked'))}</span></div>`
     : ''
 
   const staleHtml = status.staleWarnings.length > 0
-    ? `<div class="da-warning-list" data-da-role="stale-warnings">${status.staleWarnings.map((w) => `<div class="da-warning-item">${escapeXml(w)}</div>`).join('')}</div>`
+    ? `<div class="cd-warning-list" data-cd-role="stale-warnings">${status.staleWarnings.map((w) => `<div class="cd-warning-item">${escapeXml(w)}</div>`).join('')}</div>`
     : ''
 
   const fallbackLabel = status.fallbackRetrievalEnabled
@@ -458,11 +458,11 @@ function buildMemoryOpsCard(status: MemoryOpsStatus): string {
     : t('memoryOps.fallbackDisabled')
 
   const recalledHtml = status.recalledDocs.length > 0
-    ? `<ul class="da-recalled-list" data-da-role="recalled-docs">${status.recalledDocs.map((d) => {
+    ? `<ul class="cd-recalled-list" data-cd-role="recalled-docs">${status.recalledDocs.map((d) => {
       const badge = d.freshness !== 'current'
-        ? ` <span class="da-badge da-badge--sm" data-kind="${d.freshness === 'stale' ? 'error' : 'neutral'}">${escapeXml(d.freshness)}</span>`
+        ? ` <span class="cd-badge cd-badge--sm" data-kind="${d.freshness === 'stale' ? 'error' : 'neutral'}">${escapeXml(d.freshness)}</span>`
         : ''
-      return `<li class="da-recalled-item">${escapeXml(d.title)}${badge}</li>`
+      return `<li class="cd-recalled-item">${escapeXml(d.title)}${badge}</li>`
     }).join('')}</ul>`
     : ''
 
@@ -471,27 +471,27 @@ function buildMemoryOpsCard(status: MemoryOpsStatus): string {
   const diagHtml = buildDiagnosticsSection(status)
 
   return `
-        <section class="da-card" data-da-role="memory-ops-status">
-          <div class="da-card-header">
+        <section class="cd-card" data-cd-role="memory-ops-status">
+          <div class="cd-card-header">
             <div>
-              <h3 class="da-card-title">${t('card.memoryOps.title')}</h3>
-              <p class="da-card-copy">${t('card.memoryOps.copy')}</p>
+              <h3 class="cd-card-title">${t('card.memoryOps.title')}</h3>
+              <p class="cd-card-copy">${t('card.memoryOps.copy')}</p>
             </div>
             ${freshnessBadge}
           </div>
           ${lockedHtml}${staleHtml}
-          <ul class="da-metric-list">
-            <li class="da-metric-item"><span>${t('memoryOps.lastExtract')}</span><strong>${formatTimestamp(status.lastExtractTs)}</strong></li>
-            <li class="da-metric-item"><span>${t('memoryOps.lastDream')}</span><strong>${formatTimestamp(status.lastDreamTs)}</strong></li>
-            <li class="da-metric-item"><span>${t('memoryOps.docCounts')}</span><strong>${t('card.memorySummaries.title')}: ${dc.summaries} · ${t('card.continuityFacts.title')}: ${dc.continuityFacts} · ${t('card.worldFacts.title')}: ${dc.worldFacts} · ${t('card.entities.title')}: ${dc.entities} · ${t('card.relations.title')}: ${dc.relations}</strong></li>
-            <li class="da-metric-item"><span>${fallbackLabel}</span></li>
+          <ul class="cd-metric-list">
+            <li class="cd-metric-item"><span>${t('memoryOps.lastExtract')}</span><strong>${formatTimestamp(status.lastExtractTs)}</strong></li>
+            <li class="cd-metric-item"><span>${t('memoryOps.lastDream')}</span><strong>${formatTimestamp(status.lastDreamTs)}</strong></li>
+            <li class="cd-metric-item"><span>${t('memoryOps.docCounts')}</span><strong>${t('card.memorySummaries.title')}: ${dc.summaries} · ${t('card.continuityFacts.title')}: ${dc.continuityFacts} · ${t('card.worldFacts.title')}: ${dc.worldFacts} · ${t('card.entities.title')}: ${dc.entities} · ${t('card.relations.title')}: ${dc.relations}</strong></li>
+            <li class="cd-metric-item"><span>${fallbackLabel}</span></li>
           </ul>
-          <div class="da-inline">
-            <button class="da-btn da-btn--primary da-btn--sm" data-da-action="force-extract">${t('btn.forceExtract')}</button>
-            <button class="da-btn da-btn--sm" data-da-action="force-dream">${t('btn.forceDream')}</button>
-            <button class="da-btn da-btn--sm" data-da-action="inspect-recalled">${t('btn.inspectRecalled')}</button>
-            <button class="da-btn da-btn--sm" data-da-action="toggle-fallback-retrieval">${t('btn.toggleFallback')}</button>
-            <button class="da-btn da-btn--sm" data-da-action="refresh-embeddings">${t('btn.refreshEmbeddings')}</button>
+          <div class="cd-inline">
+            <button class="cd-btn cd-btn--primary cd-btn--sm" data-cd-action="force-extract">${t('btn.forceExtract')}</button>
+            <button class="cd-btn cd-btn--sm" data-cd-action="force-dream">${t('btn.forceDream')}</button>
+            <button class="cd-btn cd-btn--sm" data-cd-action="inspect-recalled">${t('btn.inspectRecalled')}</button>
+            <button class="cd-btn cd-btn--sm" data-cd-action="toggle-fallback-retrieval">${t('btn.toggleFallback')}</button>
+            <button class="cd-btn cd-btn--sm" data-cd-action="refresh-embeddings">${t('btn.refreshEmbeddings')}</button>
           </div>
           ${embeddingStatusHtml}
           ${recalledHtml}
@@ -536,28 +536,28 @@ function buildDiagnosticsSection(status: MemoryOpsStatus): string {
     const labelKey = kind === 'extraction' ? 'diag.extraction'
       : kind === 'dream' ? 'diag.dream'
       : 'diag.recovery'
-    const badge = `<span class="da-badge da-badge--sm" data-kind="${healthBadgeKind(ws.health)}">${healthLabel(ws.health)}</span>`
+    const badge = `<span class="cd-badge cd-badge--sm" data-kind="${healthBadgeKind(ws.health)}">${healthLabel(ws.health)}</span>`
     const ts = ws.lastTs > 0 ? formatTimestamp(ws.lastTs) : ''
     const detail = ws.lastDetail ? ` — ${escapeXml(ws.lastDetail)}` : ''
-    return `<li class="da-metric-item" data-da-role="diag-worker-${kind}"><span>${t(labelKey)}</span><strong>${badge} ${ts}${detail}</strong></li>`
+    return `<li class="cd-metric-item" data-cd-role="diag-worker-${kind}"><span>${t(labelKey)}</span><strong>${badge} ${ts}${detail}</strong></li>`
   }).join('')
 
   const breadcrumbsHtml = diag.breadcrumbs.length > 0
-    ? `<ul class="da-breadcrumb-list" data-da-role="diag-breadcrumbs">${diag.breadcrumbs.slice().reverse().map((b) => {
+    ? `<ul class="cd-breadcrumb-list" data-cd-role="diag-breadcrumbs">${diag.breadcrumbs.slice().reverse().map((b) => {
       const detail = b.detail ? ` — ${escapeXml(b.detail)}` : ''
-      return `<li class="da-breadcrumb-item">${formatTimestamp(b.ts)} <strong>${escapeXml(b.label)}</strong>${detail}</li>`
+      return `<li class="cd-breadcrumb-item">${formatTimestamp(b.ts)} <strong>${escapeXml(b.label)}</strong>${detail}</li>`
     }).join('')}</ul>`
-    : `<p class="da-empty">${t('diag.noBreadcrumbs')}</p>`
+    : `<p class="cd-empty">${t('diag.noBreadcrumbs')}</p>`
 
   return `
-          <div class="da-diag-section" data-da-role="diagnostics">
-            <h4 class="da-card-title">${t('diag.title')}</h4>
-            <ul class="da-metric-list">
-              <li class="da-metric-item" data-da-role="diag-last-hook"><span>${t('diag.lastHook')}</span><strong>${lastHookLabel}</strong></li>
-              <li class="da-metric-item" data-da-role="diag-last-error"><span>${t('diag.lastError')}</span><strong>${lastErrorLabel}</strong></li>
+          <div class="cd-diag-section" data-cd-role="diagnostics">
+            <h4 class="cd-card-title">${t('diag.title')}</h4>
+            <ul class="cd-metric-list">
+              <li class="cd-metric-item" data-cd-role="diag-last-hook"><span>${t('diag.lastHook')}</span><strong>${lastHookLabel}</strong></li>
+              <li class="cd-metric-item" data-cd-role="diag-last-error"><span>${t('diag.lastError')}</span><strong>${lastErrorLabel}</strong></li>
               ${workerRows}
             </ul>
-            <h4 class="da-card-title">${t('diag.breadcrumbs')}</h4>
+            <h4 class="cd-card-title">${t('diag.breadcrumbs')}</h4>
             ${breadcrumbsHtml}
           </div>`
 }
@@ -578,15 +578,15 @@ export function buildMemoryCachePage(input: DashboardMarkupInput): string {
   const isEmpty = summaries.length === 0 && facts.length === 0 && worldFacts.length === 0 && entities.length === 0 && relations.length === 0
   const selectedCount = selectedKeys.size
 
-  const backfillHtml = `<div class="da-inline"><button class="da-btn da-btn--primary" data-da-action="backfill-current-chat">${t('btn.backfillCurrentChat')}</button></div>`
-  const regenerateHtml = `<div class="da-inline"><button class="da-btn" data-da-action="regenerate-current-chat">${t('btn.regenerateCurrentChat')}</button></div>`
-  const bulkDeleteHtml = `<div class="da-inline"><button class="da-btn da-btn--danger" data-da-action="bulk-delete-memory"${selectedCount === 0 ? ' disabled' : ''}>${t('btn.deleteSelected')}</button></div>`
+  const backfillHtml = `<div class="cd-inline"><button class="cd-btn cd-btn--primary" data-cd-action="backfill-current-chat">${t('btn.backfillCurrentChat')}</button></div>`
+  const regenerateHtml = `<div class="cd-inline"><button class="cd-btn" data-cd-action="regenerate-current-chat">${t('btn.regenerateCurrentChat')}</button></div>`
+  const bulkDeleteHtml = `<div class="cd-inline"><button class="cd-btn cd-btn--danger" data-cd-action="bulk-delete-memory"${selectedCount === 0 ? ' disabled' : ''}>${t('btn.deleteSelected')}</button></div>`
   const filterValue = input.memoryFilterQuery ? ` value="${escapeXml(input.memoryFilterQuery)}"` : ''
-  const filterHtml = `<input type="text" class="da-input" data-da-role="memory-filter" placeholder="${t('memory.filterPlaceholder')}" aria-label="${t('memory.filterPlaceholder')}"${filterValue} />`
+  const filterHtml = `<input type="text" class="cd-input" data-cd-role="memory-filter" placeholder="${t('memory.filterPlaceholder')}" aria-label="${t('memory.filterPlaceholder')}"${filterValue} />`
 
   // Scope badge
   const scopeText = input.scopeLabel ?? t('memory.scopeGlobal')
-  const scopeBadgeHtml = `<span class="da-badge" data-da-role="scope-badge" data-kind="neutral">${escapeXml(t('memory.scopeLabel', { scope: scopeText }))}</span>`
+  const scopeBadgeHtml = `<span class="cd-badge" data-cd-role="scope-badge" data-kind="neutral">${escapeXml(t('memory.scopeLabel', { scope: scopeText }))}</span>`
 
   // Quick navigation
   const quickNavItems: Array<[string, string]> = [
@@ -596,16 +596,16 @@ export function buildMemoryCachePage(input: DashboardMarkupInput): string {
     ['entities', t('memory.quickNav.entities')],
     ['relations', t('memory.quickNav.relations')],
   ]
-  const quickNavHtml = `<nav class="da-quick-nav" data-da-role="memory-quick-nav">${quickNavItems.map(([target, label]) => `<button class="da-btn da-btn--sm" data-da-nav-target="${target}">${escapeXml(label)}</button>`).join('')}</nav>`
+  const quickNavHtml = `<nav class="cd-quick-nav" data-cd-role="memory-quick-nav">${quickNavItems.map(([target, label]) => `<button class="cd-btn cd-btn--sm" data-cd-nav-target="${target}">${escapeXml(label)}</button>`).join('')}</nav>`
 
   // Cross-link to model settings
-  const crossLinkHtml = `<button class="da-btn da-btn--ghost" data-da-role="model-settings-link" data-da-target="model-settings">${t('memory.modelSettingsLink')}</button>`
+  const crossLinkHtml = `<button class="cd-btn cd-btn--ghost" data-cd-role="model-settings-link" data-cd-target="model-settings">${t('memory.modelSettingsLink')}</button>`
 
-  const addSummaryHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-summary-text" placeholder="${t('memory.addSummaryPlaceholder')}" aria-label="${t('memory.addSummaryPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-summary">${t('btn.add')}</button></div>`
-  const addFactHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-fact-text" placeholder="${t('memory.addFactPlaceholder')}" aria-label="${t('memory.addFactPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-continuity-fact">${t('btn.add')}</button></div>`
-  const addWorldFactHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-world-fact-text" placeholder="${t('memory.addWorldFactPlaceholder')}" aria-label="${t('memory.addWorldFactPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-world-fact">${t('btn.add')}</button></div>`
-  const addEntityHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-entity-name" placeholder="${t('memory.addEntityNamePlaceholder')}" aria-label="${t('memory.addEntityNamePlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-entity">${t('btn.add')}</button></div>`
-  const addRelationHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-relation-source" placeholder="${t('memory.addRelationSourcePlaceholder')}" aria-label="${t('memory.addRelationSourcePlaceholder')}" /><input type="text" class="da-input da-input--add" data-da-role="add-relation-label" placeholder="${t('memory.addRelationLabelPlaceholder')}" aria-label="${t('memory.addRelationLabelPlaceholder')}" /><input type="text" class="da-input da-input--add" data-da-role="add-relation-target" placeholder="${t('memory.addRelationTargetPlaceholder')}" aria-label="${t('memory.addRelationTargetPlaceholder')}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-relation">${t('btn.add')}</button></div>`
+  const addSummaryHtml = `<div class="cd-add-row"><input type="text" class="cd-input cd-input--add" data-cd-role="add-summary-text" placeholder="${t('memory.addSummaryPlaceholder')}" aria-label="${t('memory.addSummaryPlaceholder')}" /><button class="cd-btn cd-btn--primary cd-btn--sm" data-cd-action="add-summary">${t('btn.add')}</button></div>`
+  const addFactHtml = `<div class="cd-add-row"><input type="text" class="cd-input cd-input--add" data-cd-role="add-fact-text" placeholder="${t('memory.addFactPlaceholder')}" aria-label="${t('memory.addFactPlaceholder')}" /><button class="cd-btn cd-btn--primary cd-btn--sm" data-cd-action="add-continuity-fact">${t('btn.add')}</button></div>`
+  const addWorldFactHtml = `<div class="cd-add-row"><input type="text" class="cd-input cd-input--add" data-cd-role="add-world-fact-text" placeholder="${t('memory.addWorldFactPlaceholder')}" aria-label="${t('memory.addWorldFactPlaceholder')}" /><button class="cd-btn cd-btn--primary cd-btn--sm" data-cd-action="add-world-fact">${t('btn.add')}</button></div>`
+  const addEntityHtml = `<div class="cd-add-row"><input type="text" class="cd-input cd-input--add" data-cd-role="add-entity-name" placeholder="${t('memory.addEntityNamePlaceholder')}" aria-label="${t('memory.addEntityNamePlaceholder')}" /><button class="cd-btn cd-btn--primary cd-btn--sm" data-cd-action="add-entity">${t('btn.add')}</button></div>`
+  const addRelationHtml = `<div class="cd-add-row"><input type="text" class="cd-input cd-input--add" data-cd-role="add-relation-source" placeholder="${t('memory.addRelationSourcePlaceholder')}" aria-label="${t('memory.addRelationSourcePlaceholder')}" /><input type="text" class="cd-input cd-input--add" data-cd-role="add-relation-label" placeholder="${t('memory.addRelationLabelPlaceholder')}" aria-label="${t('memory.addRelationLabelPlaceholder')}" /><input type="text" class="cd-input cd-input--add" data-cd-role="add-relation-target" placeholder="${t('memory.addRelationTargetPlaceholder')}" aria-label="${t('memory.addRelationTargetPlaceholder')}" /><button class="cd-btn cd-btn--primary cd-btn--sm" data-cd-action="add-relation">${t('btn.add')}</button></div>`
 
   function renderMemoryItem(
     kind: 'summary' | 'continuity-fact' | 'world-fact' | 'entity' | 'relation',
@@ -624,22 +624,22 @@ export function buildMemoryCachePage(input: DashboardMarkupInput): string {
     const deleteLabel = `${t('btn.delete')} ${displayText}`
 
     if (isEditing) {
-      return `<li class="da-memory-item">
-        <input type="checkbox" data-da-role="memory-select" data-da-item-key="${escapeXml(itemKey)}"${checked} aria-label="${escapeXml(selectLabel)}" />
-        <div class="da-form-grid" style="flex:1">
-          <input type="text" class="da-input" data-da-role="${editRole}" data-da-item-id="${escapeXml(id)}" value="${escapeXml(editValue)}" />
+      return `<li class="cd-memory-item">
+        <input type="checkbox" data-cd-role="memory-select" data-cd-item-key="${escapeXml(itemKey)}"${checked} aria-label="${escapeXml(selectLabel)}" />
+        <div class="cd-form-grid" style="flex:1">
+          <input type="text" class="cd-input" data-cd-role="${editRole}" data-cd-item-id="${escapeXml(id)}" value="${escapeXml(editValue)}" />
           ${extraEditFields}
         </div>
-        <button class="da-btn da-btn--primary da-btn--sm" data-da-action="save-memory-edit" data-da-item-key="${escapeXml(itemKey)}">${t('btn.save')}</button>
-        <button class="da-btn da-btn--sm" data-da-action="cancel-memory-edit" data-da-item-key="${escapeXml(itemKey)}">${t('btn.cancel')}</button>
+        <button class="cd-btn cd-btn--primary cd-btn--sm" data-cd-action="save-memory-edit" data-cd-item-key="${escapeXml(itemKey)}">${t('btn.save')}</button>
+        <button class="cd-btn cd-btn--sm" data-cd-action="cancel-memory-edit" data-cd-item-key="${escapeXml(itemKey)}">${t('btn.cancel')}</button>
       </li>`
     }
 
-    return `<li class="da-memory-item">
-      <input type="checkbox" data-da-role="memory-select" data-da-item-key="${escapeXml(itemKey)}"${checked} aria-label="${escapeXml(selectLabel)}" />
+    return `<li class="cd-memory-item">
+      <input type="checkbox" data-cd-role="memory-select" data-cd-item-key="${escapeXml(itemKey)}"${checked} aria-label="${escapeXml(selectLabel)}" />
       <span>${escapeXml(displayText)}</span>
-      <button class="da-btn da-btn--sm" data-da-action="edit-memory-item" data-da-item-key="${escapeXml(itemKey)}" aria-label="${escapeXml(editLabel)}">${t('btn.edit')}</button>
-      <button class="da-btn da-btn--danger da-btn--sm" data-da-action="${deleteAction}" data-da-item-id="${escapeXml(id)}" aria-label="${escapeXml(deleteLabel)}">${t('btn.delete')}</button>
+      <button class="cd-btn cd-btn--sm" data-cd-action="edit-memory-item" data-cd-item-key="${escapeXml(itemKey)}" aria-label="${escapeXml(editLabel)}">${t('btn.edit')}</button>
+      <button class="cd-btn cd-btn--danger cd-btn--sm" data-cd-action="${deleteAction}" data-cd-item-id="${escapeXml(id)}" aria-label="${escapeXml(deleteLabel)}">${t('btn.delete')}</button>
     </li>`
   }
 
@@ -704,16 +704,16 @@ export function buildMemoryCachePage(input: DashboardMarkupInput): string {
         'delete-relation',
         'edit-relation-source',
         r.sourceId,
-        `<div class="da-inline">
-          <input type="text" class="da-input" data-da-role="edit-relation-label" data-da-item-id="${escapeXml(r.id)}" value="${escapeXml(r.label)}" />
-          <input type="text" class="da-input" data-da-role="edit-relation-target" data-da-item-id="${escapeXml(r.id)}" value="${escapeXml(r.targetId)}" />
+        `<div class="cd-inline">
+          <input type="text" class="cd-input" data-cd-role="edit-relation-label" data-cd-item-id="${escapeXml(r.id)}" value="${escapeXml(r.label)}" />
+          <input type="text" class="cd-input" data-cd-role="edit-relation-target" data-cd-item-id="${escapeXml(r.id)}" value="${escapeXml(r.targetId)}" />
         </div>`,
       ),
     )
     .join('')
 
   const emptyHintHtml = isEmpty
-    ? `<p class="da-empty" data-da-role="memory-empty">${t('memory.emptyHint')}</p>`
+    ? `<p class="cd-empty" data-cd-role="memory-empty">${t('memory.emptyHint')}</p>`
     : ''
 
   const memoryOpsCardHtml = input.memoryOpsStatus
@@ -729,45 +729,45 @@ export function buildMemoryCachePage(input: DashboardMarkupInput): string {
       ${backfillHtml}${regenerateHtml}${bulkDeleteHtml}${crossLinkHtml}${filterHtml}${emptyHintHtml}
       ${memoryOpsCardHtml}
       ${workbenchHtml}
-      <div class="da-grid">
-        <section class="da-card" id="da-memory-section-summaries">
-          <div class="da-card-header">
+      <div class="cd-grid">
+        <section class="cd-card" id="cd-memory-section-summaries">
+          <div class="cd-card-header">
             <div>
-              <h3 class="da-card-title">${t('card.memorySummaries.title')}</h3>
+              <h3 class="cd-card-title">${t('card.memorySummaries.title')}</h3>
             </div>
-          </div>${summaryItems ? `\n          <ul class="da-memory-list">${summaryItems}</ul>` : ''}
+          </div>${summaryItems ? `\n          <ul class="cd-memory-list">${summaryItems}</ul>` : ''}
           ${addSummaryHtml}
         </section>
-        <section class="da-card" id="da-memory-section-continuity-facts">
-          <div class="da-card-header">
+        <section class="cd-card" id="cd-memory-section-continuity-facts">
+          <div class="cd-card-header">
             <div>
-              <h3 class="da-card-title">${t('card.continuityFacts.title')}</h3>
+              <h3 class="cd-card-title">${t('card.continuityFacts.title')}</h3>
             </div>
-          </div>${factItems ? `\n          <ul class="da-memory-list">${factItems}</ul>` : ''}
+          </div>${factItems ? `\n          <ul class="cd-memory-list">${factItems}</ul>` : ''}
           ${addFactHtml}
         </section>
-        <section class="da-card" id="da-memory-section-world-facts">
-          <div class="da-card-header">
+        <section class="cd-card" id="cd-memory-section-world-facts">
+          <div class="cd-card-header">
             <div>
-              <h3 class="da-card-title">${t('card.worldFacts.title')}</h3>
+              <h3 class="cd-card-title">${t('card.worldFacts.title')}</h3>
             </div>
-          </div>${worldFactItems ? `\n          <ul class="da-memory-list">${worldFactItems}</ul>` : ''}
+          </div>${worldFactItems ? `\n          <ul class="cd-memory-list">${worldFactItems}</ul>` : ''}
           ${addWorldFactHtml}
         </section>
-        <section class="da-card" id="da-memory-section-entities">
-          <div class="da-card-header">
+        <section class="cd-card" id="cd-memory-section-entities">
+          <div class="cd-card-header">
             <div>
-              <h3 class="da-card-title">${t('card.entities.title')}</h3>
+              <h3 class="cd-card-title">${t('card.entities.title')}</h3>
             </div>
-          </div>${entityItems ? `\n          <ul class="da-memory-list">${entityItems}</ul>` : ''}
+          </div>${entityItems ? `\n          <ul class="cd-memory-list">${entityItems}</ul>` : ''}
           ${addEntityHtml}
         </section>
-        <section class="da-card" id="da-memory-section-relations">
-          <div class="da-card-header">
+        <section class="cd-card" id="cd-memory-section-relations">
+          <div class="cd-card-header">
             <div>
-              <h3 class="da-card-title">${t('card.relations.title')}</h3>
+              <h3 class="cd-card-title">${t('card.relations.title')}</h3>
             </div>
-          </div>${relationItems ? `\n          <ul class="da-memory-list">${relationItems}</ul>` : ''}
+          </div>${relationItems ? `\n          <ul class="cd-memory-list">${relationItems}</ul>` : ''}
           ${addRelationHtml}
         </section>
       </div>`
@@ -777,24 +777,24 @@ function buildSettingsProfilesPage(input: DashboardMarkupInput): string {
   const { profiles } = input
   const profileItems = profiles.profiles
     .map((p) => {
-      const active = p.id === profiles.activeProfileId ? ' da-profile--active' : ''
-      return `<li class="da-profile-item${active}" data-da-profile-id="${p.id}">${profileDisplayName(p.id, p.name)}</li>`
+      const active = p.id === profiles.activeProfileId ? ' cd-profile--active' : ''
+      return `<li class="cd-profile-item${active}" data-cd-profile-id="${p.id}">${profileDisplayName(p.id, p.name)}</li>`
     })
     .join('')
   return `
-      <div class="da-grid">
-        <section class="da-card">
-          <div class="da-card-header">
+      <div class="cd-grid">
+        <section class="cd-card">
+          <div class="cd-card-header">
             <div>
-              <h3 class="da-card-title">${t('card.settingsProfiles.title')}</h3>
-              <p class="da-card-copy">${t('card.settingsProfiles.copy')}</p>
+              <h3 class="cd-card-title">${t('card.settingsProfiles.title')}</h3>
+              <p class="cd-card-copy">${t('card.settingsProfiles.copy')}</p>
             </div>
           </div>
-          <ul class="da-profile-list">${profileItems}</ul>
-          <div class="da-inline">
-            <button class="da-btn da-btn--primary" data-da-action="create-profile">${t('btn.newProfile')}</button>
-            <button class="da-btn" data-da-action="export-profile">${t('btn.export')}</button>
-            <button class="da-btn" data-da-action="import-profile">${t('btn.import')}</button>
+          <ul class="cd-profile-list">${profileItems}</ul>
+          <div class="cd-inline">
+            <button class="cd-btn cd-btn--primary" data-cd-action="create-profile">${t('btn.newProfile')}</button>
+            <button class="cd-btn" data-cd-action="export-profile">${t('btn.export')}</button>
+            <button class="cd-btn" data-cd-action="import-profile">${t('btn.import')}</button>
           </div>
         </section>
       </div>`
@@ -814,26 +814,26 @@ const PAGE_BUILDERS: Record<string, (input: DashboardMarkupInput) => string> = {
 
 function buildContent(input: DashboardMarkupInput): string {
   const pages = DASHBOARD_TABS.map((tab) => {
-    const hidden = tab.id !== input.activeTab ? ' da-hidden' : ''
+    const hidden = tab.id !== input.activeTab ? ' cd-hidden' : ''
     const builder = PAGE_BUILDERS[tab.id]
     const inner = builder ? builder(input) : ''
     return `
-    <div class="da-page${hidden}" id="da-page-${tab.id}">
+    <div class="cd-page${hidden}" id="cd-page-${tab.id}">
       ${buildPageTitle(tab.id)}${inner}
     </div>`
   }).join('')
 
   return `
-    <main class="da-content">
-      <section class="da-toolbar">
-        <div class="da-toolbar-meta">
-          <div class="da-kicker">${t('toolbar.kicker')}</div>
+    <main class="cd-content">
+      <section class="cd-toolbar">
+        <div class="cd-toolbar-meta">
+          <div class="cd-kicker">${t('toolbar.kicker')}</div>
           <strong>${t('toolbar.tagline')}</strong>
         </div>
-        <div class="da-toolbar-actions">
-          <span class="da-dirty-indicator">${t('dirty.unsavedHint')}</span>
-          <button class="da-btn da-btn--primary" data-da-action="save-settings">${t('btn.saveChanges')}</button>
-          <button class="da-btn" data-da-action="reset-settings">${t('btn.reset')}</button>
+        <div class="cd-toolbar-actions">
+          <span class="cd-dirty-indicator">${t('dirty.unsavedHint')}</span>
+          <button class="cd-btn cd-btn--primary" data-cd-action="save-settings">${t('btn.saveChanges')}</button>
+          <button class="cd-btn" data-cd-action="reset-settings">${t('btn.reset')}</button>
         </div>
       </section>${pages}
     </main>`
@@ -845,10 +845,10 @@ function buildContent(input: DashboardMarkupInput): string {
 
 /** Canonical page-title markup shared by full build and bounded rerender. */
 export function buildPageTitle(tabId: string): string {
-  return `<h2 class="da-page-title">${tabLabel(tabId)}</h2>`
+  return `<h2 class="cd-page-title">${tabLabel(tabId)}</h2>`
 }
 
 export function buildDashboardMarkup(input: DashboardMarkupInput): string {
-  return `<div class="${DASHBOARD_ROOT_CLASS} da-dashboard">${buildSidebar(input.activeTab)}${buildContent(input)}
+  return `<div class="${DASHBOARD_ROOT_CLASS} cd-dashboard">${buildSidebar(input.activeTab)}${buildContent(input)}
 </div>`
 }

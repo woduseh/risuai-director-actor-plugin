@@ -158,7 +158,7 @@
 
 ### Added
 
-- Fullscreen dashboard UI with sidebar navigation, card-based panels, and theme-aware `.da-` namespaced styling
+- Fullscreen dashboard UI with sidebar navigation, card-based panels, and theme-aware `.cd-` namespaced styling
 - Director model provider controls, provider-based model loading, and connection testing helpers
 - Dashboard profile management plus settings JSON import/export
 - Lifecycle-managed dashboard controller with cleanup-safe open/close behavior

@@ -42,7 +42,7 @@ function stateWithMemory(): DirectorPluginState {
 }
 
 function navigateToMemoryTab(root: HTMLElement): void {
-  const memBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+  const memBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
   memBtn.click()
 }
 
@@ -77,7 +77,7 @@ describe('memory-cache page DOM rendering', () => {
     navigateToMemoryTab(root)
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = updatedRoot.querySelector('#cd-page-memory-cache') as HTMLElement
 
     expect(memoryPage.textContent).toContain('The hero crossed the river at dawn.')
     expect(memoryPage.textContent).toContain('A dragon was spotted near the village.')
@@ -91,7 +91,7 @@ describe('memory-cache page DOM rendering', () => {
     navigateToMemoryTab(root)
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = updatedRoot.querySelector('#cd-page-memory-cache') as HTMLElement
 
     expect(memoryPage.textContent).toContain('The hero carries a silver sword.')
     expect(memoryPage.textContent).toContain('It is currently nighttime.')
@@ -105,8 +105,8 @@ describe('memory-cache page DOM rendering', () => {
     navigateToMemoryTab(root)
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
-    const filterInput = memoryPage.querySelector('input[data-da-role="memory-filter"]') as HTMLInputElement
+    const memoryPage = updatedRoot.querySelector('#cd-page-memory-cache') as HTMLElement
+    const filterInput = memoryPage.querySelector('input[data-cd-role="memory-filter"]') as HTMLInputElement
 
     expect(filterInput).not.toBeNull()
     expect(filterInput.type).toBe('text')
@@ -120,10 +120,10 @@ describe('memory-cache page DOM rendering', () => {
     navigateToMemoryTab(root)
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = updatedRoot.querySelector('#cd-page-memory-cache') as HTMLElement
 
-    const delBtn1 = memoryPage.querySelector('[data-da-action="delete-summary"][data-da-item-id="sum-1"]')
-    const delBtn2 = memoryPage.querySelector('[data-da-action="delete-summary"][data-da-item-id="sum-2"]')
+    const delBtn1 = memoryPage.querySelector('[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]')
+    const delBtn2 = memoryPage.querySelector('[data-cd-action="delete-summary"][data-cd-item-id="sum-2"]')
     expect(delBtn1).not.toBeNull()
     expect(delBtn2).not.toBeNull()
   })
@@ -136,10 +136,10 @@ describe('memory-cache page DOM rendering', () => {
     navigateToMemoryTab(root)
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = updatedRoot.querySelector('#cd-page-memory-cache') as HTMLElement
 
-    const delBtn1 = memoryPage.querySelector('[data-da-action="delete-continuity-fact"][data-da-item-id="cf-1"]')
-    const delBtn2 = memoryPage.querySelector('[data-da-action="delete-continuity-fact"][data-da-item-id="cf-2"]')
+    const delBtn1 = memoryPage.querySelector('[data-cd-action="delete-continuity-fact"][data-cd-item-id="cf-1"]')
+    const delBtn2 = memoryPage.querySelector('[data-cd-action="delete-continuity-fact"][data-cd-item-id="cf-2"]')
     expect(delBtn1).not.toBeNull()
     expect(delBtn2).not.toBeNull()
   })
@@ -152,9 +152,9 @@ describe('memory-cache page DOM rendering', () => {
     navigateToMemoryTab(root)
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
-    const checkboxes = memoryPage.querySelectorAll('input[data-da-role="memory-select"]')
-    const bulkDeleteBtn = memoryPage.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLButtonElement
+    const memoryPage = updatedRoot.querySelector('#cd-page-memory-cache') as HTMLElement
+    const checkboxes = memoryPage.querySelectorAll('input[data-cd-role="memory-select"]')
+    const bulkDeleteBtn = memoryPage.querySelector('[data-cd-action="bulk-delete-memory"]') as HTMLButtonElement
 
     expect(checkboxes.length).toBeGreaterThan(0)
     expect(bulkDeleteBtn).not.toBeNull()
@@ -168,10 +168,10 @@ describe('memory-cache page DOM rendering', () => {
     navigateToMemoryTab(root)
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = updatedRoot.querySelector('#cd-page-memory-cache') as HTMLElement
 
     // The new empty state hint element should be present
-    const emptyHint = memoryPage.querySelector('[data-da-role="memory-empty"]')
+    const emptyHint = memoryPage.querySelector('[data-cd-role="memory-empty"]')
     expect(emptyHint).not.toBeNull()
 
     // Should NOT contain only the old placeholder hint text
@@ -205,31 +205,31 @@ describe('memory-cache page DOM rendering', () => {
     navigateToMemoryTab(root)
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = updatedRoot.querySelector('#cd-page-memory-cache') as HTMLElement
 
     // Ensure user-supplied memory text is escaped — dangerous tags must NOT
     // appear as real DOM elements inside memory items (the ops status card
-    // legitimately uses <strong> so we scope the check to .da-memory-list).
-    const memoryLists = memoryPage.querySelectorAll('.da-memory-list')
+    // legitimately uses <strong> so we scope the check to .cd-memory-list).
+    const memoryLists = memoryPage.querySelectorAll('.cd-memory-list')
     for (const list of Array.from(memoryLists)) {
       expect(list.querySelector('strong')).toBeNull()
       expect(list.querySelector('img')).toBeNull()
     }
 
-    const renderedTexts = Array.from(memoryPage.querySelectorAll('.da-memory-item span')).map(
+    const renderedTexts = Array.from(memoryPage.querySelectorAll('.cd-memory-item span')).map(
       (node) => node.textContent,
     )
     expect(renderedTexts).toContain('Unsafe <strong>summary</strong> & "quotes"')
     expect(renderedTexts).toContain('Unsafe <img src=x onerror="boom"> fact')
 
     const summaryDelete = memoryPage.querySelector(
-      '[data-da-action="delete-summary"]',
+      '[data-cd-action="delete-summary"]',
     ) as HTMLElement | null
     const factDelete = memoryPage.querySelector(
-      '[data-da-action="delete-continuity-fact"]',
+      '[data-cd-action="delete-continuity-fact"]',
     ) as HTMLElement | null
-    expect(summaryDelete?.getAttribute('data-da-item-id')).toBe('sum-"quoted"')
-    expect(factDelete?.getAttribute('data-da-item-id')).toBe('cf-"quoted"')
+    expect(summaryDelete?.getAttribute('data-cd-item-id')).toBe('sum-"quoted"')
+    expect(factDelete?.getAttribute('data-cd-item-id')).toBe('cf-"quoted"')
   })
 })
 
@@ -270,7 +270,7 @@ describe('dashboard app live canonical state', () => {
     navigateToMemoryTab(root)
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = updatedRoot.querySelector('#cd-page-memory-cache') as HTMLElement
 
     expect(memoryPage.textContent).toContain('The hero crossed the river at dawn.')
     expect(memoryPage.textContent).toContain('A dragon was spotted near the village.')
@@ -289,7 +289,7 @@ describe('dashboard app live canonical state', () => {
     navigateToMemoryTab(root)
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = updatedRoot.querySelector('#cd-page-memory-cache') as HTMLElement
 
     expect(memoryPage.textContent).toContain('The hero carries a silver sword.')
     expect(memoryPage.textContent).toContain('It is currently nighttime.')
@@ -335,7 +335,7 @@ describe('dashboard app memory delete actions', () => {
     navigateToMemoryTab(root)
 
     // Click delete on sum-1 (first click arms, second confirms)
-    const delBtn = root.querySelector('[data-da-action="delete-summary"][data-da-item-id="sum-1"]') as HTMLElement
+    const delBtn = root.querySelector('[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]') as HTMLElement
     expect(delBtn).not.toBeNull()
     delBtn.click()
     delBtn.click()
@@ -343,7 +343,7 @@ describe('dashboard app memory delete actions', () => {
 
     // After re-render, sum-1 should be gone
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = updatedRoot.querySelector('#cd-page-memory-cache') as HTMLElement
     expect(memoryPage.textContent).not.toContain('The hero crossed the river at dawn.')
     // sum-2 should still be present
     expect(memoryPage.textContent).toContain('A dragon was spotted near the village.')
@@ -366,7 +366,7 @@ describe('dashboard app memory delete actions', () => {
     navigateToMemoryTab(root)
 
     // Click delete on cf-1 (first click arms, second confirms)
-    const delBtn = root.querySelector('[data-da-action="delete-continuity-fact"][data-da-item-id="cf-1"]') as HTMLElement
+    const delBtn = root.querySelector('[data-cd-action="delete-continuity-fact"][data-cd-item-id="cf-1"]') as HTMLElement
     expect(delBtn).not.toBeNull()
     delBtn.click()
     delBtn.click()
@@ -374,7 +374,7 @@ describe('dashboard app memory delete actions', () => {
 
     // After re-render, cf-1 should be gone
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = updatedRoot.querySelector('#cd-page-memory-cache') as HTMLElement
     expect(memoryPage.textContent).not.toContain('The hero carries a silver sword.')
     // cf-2 should still be present
     expect(memoryPage.textContent).toContain('It is currently nighttime.')
@@ -404,7 +404,7 @@ describe('dashboard app memory delete actions', () => {
     navigateToMemoryTab(root)
 
     const delBtn = root.querySelector(
-      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+      '[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]',
     ) as HTMLElement
     expect(delBtn).not.toBeNull()
     delBtn.click() // arm
@@ -457,23 +457,23 @@ describe('dashboard app memory edit and bulk delete actions', () => {
     navigateToMemoryTab(root)
 
     const summaryCheckbox = root.querySelector(
-      'input[data-da-role="memory-select"][data-da-item-key="summary:sum-1"]',
+      'input[data-cd-role="memory-select"][data-cd-item-key="summary:sum-1"]',
     ) as HTMLInputElement
     const entityCheckbox = root.querySelector(
-      'input[data-da-role="memory-select"][data-da-item-key="entity:ent-1"]',
+      'input[data-cd-role="memory-select"][data-cd-item-key="entity:ent-1"]',
     ) as HTMLInputElement
     summaryCheckbox.checked = true
     summaryCheckbox.dispatchEvent(new Event('change', { bubbles: true }))
     entityCheckbox.checked = true
     entityCheckbox.dispatchEvent(new Event('change', { bubbles: true }))
 
-    const bulkDeleteBtn = root.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLButtonElement
+    const bulkDeleteBtn = root.querySelector('[data-cd-action="bulk-delete-memory"]') as HTMLButtonElement
     expect(bulkDeleteBtn.disabled).toBe(false)
     bulkDeleteBtn.click() // arm
     bulkDeleteBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = document.querySelector('#cd-page-memory-cache') as HTMLElement
     expect(memoryPage.textContent).not.toContain('The hero crossed the river at dawn.')
     expect(memoryPage.textContent).not.toContain('Aldric')
     expect(currentState.memory.summaries.some((entry) => entry.id === 'sum-1')).toBe(false)
@@ -496,7 +496,7 @@ describe('dashboard app memory edit and bulk delete actions', () => {
     navigateToMemoryTab(root)
 
     const editBtn = root.querySelector(
-      '[data-da-action="edit-memory-item"][data-da-item-key="summary:sum-1"]',
+      '[data-cd-action="edit-memory-item"][data-cd-item-key="summary:sum-1"]',
     ) as HTMLElement
     expect(editBtn).not.toBeNull()
     editBtn.click()
@@ -504,19 +504,19 @@ describe('dashboard app memory edit and bulk delete actions', () => {
 
     root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     const editInput = root.querySelector(
-      'input[data-da-role="edit-summary-text"][data-da-item-id="sum-1"]',
+      'input[data-cd-role="edit-summary-text"][data-cd-item-id="sum-1"]',
     ) as HTMLInputElement
     expect(editInput).not.toBeNull()
     editInput.value = 'The hero crossed the desert at noon.'
     editInput.dispatchEvent(new Event('input', { bubbles: true }))
 
     const saveBtn = root.querySelector(
-      '[data-da-action="save-memory-edit"][data-da-item-key="summary:sum-1"]',
+      '[data-cd-action="save-memory-edit"][data-cd-item-key="summary:sum-1"]',
     ) as HTMLElement
     saveBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = document.querySelector('#cd-page-memory-cache') as HTMLElement
     expect(memoryPage.textContent).toContain('The hero crossed the desert at noon.')
     expect(currentState.memory.summaries[0]?.text).toBe('The hero crossed the desert at noon.')
   })
@@ -551,9 +551,9 @@ describe('dashboard app memory add actions', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
-    const addBtn = memoryPage.querySelector('[data-da-action="add-summary"]')
-    const addInput = memoryPage.querySelector('input[data-da-role="add-summary-text"]') as HTMLInputElement
+    const memoryPage = document.querySelector('#cd-page-memory-cache') as HTMLElement
+    const addBtn = memoryPage.querySelector('[data-cd-action="add-summary"]')
+    const addInput = memoryPage.querySelector('input[data-cd-role="add-summary-text"]') as HTMLInputElement
     expect(addBtn).not.toBeNull()
     expect(addInput).not.toBeNull()
     expect(addInput.type).toBe('text')
@@ -566,9 +566,9 @@ describe('dashboard app memory add actions', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
-    const addBtn = memoryPage.querySelector('[data-da-action="add-continuity-fact"]')
-    const addInput = memoryPage.querySelector('input[data-da-role="add-fact-text"]') as HTMLInputElement
+    const memoryPage = document.querySelector('#cd-page-memory-cache') as HTMLElement
+    const addBtn = memoryPage.querySelector('[data-cd-action="add-continuity-fact"]')
+    const addInput = memoryPage.querySelector('input[data-cd-role="add-fact-text"]') as HTMLInputElement
     expect(addBtn).not.toBeNull()
     expect(addInput).not.toBeNull()
     expect(addInput.type).toBe('text')
@@ -579,11 +579,11 @@ describe('dashboard app memory add actions', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
-    const addSummaryBtn = memoryPage.querySelector('[data-da-action="add-summary"]')
-    const addFactBtn = memoryPage.querySelector('[data-da-action="add-continuity-fact"]')
-    const addSummaryInput = memoryPage.querySelector('input[data-da-role="add-summary-text"]')
-    const addFactInput = memoryPage.querySelector('input[data-da-role="add-fact-text"]')
+    const memoryPage = document.querySelector('#cd-page-memory-cache') as HTMLElement
+    const addSummaryBtn = memoryPage.querySelector('[data-cd-action="add-summary"]')
+    const addFactBtn = memoryPage.querySelector('[data-cd-action="add-continuity-fact"]')
+    const addSummaryInput = memoryPage.querySelector('input[data-cd-role="add-summary-text"]')
+    const addFactInput = memoryPage.querySelector('input[data-cd-role="add-fact-text"]')
     expect(addSummaryBtn).not.toBeNull()
     expect(addFactBtn).not.toBeNull()
     expect(addSummaryInput).not.toBeNull()
@@ -605,13 +605,13 @@ describe('dashboard app memory add actions', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const addInput = root.querySelector('input[data-da-role="add-summary-text"]') as HTMLInputElement
+    const addInput = root.querySelector('input[data-cd-role="add-summary-text"]') as HTMLInputElement
     addInput.value = 'Newly added summary text'
-    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-summary"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = document.querySelector('#cd-page-memory-cache') as HTMLElement
     expect(memoryPage.textContent).toContain('Newly added summary text')
   })
 
@@ -630,13 +630,13 @@ describe('dashboard app memory add actions', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const addInput = root.querySelector('input[data-da-role="add-fact-text"]') as HTMLInputElement
+    const addInput = root.querySelector('input[data-cd-role="add-fact-text"]') as HTMLInputElement
     addInput.value = 'Newly added continuity fact'
-    const addBtn = root.querySelector('[data-da-action="add-continuity-fact"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-continuity-fact"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = document.querySelector('#cd-page-memory-cache') as HTMLElement
     expect(memoryPage.textContent).toContain('Newly added continuity fact')
   })
 
@@ -655,14 +655,14 @@ describe('dashboard app memory add actions', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const summaryCountBefore = root.querySelectorAll('[data-da-action="delete-summary"]').length
-    const addInput = root.querySelector('input[data-da-role="add-summary-text"]') as HTMLInputElement
+    const summaryCountBefore = root.querySelectorAll('[data-cd-action="delete-summary"]').length
+    const addInput = root.querySelector('input[data-cd-role="add-summary-text"]') as HTMLInputElement
     addInput.value = '   '
-    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-summary"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const summaryCountAfter = document.querySelectorAll('[data-da-action="delete-summary"]').length
+    const summaryCountAfter = document.querySelectorAll('[data-cd-action="delete-summary"]').length
     expect(summaryCountAfter).toBe(summaryCountBefore)
   })
 
@@ -684,9 +684,9 @@ describe('dashboard app memory add actions', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const addInput = root.querySelector('input[data-da-role="add-summary-text"]') as HTMLInputElement
+    const addInput = root.querySelector('input[data-cd-role="add-summary-text"]') as HTMLInputElement
     addInput.value = 'Written via writeCanonical'
-    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-summary"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
@@ -710,9 +710,9 @@ describe('dashboard app memory add actions', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const addInput = root.querySelector('input[data-da-role="add-summary-text"]') as HTMLInputElement
+    const addInput = root.querySelector('input[data-cd-role="add-summary-text"]') as HTMLInputElement
     addInput.value = 'Default check summary'
-    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-summary"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
@@ -739,9 +739,9 @@ describe('dashboard app memory add actions', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const addInput = root.querySelector('input[data-da-role="add-fact-text"]') as HTMLInputElement
+    const addInput = root.querySelector('input[data-cd-role="add-fact-text"]') as HTMLInputElement
     addInput.value = 'Default check fact'
-    const addBtn = root.querySelector('[data-da-action="add-continuity-fact"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-continuity-fact"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
@@ -787,7 +787,7 @@ describe('memory-cache page Korean localization', () => {
     navigateToMemoryTab(root)
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = updatedRoot.querySelector('#cd-page-memory-cache') as HTMLElement
     const text = memoryPage.textContent ?? ''
 
     // Should NOT contain English section labels
@@ -801,7 +801,7 @@ describe('memory-cache page Korean localization', () => {
     // For now we just assert that some non-English, non-empty heading text exists
     // by checking the page renders the memory data (items are language-agnostic)
     // AND does not fall back to English labels.
-    expect(memoryPage.querySelectorAll('.da-card-title').length).toBeGreaterThanOrEqual(2)
+    expect(memoryPage.querySelectorAll('.cd-card-title').length).toBeGreaterThanOrEqual(2)
   })
 
   test('Korean locale renders translated delete button labels', async () => {
@@ -814,10 +814,10 @@ describe('memory-cache page Korean localization', () => {
     navigateToMemoryTab(root)
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = updatedRoot.querySelector('#cd-page-memory-cache') as HTMLElement
 
     // Delete buttons should exist and should NOT contain English "Delete" text
-    const deleteButtons = memoryPage.querySelectorAll('[data-da-action="delete-summary"], [data-da-action="delete-continuity-fact"]')
+    const deleteButtons = memoryPage.querySelectorAll('[data-cd-action="delete-summary"], [data-cd-action="delete-continuity-fact"]')
     expect(deleteButtons.length).toBeGreaterThan(0)
 
     for (const btn of deleteButtons) {
@@ -835,8 +835,8 @@ describe('memory-cache page Korean localization', () => {
     navigateToMemoryTab(root)
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
-    const filterInput = memoryPage.querySelector('input[data-da-role="memory-filter"]') as HTMLInputElement
+    const memoryPage = updatedRoot.querySelector('#cd-page-memory-cache') as HTMLElement
+    const filterInput = memoryPage.querySelector('input[data-cd-role="memory-filter"]') as HTMLInputElement
 
     expect(filterInput).not.toBeNull()
     // Placeholder should be in Korean, not English
@@ -854,18 +854,18 @@ describe('memory-cache page Korean localization', () => {
     navigateToMemoryTab(root)
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = updatedRoot.querySelector('#cd-page-memory-cache') as HTMLElement
 
-    const addSummaryBtn = memoryPage.querySelector('[data-da-action="add-summary"]') as HTMLElement
-    const addFactBtn = memoryPage.querySelector('[data-da-action="add-continuity-fact"]') as HTMLElement
+    const addSummaryBtn = memoryPage.querySelector('[data-cd-action="add-summary"]') as HTMLElement
+    const addFactBtn = memoryPage.querySelector('[data-cd-action="add-continuity-fact"]') as HTMLElement
     expect(addSummaryBtn).not.toBeNull()
     expect(addFactBtn).not.toBeNull()
     // Should not be English
     expect(addSummaryBtn.textContent).not.toBe('Add')
     expect(addFactBtn.textContent).not.toBe('Add')
 
-    const summaryInput = memoryPage.querySelector('input[data-da-role="add-summary-text"]') as HTMLInputElement
-    const factInput = memoryPage.querySelector('input[data-da-role="add-fact-text"]') as HTMLInputElement
+    const summaryInput = memoryPage.querySelector('input[data-cd-role="add-summary-text"]') as HTMLInputElement
+    const factInput = memoryPage.querySelector('input[data-cd-role="add-fact-text"]') as HTMLInputElement
     expect(summaryInput.placeholder).toBeTruthy()
     expect(summaryInput.placeholder).not.toBe('New summary text\u2026')
     expect(factInput.placeholder).toBeTruthy()
@@ -881,8 +881,8 @@ describe('memory-cache page Korean localization', () => {
     navigateToMemoryTab(root)
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
-    const emptyHint = memoryPage.querySelector('[data-da-role="memory-empty"]')
+    const memoryPage = updatedRoot.querySelector('#cd-page-memory-cache') as HTMLElement
+    const emptyHint = memoryPage.querySelector('[data-cd-role="memory-empty"]')
 
     expect(emptyHint).not.toBeNull()
     // Should be non-empty Korean text, not the English version
@@ -921,8 +921,8 @@ describe('memory-cache page filter', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
-    const filterInput = memoryPage.querySelector('input[data-da-role="memory-filter"]') as HTMLInputElement
+    const memoryPage = updatedRoot.querySelector('#cd-page-memory-cache') as HTMLElement
+    const filterInput = memoryPage.querySelector('input[data-cd-role="memory-filter"]') as HTMLInputElement
     return { memoryPage, filterInput }
   }
 
@@ -936,15 +936,15 @@ describe('memory-cache page filter', () => {
     const { memoryPage, filterInput } = await openMemoryPage()
 
     // All 4 items visible before filtering
-    const allItems = memoryPage.querySelectorAll('.da-memory-item')
+    const allItems = memoryPage.querySelectorAll('.cd-memory-item')
     expect(allItems.length).toBe(4)
 
     typeFilter(filterInput, 'dragon')
 
-    const visible = Array.from(memoryPage.querySelectorAll('.da-memory-item'))
-      .filter((el) => !el.classList.contains('da-hidden'))
-    const hidden = Array.from(memoryPage.querySelectorAll('.da-memory-item'))
-      .filter((el) => el.classList.contains('da-hidden'))
+    const visible = Array.from(memoryPage.querySelectorAll('.cd-memory-item'))
+      .filter((el) => !el.classList.contains('cd-hidden'))
+    const hidden = Array.from(memoryPage.querySelectorAll('.cd-memory-item'))
+      .filter((el) => el.classList.contains('cd-hidden'))
 
     expect(visible.length).toBe(1)
     expect(hidden.length).toBe(3)
@@ -958,16 +958,16 @@ describe('memory-cache page filter', () => {
     typeFilter(filterInput, 'dragon')
     // Verify at least one item is hidden
     expect(
-      Array.from(memoryPage.querySelectorAll('.da-memory-item'))
-        .some((el) => el.classList.contains('da-hidden')),
+      Array.from(memoryPage.querySelectorAll('.cd-memory-item'))
+        .some((el) => el.classList.contains('cd-hidden')),
     ).toBe(true)
 
     // Clear the filter
     typeFilter(filterInput, '')
 
-    const allItems = Array.from(memoryPage.querySelectorAll('.da-memory-item'))
+    const allItems = Array.from(memoryPage.querySelectorAll('.cd-memory-item'))
     for (const item of allItems) {
-      expect(item.classList.contains('da-hidden')).toBe(false)
+      expect(item.classList.contains('cd-hidden')).toBe(false)
     }
     expect(allItems.length).toBe(4)
   })
@@ -977,15 +977,15 @@ describe('memory-cache page filter', () => {
 
     // "sword" appears only in a continuity fact, "river" only in a summary
     typeFilter(filterInput, 'sword')
-    let visible = Array.from(memoryPage.querySelectorAll('.da-memory-item'))
-      .filter((el) => !el.classList.contains('da-hidden'))
+    let visible = Array.from(memoryPage.querySelectorAll('.cd-memory-item'))
+      .filter((el) => !el.classList.contains('cd-hidden'))
     expect(visible.length).toBe(1)
     expect(visible[0]).toBeDefined()
     expect(visible[0]?.textContent).toContain('silver sword')
 
     typeFilter(filterInput, 'river')
-    visible = Array.from(memoryPage.querySelectorAll('.da-memory-item'))
-      .filter((el) => !el.classList.contains('da-hidden'))
+    visible = Array.from(memoryPage.querySelectorAll('.cd-memory-item'))
+      .filter((el) => !el.classList.contains('cd-hidden'))
     expect(visible.length).toBe(1)
     expect(visible[0]).toBeDefined()
     expect(visible[0]?.textContent).toContain('river')
@@ -995,8 +995,8 @@ describe('memory-cache page filter', () => {
     const { memoryPage, filterInput } = await openMemoryPage()
 
     typeFilter(filterInput, 'DRAGON')
-    const visible = Array.from(memoryPage.querySelectorAll('.da-memory-item'))
-      .filter((el) => !el.classList.contains('da-hidden'))
+    const visible = Array.from(memoryPage.querySelectorAll('.cd-memory-item'))
+      .filter((el) => !el.classList.contains('cd-hidden'))
     expect(visible.length).toBe(1)
     expect(visible[0]).toBeDefined()
     expect(visible[0]?.textContent).toContain('dragon')
@@ -1008,12 +1008,12 @@ describe('memory-cache page filter', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
-    const filterInput = memoryPage.querySelector('input[data-da-role="memory-filter"]') as HTMLInputElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
+    const filterInput = memoryPage.querySelector('input[data-cd-role="memory-filter"]') as HTMLInputElement
 
     typeFilter(filterInput, 'Elaria')
-    const visible = Array.from(memoryPage.querySelectorAll('.da-memory-item'))
-      .filter((el) => !el.classList.contains('da-hidden'))
+    const visible = Array.from(memoryPage.querySelectorAll('.cd-memory-item'))
+      .filter((el) => !el.classList.contains('cd-hidden'))
     expect(visible.length).toBeGreaterThanOrEqual(1)
   })
 })
@@ -1067,25 +1067,25 @@ describe('memory-cache page world facts', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
 
-    const titles = Array.from(memoryPage.querySelectorAll('.da-card-title')).map((el) => el.textContent)
+    const titles = Array.from(memoryPage.querySelectorAll('.cd-card-title')).map((el) => el.textContent)
     expect(titles).toContain('World Facts')
   })
 
-  test('world facts render as .da-memory-item with text and delete button', async () => {
+  test('world facts render as .cd-memory-item with text and delete button', async () => {
     const state = stateWithFullMemory()
     await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
 
     expect(memoryPage.textContent).toContain('Magic is forbidden in the northern kingdoms.')
     expect(memoryPage.textContent).toContain('The river Elaria splits the continent.')
 
-    const delBtn1 = memoryPage.querySelector('[data-da-action="delete-world-fact"][data-da-item-id="wf-1"]')
-    const delBtn2 = memoryPage.querySelector('[data-da-action="delete-world-fact"][data-da-item-id="wf-2"]')
+    const delBtn1 = memoryPage.querySelector('[data-cd-action="delete-world-fact"][data-cd-item-id="wf-1"]')
+    const delBtn2 = memoryPage.querySelector('[data-cd-action="delete-world-fact"][data-cd-item-id="wf-2"]')
     expect(delBtn1).not.toBeNull()
     expect(delBtn2).not.toBeNull()
   })
@@ -1096,10 +1096,10 @@ describe('memory-cache page world facts', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
 
-    const addBtn = memoryPage.querySelector('[data-da-action="add-world-fact"]')
-    const addInput = memoryPage.querySelector('input[data-da-role="add-world-fact-text"]') as HTMLInputElement
+    const addBtn = memoryPage.querySelector('[data-cd-action="add-world-fact"]')
+    const addInput = memoryPage.querySelector('input[data-cd-role="add-world-fact-text"]') as HTMLInputElement
     expect(addBtn).not.toBeNull()
     expect(addInput).not.toBeNull()
     expect(addInput.type).toBe('text')
@@ -1120,13 +1120,13 @@ describe('memory-cache page world facts', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const addInput = root.querySelector('input[data-da-role="add-world-fact-text"]') as HTMLInputElement
+    const addInput = root.querySelector('input[data-cd-role="add-world-fact-text"]') as HTMLInputElement
     addInput.value = 'Dragons hibernate in winter.'
-    const addBtn = root.querySelector('[data-da-action="add-world-fact"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-world-fact"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = document.querySelector('#cd-page-memory-cache') as HTMLElement
     expect(memoryPage.textContent).toContain('Dragons hibernate in winter.')
     expect(currentState.memory.worldFacts.some((w) => w.text === 'Dragons hibernate in winter.')).toBe(true)
   })
@@ -1146,13 +1146,13 @@ describe('memory-cache page world facts', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const delBtn = root.querySelector('[data-da-action="delete-world-fact"][data-da-item-id="wf-1"]') as HTMLElement
+    const delBtn = root.querySelector('[data-cd-action="delete-world-fact"][data-cd-item-id="wf-1"]') as HTMLElement
     expect(delBtn).not.toBeNull()
     delBtn.click() // arm
     delBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = document.querySelector('#cd-page-memory-cache') as HTMLElement
     expect(memoryPage.textContent).not.toContain('Magic is forbidden in the northern kingdoms.')
     expect(memoryPage.textContent).toContain('The river Elaria splits the continent.')
   })
@@ -1174,7 +1174,7 @@ describe('memory-cache page world facts', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const delBtn = root.querySelector('[data-da-action="delete-world-fact"][data-da-item-id="wf-1"]') as HTMLElement
+    const delBtn = root.querySelector('[data-cd-action="delete-world-fact"][data-cd-item-id="wf-1"]') as HTMLElement
     delBtn.click() // arm
     delBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 50) })
@@ -1199,9 +1199,9 @@ describe('memory-cache page world facts', () => {
     navigateToMemoryTab(root)
 
     const countBefore = currentState.memory.worldFacts.length
-    const addInput = root.querySelector('input[data-da-role="add-world-fact-text"]') as HTMLInputElement
+    const addInput = root.querySelector('input[data-cd-role="add-world-fact-text"]') as HTMLInputElement
     addInput.value = '   '
-    const addBtn = root.querySelector('[data-da-action="add-world-fact"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-world-fact"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
@@ -1238,25 +1238,25 @@ describe('memory-cache page entities', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
 
-    const titles = Array.from(memoryPage.querySelectorAll('.da-card-title')).map((el) => el.textContent)
+    const titles = Array.from(memoryPage.querySelectorAll('.cd-card-title')).map((el) => el.textContent)
     expect(titles).toContain('Entities')
   })
 
-  test('entities render as .da-memory-item with name and delete button', async () => {
+  test('entities render as .cd-memory-item with name and delete button', async () => {
     const state = stateWithFullMemory()
     await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
 
     expect(memoryPage.textContent).toContain('Aldric')
     expect(memoryPage.textContent).toContain('Mira')
 
-    const delBtn1 = memoryPage.querySelector('[data-da-action="delete-entity"][data-da-item-id="ent-1"]')
-    const delBtn2 = memoryPage.querySelector('[data-da-action="delete-entity"][data-da-item-id="ent-2"]')
+    const delBtn1 = memoryPage.querySelector('[data-cd-action="delete-entity"][data-cd-item-id="ent-1"]')
+    const delBtn2 = memoryPage.querySelector('[data-cd-action="delete-entity"][data-cd-item-id="ent-2"]')
     expect(delBtn1).not.toBeNull()
     expect(delBtn2).not.toBeNull()
   })
@@ -1267,10 +1267,10 @@ describe('memory-cache page entities', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
 
-    const addBtn = memoryPage.querySelector('[data-da-action="add-entity"]')
-    const addInput = memoryPage.querySelector('input[data-da-role="add-entity-name"]') as HTMLInputElement
+    const addBtn = memoryPage.querySelector('[data-cd-action="add-entity"]')
+    const addInput = memoryPage.querySelector('input[data-cd-role="add-entity-name"]') as HTMLInputElement
     expect(addBtn).not.toBeNull()
     expect(addInput).not.toBeNull()
     expect(addInput.type).toBe('text')
@@ -1291,13 +1291,13 @@ describe('memory-cache page entities', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const addInput = root.querySelector('input[data-da-role="add-entity-name"]') as HTMLInputElement
+    const addInput = root.querySelector('input[data-cd-role="add-entity-name"]') as HTMLInputElement
     addInput.value = 'Gorath'
-    const addBtn = root.querySelector('[data-da-action="add-entity"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-entity"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = document.querySelector('#cd-page-memory-cache') as HTMLElement
     expect(memoryPage.textContent).toContain('Gorath')
     expect(currentState.memory.entities.some((e) => e.name === 'Gorath')).toBe(true)
   })
@@ -1317,13 +1317,13 @@ describe('memory-cache page entities', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const delBtn = root.querySelector('[data-da-action="delete-entity"][data-da-item-id="ent-1"]') as HTMLElement
+    const delBtn = root.querySelector('[data-cd-action="delete-entity"][data-cd-item-id="ent-1"]') as HTMLElement
     expect(delBtn).not.toBeNull()
     delBtn.click() // arm
     delBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = document.querySelector('#cd-page-memory-cache') as HTMLElement
     expect(memoryPage.textContent).not.toContain('Aldric')
     expect(memoryPage.textContent).toContain('Mira')
   })
@@ -1345,7 +1345,7 @@ describe('memory-cache page entities', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const delBtn = root.querySelector('[data-da-action="delete-entity"][data-da-item-id="ent-1"]') as HTMLElement
+    const delBtn = root.querySelector('[data-cd-action="delete-entity"][data-cd-item-id="ent-1"]') as HTMLElement
     delBtn.click() // arm
     delBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 50) })
@@ -1370,9 +1370,9 @@ describe('memory-cache page entities', () => {
     navigateToMemoryTab(root)
 
     const countBefore = currentState.memory.entities.length
-    const addInput = root.querySelector('input[data-da-role="add-entity-name"]') as HTMLInputElement
+    const addInput = root.querySelector('input[data-cd-role="add-entity-name"]') as HTMLInputElement
     addInput.value = '   '
-    const addBtn = root.querySelector('[data-da-action="add-entity"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-entity"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
@@ -1409,26 +1409,26 @@ describe('memory-cache page relations', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
 
-    const titles = Array.from(memoryPage.querySelectorAll('.da-card-title')).map((el) => el.textContent)
+    const titles = Array.from(memoryPage.querySelectorAll('.cd-card-title')).map((el) => el.textContent)
     expect(titles).toContain('Relations')
   })
 
-  test('relations render as .da-memory-item with readable sourceId → label → targetId', async () => {
+  test('relations render as .cd-memory-item with readable sourceId → label → targetId', async () => {
     const state = stateWithFullMemory()
     await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
 
     // The relation row should contain source, label, and target
-    const relationItems = memoryPage.querySelectorAll('[data-da-action="delete-relation"]')
+    const relationItems = memoryPage.querySelectorAll('[data-cd-action="delete-relation"]')
     expect(relationItems.length).toBe(1)
 
-    // The parent .da-memory-item should have readable text
-    const relItem = relationItems[0]!.closest('.da-memory-item')
+    // The parent .cd-memory-item should have readable text
+    const relItem = relationItems[0]!.closest('.cd-memory-item')
     expect(relItem).not.toBeNull()
     const text = relItem!.textContent ?? ''
     expect(text).toContain('ent-1')
@@ -1442,9 +1442,9 @@ describe('memory-cache page relations', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
 
-    const delBtn = memoryPage.querySelector('[data-da-action="delete-relation"][data-da-item-id="rel-1"]')
+    const delBtn = memoryPage.querySelector('[data-cd-action="delete-relation"][data-cd-item-id="rel-1"]')
     expect(delBtn).not.toBeNull()
   })
 
@@ -1454,12 +1454,12 @@ describe('memory-cache page relations', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
 
-    const addBtn = memoryPage.querySelector('[data-da-action="add-relation"]')
-    const srcInput = memoryPage.querySelector('input[data-da-role="add-relation-source"]') as HTMLInputElement
-    const labelInput = memoryPage.querySelector('input[data-da-role="add-relation-label"]') as HTMLInputElement
-    const tgtInput = memoryPage.querySelector('input[data-da-role="add-relation-target"]') as HTMLInputElement
+    const addBtn = memoryPage.querySelector('[data-cd-action="add-relation"]')
+    const srcInput = memoryPage.querySelector('input[data-cd-role="add-relation-source"]') as HTMLInputElement
+    const labelInput = memoryPage.querySelector('input[data-cd-role="add-relation-label"]') as HTMLInputElement
+    const tgtInput = memoryPage.querySelector('input[data-cd-role="add-relation-target"]') as HTMLInputElement
     expect(addBtn).not.toBeNull()
     expect(srcInput).not.toBeNull()
     expect(labelInput).not.toBeNull()
@@ -1481,17 +1481,17 @@ describe('memory-cache page relations', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const srcInput = root.querySelector('input[data-da-role="add-relation-source"]') as HTMLInputElement
-    const labelInput = root.querySelector('input[data-da-role="add-relation-label"]') as HTMLInputElement
-    const tgtInput = root.querySelector('input[data-da-role="add-relation-target"]') as HTMLInputElement
+    const srcInput = root.querySelector('input[data-cd-role="add-relation-source"]') as HTMLInputElement
+    const labelInput = root.querySelector('input[data-cd-role="add-relation-label"]') as HTMLInputElement
+    const tgtInput = root.querySelector('input[data-cd-role="add-relation-target"]') as HTMLInputElement
     srcInput.value = 'ent-2'
     labelInput.value = 'heals'
     tgtInput.value = 'ent-1'
-    const addBtn = root.querySelector('[data-da-action="add-relation"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-relation"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = document.querySelector('#cd-page-memory-cache') as HTMLElement
     expect(memoryPage.textContent).toContain('heals')
     expect(currentState.memory.relations.some((r) => r.label === 'heals')).toBe(true)
   })
@@ -1511,13 +1511,13 @@ describe('memory-cache page relations', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const delBtn = root.querySelector('[data-da-action="delete-relation"][data-da-item-id="rel-1"]') as HTMLElement
+    const delBtn = root.querySelector('[data-cd-action="delete-relation"][data-cd-item-id="rel-1"]') as HTMLElement
     expect(delBtn).not.toBeNull()
     delBtn.click() // arm
     delBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 50) })
 
-    const memoryPage = document.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = document.querySelector('#cd-page-memory-cache') as HTMLElement
     expect(memoryPage.textContent).not.toContain('protects')
     expect(currentState.memory.relations.length).toBe(0)
   })
@@ -1539,7 +1539,7 @@ describe('memory-cache page relations', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const delBtn = root.querySelector('[data-da-action="delete-relation"][data-da-item-id="rel-1"]') as HTMLElement
+    const delBtn = root.querySelector('[data-cd-action="delete-relation"][data-cd-item-id="rel-1"]') as HTMLElement
     delBtn.click() // arm
     delBtn.click() // confirm
     await new Promise((r) => { setTimeout(r, 50) })
@@ -1564,13 +1564,13 @@ describe('memory-cache page relations', () => {
     navigateToMemoryTab(root)
 
     const countBefore = currentState.memory.relations.length
-    const srcInput = root.querySelector('input[data-da-role="add-relation-source"]') as HTMLInputElement
-    const labelInput = root.querySelector('input[data-da-role="add-relation-label"]') as HTMLInputElement
-    const tgtInput = root.querySelector('input[data-da-role="add-relation-target"]') as HTMLInputElement
+    const srcInput = root.querySelector('input[data-cd-role="add-relation-source"]') as HTMLInputElement
+    const labelInput = root.querySelector('input[data-cd-role="add-relation-label"]') as HTMLInputElement
+    const tgtInput = root.querySelector('input[data-cd-role="add-relation-target"]') as HTMLInputElement
     srcInput.value = 'ent-1'
     labelInput.value = ''
     tgtInput.value = 'ent-2'
-    const addBtn = root.querySelector('[data-da-action="add-relation"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-relation"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => { setTimeout(r, 50) })
 
@@ -1607,9 +1607,9 @@ describe('memory-cache page Korean locale for world facts, entities, relations',
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
 
-    const titles = Array.from(memoryPage.querySelectorAll('.da-card-title')).map((el) => el.textContent)
+    const titles = Array.from(memoryPage.querySelectorAll('.cd-card-title')).map((el) => el.textContent)
     expect(titles).not.toContain('World Facts')
     expect(titles).not.toContain('Entities')
     expect(titles).not.toContain('Relations')
@@ -1650,9 +1650,9 @@ describe('memory-cache page empty state with new domains', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
 
-    const emptyHint = memoryPage.querySelector('[data-da-role="memory-empty"]')
+    const emptyHint = memoryPage.querySelector('[data-cd-role="memory-empty"]')
     expect(emptyHint).toBeNull()
   })
 
@@ -1670,8 +1670,8 @@ describe('memory-cache page empty state with new domains', () => {
     navigateToMemoryTab(root)
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const memoryPage = updatedRoot.querySelector('#da-page-memory-cache') as HTMLElement
-    const emptyHint = memoryPage.querySelector('[data-da-role="memory-empty"]')
+    const memoryPage = updatedRoot.querySelector('#cd-page-memory-cache') as HTMLElement
+    const emptyHint = memoryPage.querySelector('[data-cd-role="memory-empty"]')
 
     expect(emptyHint).not.toBeNull()
   })
@@ -1720,14 +1720,14 @@ describe('destructive-action arming', () => {
     navigateToMemoryTab(root)
 
     const delBtn = root.querySelector(
-      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+      '[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]',
     ) as HTMLElement
     delBtn.click() // arm only
 
     // State must NOT have changed
     expect(currentState.memory.summaries.length).toBe(originalSummaryCount)
     // Button should show confirm text and armed class
-    expect(delBtn.classList.contains('da-btn--armed')).toBe(true)
+    expect(delBtn.classList.contains('cd-btn--armed')).toBe(true)
     expect(delBtn.textContent).toBe('Confirm Delete?')
   })
 
@@ -1747,7 +1747,7 @@ describe('destructive-action arming', () => {
     navigateToMemoryTab(root)
 
     const delBtn = root.querySelector(
-      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+      '[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]',
     ) as HTMLElement
     delBtn.click() // arm
     delBtn.click() // confirm
@@ -1774,15 +1774,15 @@ describe('destructive-action arming', () => {
     navigateToMemoryTab(root)
 
     const delBtn1 = root.querySelector(
-      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+      '[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]',
     ) as HTMLElement
     const delBtn2 = root.querySelector(
-      '[data-da-action="delete-summary"][data-da-item-id="sum-2"]',
+      '[data-cd-action="delete-summary"][data-cd-item-id="sum-2"]',
     ) as HTMLElement
 
     delBtn1.click() // arm sum-1
-    expect(delBtn1.classList.contains('da-btn--armed')).toBe(true)
-    expect(delBtn2.classList.contains('da-btn--armed')).toBe(false)
+    expect(delBtn1.classList.contains('cd-btn--armed')).toBe(true)
+    expect(delBtn2.classList.contains('cd-btn--armed')).toBe(false)
 
     // Clicking sum-2 arms sum-2 but does NOT confirm sum-1
     delBtn2.click() // arm sum-2
@@ -1809,16 +1809,16 @@ describe('destructive-action arming', () => {
     navigateToMemoryTab(root)
 
     const delBtn = root.querySelector(
-      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+      '[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]',
     ) as HTMLElement
     delBtn.click() // arm
-    expect(delBtn.classList.contains('da-btn--armed')).toBe(true)
+    expect(delBtn.classList.contains('cd-btn--armed')).toBe(true)
 
     // Advance past the arming timeout
     vi.advanceTimersByTime(ARM_TIMEOUT_MS + 100)
 
     // Armed state should have cleared
-    expect(delBtn.classList.contains('da-btn--armed')).toBe(false)
+    expect(delBtn.classList.contains('cd-btn--armed')).toBe(false)
     expect(delBtn.textContent).not.toBe('Confirm Delete?')
     // State should NOT have mutated
     expect(currentState.memory.summaries.length).toBe(originalCount)
@@ -1843,14 +1843,14 @@ describe('destructive-action arming', () => {
 
     // Select an item
     const checkbox = root.querySelector(
-      'input[data-da-role="memory-select"][data-da-item-key="summary:sum-1"]',
+      'input[data-cd-role="memory-select"][data-cd-item-key="summary:sum-1"]',
     ) as HTMLInputElement
     checkbox.checked = true
     checkbox.dispatchEvent(new Event('change', { bubbles: true }))
 
-    const bulkBtn = root.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLButtonElement
+    const bulkBtn = root.querySelector('[data-cd-action="bulk-delete-memory"]') as HTMLButtonElement
     bulkBtn.click() // arm
-    expect(bulkBtn.classList.contains('da-btn--armed')).toBe(true)
+    expect(bulkBtn.classList.contains('cd-btn--armed')).toBe(true)
     expect(currentState.memory.summaries.some((s) => s.id === 'sum-1')).toBe(true)
 
     bulkBtn.click() // confirm
@@ -1883,17 +1883,17 @@ describe('destructive-action arming', () => {
 
     // Select an item so bulk-delete button is enabled
     const checkbox = root.querySelector(
-      'input[data-da-role="memory-select"][data-da-item-key="summary:sum-1"]',
+      'input[data-cd-role="memory-select"][data-cd-item-key="summary:sum-1"]',
     ) as HTMLInputElement
     checkbox.checked = true
     checkbox.dispatchEvent(new Event('change', { bubbles: true }))
 
-    const bulkBtn = root.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLButtonElement
+    const bulkBtn = root.querySelector('[data-cd-action="bulk-delete-memory"]') as HTMLButtonElement
     const originalText = bulkBtn.textContent
 
     bulkBtn.click() // arm
     expect(bulkBtn.textContent).toBe('Confirm Delete Selected?')
-    expect(bulkBtn.classList.contains('da-btn--armed')).toBe(true)
+    expect(bulkBtn.classList.contains('cd-btn--armed')).toBe(true)
 
     // Block the guard so handler returns early without fullReRender
     guardBlocked = true
@@ -1903,7 +1903,7 @@ describe('destructive-action arming', () => {
 
     // Button text must be restored, not stuck on confirm copy
     expect(bulkBtn.textContent).toBe(originalText)
-    expect(bulkBtn.classList.contains('da-btn--armed')).toBe(false)
+    expect(bulkBtn.classList.contains('cd-btn--armed')).toBe(false)
   })
 
   // -- delete prompt preset -------------------------------------------------
@@ -1929,17 +1929,17 @@ describe('destructive-action arming', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
     // Navigate to prompt tuning tab
-    const tuningBtn = root.querySelector('[data-da-target="prompt-tuning"]') as HTMLElement
+    const tuningBtn = root.querySelector('[data-cd-target="prompt-tuning"]') as HTMLElement
     tuningBtn.click()
 
-    const deletePresetBtn = root.querySelector('[data-da-action="delete-prompt-preset"]') as HTMLButtonElement
+    const deletePresetBtn = root.querySelector('[data-cd-action="delete-prompt-preset"]') as HTMLButtonElement
     expect(deletePresetBtn).not.toBeNull()
     expect(deletePresetBtn.disabled).toBe(false)
     deletePresetBtn.click() // arm
-    expect(deletePresetBtn.classList.contains('da-btn--armed')).toBe(true)
+    expect(deletePresetBtn.classList.contains('cd-btn--armed')).toBe(true)
 
     // The preset should still be selectable (not yet deleted)
-    const presetSelect = root.querySelector('[data-da-role="prompt-preset-select"]') as HTMLSelectElement
+    const presetSelect = root.querySelector('[data-cd-role="prompt-preset-select"]') as HTMLSelectElement
     expect(presetSelect.value).toBe(validPreset.id)
 
     deletePresetBtn.click() // confirm
@@ -1947,7 +1947,7 @@ describe('destructive-action arming', () => {
 
     // After confirmation, the preset should be deleted and selection should fall back to builtin
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const updatedSelect = updatedRoot.querySelector('[data-da-role="prompt-preset-select"]') as HTMLSelectElement
+    const updatedSelect = updatedRoot.querySelector('[data-cd-role="prompt-preset-select"]') as HTMLSelectElement
     expect(updatedSelect.value).toBe(BUILTIN_PROMPT_PRESET_ID)
   })
 
@@ -1969,25 +1969,25 @@ describe('destructive-action arming', () => {
     navigateToMemoryTab(root)
 
     const delBtn = root.querySelector(
-      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+      '[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]',
     ) as HTMLElement
     delBtn.click() // arm
-    expect(delBtn.classList.contains('da-btn--armed')).toBe(true)
+    expect(delBtn.classList.contains('cd-btn--armed')).toBe(true)
 
     // Trigger a fullReRender via an add action (non-destructive mutation)
-    const addInput = root.querySelector('input[data-da-role="add-summary-text"]') as HTMLInputElement
+    const addInput = root.querySelector('input[data-cd-role="add-summary-text"]') as HTMLInputElement
     addInput.value = 'Trigger rerender'
-    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-summary"]') as HTMLElement
     addBtn.click()
     await vi.advanceTimersByTimeAsync(100)
 
     // After re-render, the arming should be cleared — fresh delete button
     root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     const freshDelBtn = root.querySelector(
-      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+      '[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]',
     ) as HTMLElement
     expect(freshDelBtn).not.toBeNull()
-    expect(freshDelBtn.classList.contains('da-btn--armed')).toBe(false)
+    expect(freshDelBtn.classList.contains('cd-btn--armed')).toBe(false)
     expect(freshDelBtn.textContent).not.toBe('Confirm Delete?')
   })
 
@@ -2009,7 +2009,7 @@ describe('destructive-action arming', () => {
     navigateToMemoryTab(root)
 
     const delBtn = root.querySelector(
-      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+      '[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]',
     ) as HTMLElement
     delBtn.click() // arm
 
@@ -2020,10 +2020,10 @@ describe('destructive-action arming', () => {
     const root2 = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root2)
     const freshBtn = root2.querySelector(
-      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+      '[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]',
     ) as HTMLElement
     expect(freshBtn).not.toBeNull()
-    expect(freshBtn.classList.contains('da-btn--armed')).toBe(false)
+    expect(freshBtn.classList.contains('cd-btn--armed')).toBe(false)
   })
 
   // -- arming cleared on tab switch -----------------------------------------
@@ -2045,31 +2045,31 @@ describe('destructive-action arming', () => {
 
     // Arm a delete button on the Memory tab
     const delBtn = root.querySelector(
-      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+      '[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]',
     ) as HTMLElement
     const originalLabel = delBtn.textContent
     delBtn.click() // arm
-    expect(delBtn.classList.contains('da-btn--armed')).toBe(true)
+    expect(delBtn.classList.contains('cd-btn--armed')).toBe(true)
 
     // Switch to a different tab
-    const generalBtn = root.querySelector('[data-da-target="general"]') as HTMLElement
+    const generalBtn = root.querySelector('[data-cd-target="general"]') as HTMLElement
     generalBtn.click()
 
     // Armed CSS class and confirm copy should be removed from the hidden DOM button
-    expect(delBtn.classList.contains('da-btn--armed')).toBe(false)
+    expect(delBtn.classList.contains('cd-btn--armed')).toBe(false)
     expect(delBtn.textContent).toBe(originalLabel)
 
     // Switch back to memory tab — button must not be armed
     navigateToMemoryTab(root)
     const freshBtn = root.querySelector(
-      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+      '[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]',
     ) as HTMLElement
-    expect(freshBtn.classList.contains('da-btn--armed')).toBe(false)
+    expect(freshBtn.classList.contains('cd-btn--armed')).toBe(false)
     expect(freshBtn.textContent).toBe(originalLabel)
 
     // Clicking the delete button again should arm (first-click), not execute
     freshBtn.click()
-    expect(freshBtn.classList.contains('da-btn--armed')).toBe(true)
+    expect(freshBtn.classList.contains('cd-btn--armed')).toBe(true)
     // Verify no deletion occurred — the summary should still exist
     const latestState = await store.readCanonical!()
     expect(latestState.memory.summaries.some((s: { id: string }) => s.id === 'sum-1')).toBe(true)
@@ -2094,7 +2094,7 @@ describe('destructive-action arming', () => {
     navigateToMemoryTab(root)
 
     const delBtn = root.querySelector(
-      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+      '[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]',
     ) as HTMLElement
     delBtn.click() // arm
     expect(delBtn.textContent).toBe('삭제 확인?')
@@ -2141,14 +2141,14 @@ describe('memory filter persistence across rerender', () => {
     navigateToMemoryTab(root)
 
     // Type a filter query
-    const filterInput = root.querySelector('[data-da-role="memory-filter"]') as HTMLInputElement
+    const filterInput = root.querySelector('[data-cd-role="memory-filter"]') as HTMLInputElement
     filterInput.value = 'dragon'
     filterInput.dispatchEvent(new Event('input', { bubbles: true }))
 
     // Trigger a rerender via add-summary (which calls fullReRender)
-    const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+    const addInput = root.querySelector('[data-cd-role="add-summary-text"]') as HTMLInputElement
     addInput.value = 'Test summary'
-    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-summary"]') as HTMLElement
     addBtn.click()
 
     // Wait for async operations
@@ -2156,7 +2156,7 @@ describe('memory filter persistence across rerender', () => {
 
     // After rerender, the filter input should retain the query
     const newRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const newFilterInput = newRoot.querySelector('[data-da-role="memory-filter"]') as HTMLInputElement
+    const newFilterInput = newRoot.querySelector('[data-cd-role="memory-filter"]') as HTMLInputElement
     expect(newFilterInput.value).toBe('dragon')
   })
 })
@@ -2187,13 +2187,13 @@ describe('memory-page quick navigation controls', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const quickNav = root.querySelector('[data-da-role="memory-quick-nav"]') as HTMLElement
+    const quickNav = root.querySelector('[data-cd-role="memory-quick-nav"]') as HTMLElement
     expect(quickNav).not.toBeNull()
 
-    const links = quickNav.querySelectorAll('[data-da-nav-target]')
+    const links = quickNav.querySelectorAll('[data-cd-nav-target]')
     expect(links.length).toBe(5)
 
-    const targets = Array.from(links).map((l) => l.getAttribute('data-da-nav-target'))
+    const targets = Array.from(links).map((l) => l.getAttribute('data-cd-nav-target'))
     expect(targets).toContain('summaries')
     expect(targets).toContain('continuity-facts')
     expect(targets).toContain('world-facts')
@@ -2208,13 +2208,13 @@ describe('memory-page quick navigation controls', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const section = root.querySelector('#da-memory-section-summaries') as HTMLElement
+    const section = root.querySelector('#cd-memory-section-summaries') as HTMLElement
     expect(section).not.toBeNull()
 
     const scrollSpy = vi.fn()
     section.scrollIntoView = scrollSpy
 
-    const navBtn = root.querySelector('[data-da-nav-target="summaries"]') as HTMLElement
+    const navBtn = root.querySelector('[data-cd-nav-target="summaries"]') as HTMLElement
     expect(navBtn).not.toBeNull()
     navBtn.click()
 
@@ -2230,7 +2230,7 @@ describe('memory-page quick navigation controls', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const quickNav = root.querySelector('[data-da-role="memory-quick-nav"]') as HTMLElement
+    const quickNav = root.querySelector('[data-cd-role="memory-quick-nav"]') as HTMLElement
     expect(quickNav).not.toBeNull()
     // Korean labels should appear
     expect(quickNav.textContent).toContain('요약')
@@ -2265,7 +2265,7 @@ describe('memory-page scope badge', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const badge = root.querySelector('[data-da-role="scope-badge"]') as HTMLElement
+    const badge = root.querySelector('[data-cd-role="scope-badge"]') as HTMLElement
     expect(badge).not.toBeNull()
     expect(badge.textContent!.length).toBeGreaterThan(0)
   })
@@ -2280,7 +2280,7 @@ describe('memory-page scope badge', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const badge = root.querySelector('[data-da-role="scope-badge"]') as HTMLElement
+    const badge = root.querySelector('[data-cd-role="scope-badge"]') as HTMLElement
     expect(badge).not.toBeNull()
   })
 
@@ -2292,7 +2292,7 @@ describe('memory-page scope badge', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const badge = root.querySelector('[data-da-role="scope-badge"]') as HTMLElement
+    const badge = root.querySelector('[data-cd-role="scope-badge"]') as HTMLElement
     expect(badge).not.toBeNull()
     expect(badge.textContent).toContain('Global')
   })
@@ -2322,9 +2322,9 @@ describe('embeddings/settings cross-link', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const crossLink = root.querySelector('[data-da-role="model-settings-link"]') as HTMLElement
+    const crossLink = root.querySelector('[data-cd-role="model-settings-link"]') as HTMLElement
     expect(crossLink).not.toBeNull()
-    expect(crossLink.getAttribute('data-da-target')).toBe('model-settings')
+    expect(crossLink.getAttribute('data-cd-target')).toBe('model-settings')
   })
 
   test('clicking the cross-link navigates to the model-settings tab', async () => {
@@ -2333,20 +2333,20 @@ describe('embeddings/settings cross-link', () => {
     navigateToMemoryTab(root)
 
     // Verify we start on the memory-cache page
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
-    expect(memoryPage.classList.contains('da-hidden')).toBe(false)
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
+    expect(memoryPage.classList.contains('cd-hidden')).toBe(false)
 
-    const crossLink = root.querySelector('[data-da-role="model-settings-link"]') as HTMLElement
+    const crossLink = root.querySelector('[data-cd-role="model-settings-link"]') as HTMLElement
     crossLink.click()
 
     // After click, model-settings page should be visible and memory-cache hidden
-    const modelPage = root.querySelector('#da-page-model-settings') as HTMLElement
-    expect(modelPage.classList.contains('da-hidden')).toBe(false)
-    expect(memoryPage.classList.contains('da-hidden')).toBe(true)
+    const modelPage = root.querySelector('#cd-page-model-settings') as HTMLElement
+    expect(modelPage.classList.contains('cd-hidden')).toBe(false)
+    expect(memoryPage.classList.contains('cd-hidden')).toBe(true)
 
     // Sidebar button should reflect the active tab
-    const activeBtn = root.querySelector('.da-sidebar-btn--active') as HTMLElement
-    expect(activeBtn.getAttribute('data-da-target')).toBe('model-settings')
+    const activeBtn = root.querySelector('.cd-sidebar-btn--active') as HTMLElement
+    expect(activeBtn.getAttribute('data-cd-target')).toBe('model-settings')
   })
 })
 
@@ -2392,7 +2392,7 @@ describe('bounded memory-page rerender', () => {
 
     // Arm + execute delete
     const delBtn = root.querySelector(
-      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+      '[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]',
     ) as HTMLElement
     delBtn.click() // arm
     delBtn.click() // execute
@@ -2409,9 +2409,9 @@ describe('bounded memory-page rerender', () => {
     navigateToMemoryTab(root)
     const originalRoot = root
 
-    const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+    const addInput = root.querySelector('[data-cd-role="add-summary-text"]') as HTMLInputElement
     addInput.value = 'New summary item'
-    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-summary"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => setTimeout(r, 50))
 
@@ -2426,15 +2426,15 @@ describe('bounded memory-page rerender', () => {
     const originalRoot = root
 
     // Enter edit mode
-    const editBtn = root.querySelector('[data-da-action="edit-memory-item"]') as HTMLElement
+    const editBtn = root.querySelector('[data-cd-action="edit-memory-item"]') as HTMLElement
     editBtn.click()
 
     // Root should still be the same after entering edit mode
     expect(document.querySelector(`.${DASHBOARD_ROOT_CLASS}`)).toBe(originalRoot)
 
     // Save the edit
-    const saveBtn = root.querySelector('[data-da-action="save-memory-edit"]') as HTMLElement
-    const editInput = root.querySelector('[data-da-role="edit-summary-text"]') as HTMLInputElement
+    const saveBtn = root.querySelector('[data-cd-action="save-memory-edit"]') as HTMLElement
+    const editInput = root.querySelector('[data-cd-role="edit-summary-text"]') as HTMLInputElement
     editInput.value = 'Updated summary text'
     saveBtn.click()
     await new Promise((r) => setTimeout(r, 50))
@@ -2448,11 +2448,11 @@ describe('bounded memory-page rerender', () => {
     navigateToMemoryTab(root)
     const originalRoot = root
 
-    const editBtn = root.querySelector('[data-da-action="edit-memory-item"]') as HTMLElement
+    const editBtn = root.querySelector('[data-cd-action="edit-memory-item"]') as HTMLElement
     editBtn.click()
     expect(document.querySelector(`.${DASHBOARD_ROOT_CLASS}`)).toBe(originalRoot)
 
-    const cancelBtn = root.querySelector('[data-da-action="cancel-memory-edit"]') as HTMLElement
+    const cancelBtn = root.querySelector('[data-cd-action="cancel-memory-edit"]') as HTMLElement
     cancelBtn.click()
     expect(document.querySelector(`.${DASHBOARD_ROOT_CLASS}`)).toBe(originalRoot)
   })
@@ -2464,12 +2464,12 @@ describe('bounded memory-page rerender', () => {
     const originalRoot = root
 
     // Select an item
-    const checkbox = root.querySelector('[data-da-role="memory-select"]') as HTMLInputElement
+    const checkbox = root.querySelector('[data-cd-role="memory-select"]') as HTMLInputElement
     checkbox.checked = true
     checkbox.dispatchEvent(new Event('change', { bubbles: true }))
 
     // Arm + execute bulk delete
-    const bulkBtn = root.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLElement
+    const bulkBtn = root.querySelector('[data-cd-action="bulk-delete-memory"]') as HTMLElement
     bulkBtn.click() // arm
     bulkBtn.click() // execute
     await new Promise((r) => setTimeout(r, 50))
@@ -2483,20 +2483,20 @@ describe('bounded memory-page rerender', () => {
     navigateToMemoryTab(root)
 
     // Verify sum-1 is present
-    expect(root.querySelector('[data-da-item-id="sum-1"]')).not.toBeNull()
+    expect(root.querySelector('[data-cd-item-id="sum-1"]')).not.toBeNull()
 
     // Delete it
     const delBtn = root.querySelector(
-      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+      '[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]',
     ) as HTMLElement
     delBtn.click() // arm
     delBtn.click() // execute
     await new Promise((r) => setTimeout(r, 50))
 
     // sum-1 should be gone from the rendered DOM
-    expect(root.querySelector('[data-da-item-id="sum-1"]')).toBeNull()
+    expect(root.querySelector('[data-cd-item-id="sum-1"]')).toBeNull()
     // sum-2 should still be present
-    expect(root.querySelector('[data-da-item-id="sum-2"]')).not.toBeNull()
+    expect(root.querySelector('[data-cd-item-id="sum-2"]')).not.toBeNull()
   })
 
   test('selection state survives memory-page rerender', async () => {
@@ -2506,21 +2506,21 @@ describe('bounded memory-page rerender', () => {
 
     // Select sum-2
     const checkbox = root.querySelector(
-      '[data-da-item-key="summary:sum-2"]',
+      '[data-cd-item-key="summary:sum-2"]',
     ) as HTMLInputElement
     checkbox.checked = true
     checkbox.dispatchEvent(new Event('change', { bubbles: true }))
 
     // Add a new summary (triggers memory-page rerender)
-    const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+    const addInput = root.querySelector('[data-cd-role="add-summary-text"]') as HTMLInputElement
     addInput.value = 'New item'
-    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-summary"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => setTimeout(r, 50))
 
     // sum-2 checkbox should still be checked after rerender
     const checkboxAfter = root.querySelector(
-      '[data-da-item-key="summary:sum-2"]',
+      '[data-cd-item-key="summary:sum-2"]',
     ) as HTMLInputElement
     expect(checkboxAfter).not.toBeNull()
     expect(checkboxAfter.checked).toBe(true)
@@ -2532,24 +2532,24 @@ describe('bounded memory-page rerender', () => {
     navigateToMemoryTab(root)
 
     // Type a filter
-    const filterInput = root.querySelector('[data-da-role="memory-filter"]') as HTMLInputElement
+    const filterInput = root.querySelector('[data-cd-role="memory-filter"]') as HTMLInputElement
     filterInput.value = 'dragon'
     filterInput.dispatchEvent(new Event('input', { bubbles: true }))
 
     // Add a new summary (triggers memory-page rerender)
-    const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+    const addInput = root.querySelector('[data-cd-role="add-summary-text"]') as HTMLInputElement
     addInput.value = 'New item'
-    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-summary"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => setTimeout(r, 50))
 
     // Filter input value should survive
-    const newFilterInput = root.querySelector('[data-da-role="memory-filter"]') as HTMLInputElement
+    const newFilterInput = root.querySelector('[data-cd-role="memory-filter"]') as HTMLInputElement
     expect(newFilterInput.value).toBe('dragon')
 
     // Items not matching "dragon" should still be hidden
-    const items = root.querySelectorAll('.da-memory-item')
-    const hiddenItems = Array.from(items).filter((i) => i.classList.contains('da-hidden'))
+    const items = root.querySelectorAll('.cd-memory-item')
+    const hiddenItems = Array.from(items).filter((i) => i.classList.contains('cd-hidden'))
     expect(hiddenItems.length).toBeGreaterThan(0)
   })
 
@@ -2571,12 +2571,12 @@ describe('bounded memory-page rerender', () => {
     navigateToMemoryTab(root)
 
     // Select an item
-    const checkbox = root.querySelector('[data-da-role="memory-select"]') as HTMLInputElement
+    const checkbox = root.querySelector('[data-cd-role="memory-select"]') as HTMLInputElement
     checkbox.checked = true
     checkbox.dispatchEvent(new Event('change', { bubbles: true }))
 
     // Arm + execute bulk delete (stays in flight because of slow store)
-    const bulkBtn = root.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLElement
+    const bulkBtn = root.querySelector('[data-cd-action="bulk-delete-memory"]') as HTMLElement
     bulkBtn.click() // arm
     bulkBtn.click() // execute
 
@@ -2585,7 +2585,7 @@ describe('bounded memory-page rerender', () => {
 
     // bulk-delete button should be disabled while in flight
     const bulkBtnNow = root.querySelector(
-      '[data-da-action="bulk-delete-memory"]',
+      '[data-cd-action="bulk-delete-memory"]',
     ) as HTMLButtonElement
     expect(bulkBtnNow.disabled).toBe(true)
 
@@ -2601,24 +2601,24 @@ describe('bounded memory-page rerender', () => {
 
     // Arm a delete button
     const delBtn = root.querySelector(
-      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+      '[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]',
     ) as HTMLElement
     delBtn.click() // arm
-    expect(delBtn.classList.contains('da-btn--armed')).toBe(true)
+    expect(delBtn.classList.contains('cd-btn--armed')).toBe(true)
 
     // Trigger a memory-page rerender via add
-    const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+    const addInput = root.querySelector('[data-cd-role="add-summary-text"]') as HTMLInputElement
     addInput.value = 'Trigger rerender'
-    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-summary"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => setTimeout(r, 50))
 
     // After rerender, the delete button for sum-1 should NOT be armed
     const freshDelBtn = root.querySelector(
-      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+      '[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]',
     ) as HTMLElement
     expect(freshDelBtn).not.toBeNull()
-    expect(freshDelBtn.classList.contains('da-btn--armed')).toBe(false)
+    expect(freshDelBtn.classList.contains('cd-btn--armed')).toBe(false)
   })
 
   test('sidebar and footer remain intact after memory-page rerender', async () => {
@@ -2627,21 +2627,21 @@ describe('bounded memory-page rerender', () => {
     navigateToMemoryTab(root)
 
     // Get references to sidebar and footer elements
-    const sidebar = root.querySelector('.da-sidebar') as HTMLElement
-    const footer = root.querySelector('.da-footer') as HTMLElement
+    const sidebar = root.querySelector('.cd-sidebar') as HTMLElement
+    const footer = root.querySelector('.cd-footer') as HTMLElement
     expect(sidebar).not.toBeNull()
     expect(footer).not.toBeNull()
 
     // Trigger memory-page rerender via add
-    const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+    const addInput = root.querySelector('[data-cd-role="add-summary-text"]') as HTMLInputElement
     addInput.value = 'Trigger rerender'
-    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-summary"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => setTimeout(r, 50))
 
     // Sidebar and footer should be the same DOM elements (not replaced)
-    expect(root.querySelector('.da-sidebar')).toBe(sidebar)
-    expect(root.querySelector('.da-footer')).toBe(footer)
+    expect(root.querySelector('.cd-sidebar')).toBe(sidebar)
+    expect(root.querySelector('.cd-footer')).toBe(footer)
   })
 
   test('keyboard focus is restored to same element after memory-page rerender', async () => {
@@ -2650,19 +2650,19 @@ describe('bounded memory-page rerender', () => {
     navigateToMemoryTab(root)
 
     // Focus the filter input before triggering a rerender
-    const filterInput = root.querySelector('[data-da-role="memory-filter"]') as HTMLInputElement
+    const filterInput = root.querySelector('[data-cd-role="memory-filter"]') as HTMLInputElement
     filterInput.focus()
     expect(document.activeElement).toBe(filterInput)
 
     // Add a new summary (triggers memory-page rerender)
-    const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+    const addInput = root.querySelector('[data-cd-role="add-summary-text"]') as HTMLInputElement
     addInput.value = 'Focus test item'
-    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-summary"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => setTimeout(r, 50))
 
     // Focus should be restored to the filter input (new DOM element with same role)
-    const newFilterInput = root.querySelector('[data-da-role="memory-filter"]') as HTMLInputElement
+    const newFilterInput = root.querySelector('[data-cd-role="memory-filter"]') as HTMLInputElement
     expect(document.activeElement).toBe(newFilterInput)
   })
 
@@ -2673,7 +2673,7 @@ describe('bounded memory-page rerender', () => {
 
     // Focus the delete button for sum-1
     const delBtn = root.querySelector(
-      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+      '[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]',
     ) as HTMLElement
     delBtn.focus()
     expect(document.activeElement).toBe(delBtn)
@@ -2684,7 +2684,7 @@ describe('bounded memory-page rerender', () => {
     await new Promise((r) => setTimeout(r, 50))
 
     // The original button is gone; focus should fall back to the memory filter
-    const fallback = root.querySelector('[data-da-role="memory-filter"]') as HTMLElement
+    const fallback = root.querySelector('[data-cd-role="memory-filter"]') as HTMLElement
     expect(document.activeElement).toBe(fallback)
   })
 
@@ -2694,7 +2694,7 @@ describe('bounded memory-page rerender', () => {
     navigateToMemoryTab(root)
 
     // Spy on scrollTop via getter/setter to verify explicit save/restore
-    const content = root.querySelector('.da-content') as HTMLElement
+    const content = root.querySelector('.cd-content') as HTMLElement
     let scrollTopValue = 0
     const scrollTopSets: number[] = []
     Object.defineProperty(content, 'scrollTop', {
@@ -2711,9 +2711,9 @@ describe('bounded memory-page rerender', () => {
     scrollTopSets.length = 0 // clear the initial set
 
     // Add a new summary (triggers memory-page rerender)
-    const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+    const addInput = root.querySelector('[data-cd-role="add-summary-text"]') as HTMLInputElement
     addInput.value = 'Scroll test item'
-    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-summary"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => setTimeout(r, 50))
 
@@ -2727,7 +2727,7 @@ describe('bounded memory-page rerender', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const content = root.querySelector('.da-content') as HTMLElement
+    const content = root.querySelector('.cd-content') as HTMLElement
     let scrollTopValue = 0
     Object.defineProperty(content, 'scrollTop', {
       get: () => scrollTopValue,
@@ -2737,14 +2737,14 @@ describe('bounded memory-page rerender', () => {
     content.scrollTop = 150
 
     // Focus the filter input
-    const filterInput = root.querySelector('[data-da-role="memory-filter"]') as HTMLInputElement
+    const filterInput = root.querySelector('[data-cd-role="memory-filter"]') as HTMLInputElement
     filterInput.focus()
 
     // Spy on focus calls on future elements with the same role
     const focusCalls: Array<{ preventScroll?: boolean }> = []
     const origFocus = HTMLElement.prototype.focus
     HTMLElement.prototype.focus = function (opts?: FocusOptions) {
-      if (this.getAttribute('data-da-role') === 'memory-filter') {
+      if (this.getAttribute('data-cd-role') === 'memory-filter') {
         focusCalls.push(opts ?? {})
       }
       origFocus.call(this, opts)
@@ -2752,9 +2752,9 @@ describe('bounded memory-page rerender', () => {
 
     try {
       // Trigger rerender
-      const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+      const addInput = root.querySelector('[data-cd-role="add-summary-text"]') as HTMLInputElement
       addInput.value = 'preventScroll test'
-      const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+      const addBtn = root.querySelector('[data-cd-action="add-summary"]') as HTMLElement
       addBtn.click()
       await new Promise((r) => setTimeout(r, 50))
 
@@ -2770,32 +2770,32 @@ describe('bounded memory-page rerender', () => {
     }
   })
 
-  test('captureFocusSelector includes data-da-item-key for action buttons', async () => {
+  test('captureFocusSelector includes data-cd-item-key for action buttons', async () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
     // Focus the edit button for sum-2 (not the first edit button in DOM order).
-    // Without data-da-item-key in the selector cascade, restoreFocus would
-    // fall back to the generic [data-da-action="edit-memory-item"] which
+    // Without data-cd-item-key in the selector cascade, restoreFocus would
+    // fall back to the generic [data-cd-action="edit-memory-item"] which
     // matches sum-1's button first — proving the item-key is needed.
     const editBtn2 = root.querySelector(
-      '[data-da-action="edit-memory-item"][data-da-item-key="summary:sum-2"]',
+      '[data-cd-action="edit-memory-item"][data-cd-item-key="summary:sum-2"]',
     ) as HTMLElement
     expect(editBtn2).not.toBeNull()
     editBtn2.focus()
     expect(document.activeElement).toBe(editBtn2)
 
     // Trigger a rerender by adding a new summary
-    const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+    const addInput = root.querySelector('[data-cd-role="add-summary-text"]') as HTMLInputElement
     addInput.value = 'item-key selector test'
-    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-summary"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => setTimeout(r, 50))
 
     // Focus must land on sum-2's edit button, not sum-1's
     const restoredEdit = root.querySelector(
-      '[data-da-action="edit-memory-item"][data-da-item-key="summary:sum-2"]',
+      '[data-cd-action="edit-memory-item"][data-cd-item-key="summary:sum-2"]',
     ) as HTMLElement
     expect(restoredEdit).not.toBeNull()
     expect(document.activeElement).toBe(restoredEdit)
@@ -2807,14 +2807,14 @@ describe('bounded memory-page rerender', () => {
     navigateToMemoryTab(root)
     const originalRoot = root
 
-    const srcInput = root.querySelector('[data-da-role="add-relation-source"]') as HTMLInputElement
-    const labelInput = root.querySelector('[data-da-role="add-relation-label"]') as HTMLInputElement
-    const tgtInput = root.querySelector('[data-da-role="add-relation-target"]') as HTMLInputElement
+    const srcInput = root.querySelector('[data-cd-role="add-relation-source"]') as HTMLInputElement
+    const labelInput = root.querySelector('[data-cd-role="add-relation-label"]') as HTMLInputElement
+    const tgtInput = root.querySelector('[data-cd-role="add-relation-target"]') as HTMLInputElement
     srcInput.value = 'ent-1'
     labelInput.value = 'allies-with'
     tgtInput.value = 'ent-2'
 
-    const addBtn = root.querySelector('[data-da-action="add-relation"]') as HTMLElement
+    const addBtn = root.querySelector('[data-cd-action="add-relation"]') as HTMLElement
     addBtn.click()
     await new Promise((r) => setTimeout(r, 50))
 
@@ -2862,12 +2862,12 @@ describe('memory-cache page – workbench coexistence', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
 
     // Existing memory items still render
     expect(memoryPage.textContent).toContain('The hero crossed the river at dawn.')
     // Workbench section also renders
-    expect(memoryPage.querySelector('[data-da-role="workbench-section"]')).not.toBeNull()
+    expect(memoryPage.querySelector('[data-cd-role="workbench-section"]')).not.toBeNull()
     expect(memoryPage.textContent).toContain('Workbench Character')
   })
 
@@ -2883,12 +2883,12 @@ describe('memory-cache page – workbench coexistence', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
 
     // Existing memory items still render
     expect(memoryPage.textContent).toContain('The hero crossed the river at dawn.')
     // Error shown inline in workbench
-    expect(memoryPage.querySelector('[data-da-role="workbench-error"]')).not.toBeNull()
+    expect(memoryPage.querySelector('[data-cd-role="workbench-error"]')).not.toBeNull()
     expect(memoryPage.textContent).toContain('disk full')
   })
 
@@ -2909,14 +2909,14 @@ describe('memory-cache page – workbench coexistence', () => {
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
     navigateToMemoryTab(root)
 
-    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
 
     // MEMORY.md preview
-    expect(memoryPage.querySelector('[data-da-role="workbench-memory-md"]')).not.toBeNull()
+    expect(memoryPage.querySelector('[data-cd-role="workbench-memory-md"]')).not.toBeNull()
     expect(memoryPage.textContent).toContain('A warrior')
 
     // Notebook snapshot
-    expect(memoryPage.querySelector('[data-da-role="workbench-notebook"]')).not.toBeNull()
+    expect(memoryPage.querySelector('[data-cd-role="workbench-notebook"]')).not.toBeNull()
     expect(memoryPage.textContent).toContain('The hero rests at the inn')
     expect(memoryPage.textContent).toContain('Find the sword of light')
   })

@@ -523,7 +523,7 @@ class DashboardInstance {
       el.remove()
     }
 
-    // buildDashboardMarkup already produces a <div class="da-root da-dashboard">
+    // buildDashboardMarkup already produces a <div class="cd-root cd-dashboard">
     // wrapper, so inject directly — no extra wrapping needed
     const container = this.doc.createElement('div')
     container.innerHTML = buildDashboardMarkup(this.buildMarkupInput())
@@ -531,21 +531,21 @@ class DashboardInstance {
     if (!wrapper) return
 
     // Inject close button into sidebar
-    const sidebar = wrapper.querySelector('.da-sidebar')
+    const sidebar = wrapper.querySelector('.cd-sidebar')
     if (sidebar) {
       const closeBtn = this.doc.createElement('button')
-      closeBtn.className = 'da-btn da-close-btn'
-      closeBtn.setAttribute('data-da-action', 'close')
+      closeBtn.className = 'cd-btn cd-close-btn'
+      closeBtn.setAttribute('data-cd-action', 'close')
       closeBtn.setAttribute('aria-label', t('btn.close'))
       closeBtn.textContent = t('btn.closeIcon')
       sidebar.appendChild(closeBtn)
     }
 
     // Inject footer with save/discard into content area
-    const content = wrapper.querySelector('.da-content')
+    const content = wrapper.querySelector('.cd-content')
     if (content) {
       const footer = this.doc.createElement('div')
-      footer.className = 'da-footer'
+      footer.className = 'cd-footer'
       footer.innerHTML = this.buildFooterHtml()
       content.appendChild(footer)
     }
@@ -559,12 +559,12 @@ class DashboardInstance {
   }
 
   private buildFooterHtml(): string {
-    const dirtyClass = this.draft.isDirty ? '' : ' da-hidden'
+    const dirtyClass = this.draft.isDirty ? '' : ' cd-hidden'
     return [
-      `<span class="da-dirty-indicator${dirtyClass}" data-da-role="dirty">${t('dirty.unsavedChanges')}</span>`,
+      `<span class="cd-dirty-indicator${dirtyClass}" data-cd-role="dirty">${t('dirty.unsavedChanges')}</span>`,
       `<div style="display:flex;gap:8px;margin-left:auto">`,
-      `  <button class="da-btn" data-da-action="discard">${t('btn.discard')}</button>`,
-      `  <button class="da-btn da-btn--primary" data-da-action="save">${t('btn.save')}</button>`,
+      `  <button class="cd-btn" data-cd-action="discard">${t('btn.discard')}</button>`,
+      `  <button class="cd-btn cd-btn--primary" data-cd-action="save">${t('btn.save')}</button>`,
       `</div>`,
     ].join('\n')
   }
@@ -591,20 +591,20 @@ class DashboardInstance {
     const wrapper = container.firstElementChild as HTMLElement
     if (!wrapper) return
 
-    const sidebar = wrapper.querySelector('.da-sidebar')
+    const sidebar = wrapper.querySelector('.cd-sidebar')
     if (sidebar) {
       const closeBtn = this.doc.createElement('button')
-      closeBtn.className = 'da-btn da-close-btn'
-      closeBtn.setAttribute('data-da-action', 'close')
+      closeBtn.className = 'cd-btn cd-close-btn'
+      closeBtn.setAttribute('data-cd-action', 'close')
       closeBtn.setAttribute('aria-label', t('btn.close'))
       closeBtn.textContent = t('btn.closeIcon')
       sidebar.appendChild(closeBtn)
     }
 
-    const content = wrapper.querySelector('.da-content')
+    const content = wrapper.querySelector('.cd-content')
     if (content) {
       const footer = this.doc.createElement('div')
-      footer.className = 'da-footer'
+      footer.className = 'cd-footer'
       footer.innerHTML = this.buildFooterHtml()
       content.appendChild(footer)
     }
@@ -629,7 +629,7 @@ class DashboardInstance {
    */
   private memoryPageReRender(): void {
     if (!this.root) return
-    const page = this.root.querySelector('#da-page-memory-cache')
+    const page = this.root.querySelector('#cd-page-memory-cache')
     if (!page) {
       this.fullReRender()
       return
@@ -641,7 +641,7 @@ class DashboardInstance {
     const focusSelector = this.captureFocusSelector()
 
     // Save scroll position
-    const content = this.root.querySelector('.da-content')
+    const content = this.root.querySelector('.cd-content')
     const scrollTop = content ? content.scrollTop : 0
 
     const newHtml = `${buildPageTitle('memory-cache')}${buildMemoryCachePage(this.buildMarkupInput())}`
@@ -664,9 +664,9 @@ class DashboardInstance {
 
   private updateConnectionStatusDom(): void {
     if (!this.root) return
-    const el = this.root.querySelector('.da-connection-status')
+    const el = this.root.querySelector('.cd-connection-status')
     if (!el) return
-    el.setAttribute('data-da-status', this.connectionStatus.kind)
+    el.setAttribute('data-cd-status', this.connectionStatus.kind)
     el.textContent = this.connectionStatus.message
   }
 
@@ -678,16 +678,16 @@ class DashboardInstance {
     const active = this.doc.activeElement as HTMLElement | null
     if (!active || !this.root?.contains(active)) return null
 
-    // Prefer stable data-da-* attributes
-    const role = active.getAttribute('data-da-role')
-    if (role) return `[data-da-role="${role}"]`
+    // Prefer stable data-cd-* attributes
+    const role = active.getAttribute('data-cd-role')
+    if (role) return `[data-cd-role="${role}"]`
 
-    const action = active.getAttribute('data-da-action')
-    const itemId = active.getAttribute('data-da-item-id')
-    const itemKey = active.getAttribute('data-da-item-key')
-    if (action && itemKey) return `[data-da-action="${action}"][data-da-item-key="${itemKey}"]`
-    if (action && itemId) return `[data-da-action="${action}"][data-da-item-id="${itemId}"]`
-    if (action) return `[data-da-action="${action}"]`
+    const action = active.getAttribute('data-cd-action')
+    const itemId = active.getAttribute('data-cd-item-id')
+    const itemKey = active.getAttribute('data-cd-item-key')
+    if (action && itemKey) return `[data-cd-action="${action}"][data-cd-item-key="${itemKey}"]`
+    if (action && itemId) return `[data-cd-action="${action}"][data-cd-item-id="${itemId}"]`
+    if (action) return `[data-cd-action="${action}"]`
 
     return null
   }
@@ -706,7 +706,7 @@ class DashboardInstance {
     }
 
     // Fallback: focus the memory filter input (always present on memory page)
-    const fallback = this.root.querySelector('[data-da-role="memory-filter"]') as HTMLElement | null
+    const fallback = this.root.querySelector('[data-cd-role="memory-filter"]') as HTMLElement | null
     if (fallback) {
       fallback.focus({ preventScroll: true })
     }
@@ -715,7 +715,7 @@ class DashboardInstance {
   private updateModelSelectDom(): void {
     if (!this.root) return
     const sel = this.root.querySelector(
-      'select[data-da-field="directorModel"]',
+      'select[data-cd-field="directorModel"]',
     ) as HTMLSelectElement | null
     if (!sel) return
     sel.innerHTML = this.modelOptions
@@ -728,9 +728,9 @@ class DashboardInstance {
 
   private updateDirtyIndicator(): void {
     if (!this.root) return
-    const indicator = this.root.querySelector('[data-da-role="dirty"]')
+    const indicator = this.root.querySelector('[data-cd-role="dirty"]')
     if (indicator) {
-      indicator.classList.toggle('da-hidden', !this.draft.isDirty)
+      indicator.classList.toggle('cd-hidden', !this.draft.isDirty)
     }
   }
 
@@ -765,7 +765,7 @@ class DashboardInstance {
    * the duration so the user gets visible feedback via the CSS
    * disabled-state rule from UI-1.
    *
-   * @param uiAction — the `data-da-action` of the button that was
+   * @param uiAction — the `data-cd-action` of the button that was
    *   actually clicked (may differ from `actionName` for aliased
    *   actions, e.g. `save-settings` routed through busy key `save`).
    */
@@ -794,7 +794,7 @@ class DashboardInstance {
   private setBusyDisabled(actionName: string, busy: boolean): void {
     if (!this.root) return
     const btn = this.root.querySelector(
-      `[data-da-action="${actionName}"]`,
+      `[data-cd-action="${actionName}"]`,
     ) as HTMLButtonElement | null
     if (!btn) return
 
@@ -828,7 +828,7 @@ class DashboardInstance {
    * item id so arming one row does not arm all rows.
    */
   private static armKey(action: string, btn: HTMLElement): string {
-    const itemId = btn.getAttribute('data-da-item-id')
+    const itemId = btn.getAttribute('data-cd-item-id')
     return itemId ? `${action}::${itemId}` : action
   }
 
@@ -839,7 +839,7 @@ class DashboardInstance {
       const btn = this.findArmedBtn(key)
       if (btn) {
         btn.textContent = originalText
-        btn.classList.remove('da-btn--armed')
+        btn.classList.remove('cd-btn--armed')
       }
     }
     this.armedActions.clear()
@@ -850,12 +850,12 @@ class DashboardInstance {
     if (!this.root) return null
     const sepIdx = armKey.indexOf('::')
     if (sepIdx === -1) {
-      return this.root.querySelector(`[data-da-action="${armKey}"]`)
+      return this.root.querySelector(`[data-cd-action="${armKey}"]`)
     }
     const action = armKey.slice(0, sepIdx)
     const itemId = armKey.slice(sepIdx + 2)
     return this.root.querySelector(
-      `[data-da-action="${action}"][data-da-item-id="${itemId}"]`,
+      `[data-cd-action="${action}"][data-cd-item-id="${itemId}"]`,
     )
   }
 
@@ -879,7 +879,7 @@ class DashboardInstance {
       // when the downstream handler returns early without fullReRender().
       btn.textContent = this.armedActions.get(key) ?? ''
       this.armedActions.delete(key)
-      btn.classList.remove('da-btn--armed')
+      btn.classList.remove('cd-btn--armed')
       return true
     }
 
@@ -889,14 +889,14 @@ class DashboardInstance {
 
     this.armedActions.set(key, btn.textContent ?? '')
     btn.textContent = t(confirmKey)
-    btn.classList.add('da-btn--armed')
+    btn.classList.add('cd-btn--armed')
 
     this.lifecycle.setTimeout(() => {
       if (!this.armedActions.has(key)) return
       const domBtn = this.findArmedBtn(key)
       if (domBtn) {
         domBtn.textContent = this.armedActions.get(key) ?? ''
-        domBtn.classList.remove('da-btn--armed')
+        domBtn.classList.remove('cd-btn--armed')
       }
       this.armedActions.delete(key)
     }, ARM_TIMEOUT_MS)
@@ -921,20 +921,20 @@ class DashboardInstance {
       const target = e.target as HTMLElement
       if (
         target instanceof HTMLInputElement &&
-        target.getAttribute('data-da-role') === 'memory-select'
+        target.getAttribute('data-cd-role') === 'memory-select'
       ) {
         this.handleMemorySelectionChange(target)
         return
       }
       if (
         target instanceof HTMLSelectElement &&
-        target.getAttribute('data-da-role') === 'prompt-preset-select'
+        target.getAttribute('data-cd-role') === 'prompt-preset-select'
       ) {
         this.handlePromptPresetSelect(target.value)
         return
       }
       // Workbench filter selects
-      const role = target.getAttribute('data-da-role')
+      const role = target.getAttribute('data-cd-role')
       if (
         target instanceof HTMLSelectElement &&
         role != null &&
@@ -950,15 +950,15 @@ class DashboardInstance {
       const el = e.target as HTMLElement
       if (
         el instanceof HTMLInputElement &&
-        el.getAttribute('data-da-role') === 'memory-filter'
+        el.getAttribute('data-cd-role') === 'memory-filter'
       ) {
         this.handleMemoryFilter(el.value)
         return
       }
       if (
         (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) &&
-        typeof el.getAttribute('data-da-role') === 'string' &&
-        el.getAttribute('data-da-role')?.startsWith('prompt-')
+        typeof el.getAttribute('data-cd-role') === 'string' &&
+        el.getAttribute('data-cd-role')?.startsWith('prompt-')
       ) {
         this.handlePromptPresetInput(el)
         return
@@ -973,9 +973,9 @@ class DashboardInstance {
   }
 
   private handleTabClick(target: HTMLElement): void {
-    const btn = target.closest('[data-da-target]') as HTMLElement | null
+    const btn = target.closest('[data-cd-target]') as HTMLElement | null
     if (!btn) return
-    const tabId = btn.getAttribute('data-da-target')
+    const tabId = btn.getAttribute('data-cd-target')
     if (!tabId) return
 
     this.clearArmedState()
@@ -986,38 +986,38 @@ class DashboardInstance {
 
     // Update sidebar active state
     if (this.root) {
-      for (const b of Array.from(this.root.querySelectorAll('.da-sidebar-btn'))) {
+      for (const b of Array.from(this.root.querySelectorAll('.cd-sidebar-btn'))) {
         b.classList.toggle(
-          'da-sidebar-btn--active',
-          b.getAttribute('data-da-target') === tabId,
+          'cd-sidebar-btn--active',
+          b.getAttribute('data-cd-target') === tabId,
         )
       }
     }
 
     // Toggle page visibility
     if (this.root) {
-      for (const page of Array.from(this.root.querySelectorAll('.da-page'))) {
-        const pageId = page.id.replace('da-page-', '')
-        page.classList.toggle('da-hidden', pageId !== tabId)
+      for (const page of Array.from(this.root.querySelectorAll('.cd-page'))) {
+        const pageId = page.id.replace('cd-page-', '')
+        page.classList.toggle('cd-hidden', pageId !== tabId)
       }
     }
   }
 
   private handleQuickNavClick(target: HTMLElement): void {
-    const btn = target.closest('[data-da-nav-target]') as HTMLElement | null
+    const btn = target.closest('[data-cd-nav-target]') as HTMLElement | null
     if (!btn || !this.root) return
-    const sectionId = btn.getAttribute('data-da-nav-target')
+    const sectionId = btn.getAttribute('data-cd-nav-target')
     if (!sectionId) return
-    const section = this.root.querySelector(`#da-memory-section-${sectionId}`)
+    const section = this.root.querySelector(`#cd-memory-section-${sectionId}`)
     if (section) {
       section.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }
 
   private async handleActionClick(target: HTMLElement): Promise<void> {
-    const btn = target.closest('[data-da-action]') as HTMLElement | null
+    const btn = target.closest('[data-cd-action]') as HTMLElement | null
     if (!btn) return
-    const action = btn.getAttribute('data-da-action')
+    const action = btn.getAttribute('data-cd-action')
 
     // Gate destructive actions through the two-click arming flow
     if (action && DESTRUCTIVE_ACTIONS.has(action)) {
@@ -1131,18 +1131,18 @@ class DashboardInstance {
   }
 
   private handleProfileSelect(target: HTMLElement): void {
-    const item = target.closest('.da-profile-item') as HTMLElement | null
+    const item = target.closest('.cd-profile-item') as HTMLElement | null
     if (!item) return
-    if (target.closest('[data-da-action]')) return
+    if (target.closest('[data-cd-action]')) return
 
-    const profileId = item.getAttribute('data-da-profile-id')
+    const profileId = item.getAttribute('data-cd-profile-id')
     if (!profileId) return
 
     this.selectProfile(profileId)
   }
 
   private handleFieldChange(el: HTMLElement): void {
-    const field = el.getAttribute('data-da-field')
+    const field = el.getAttribute('data-cd-field')
     if (!field) return
     if (!(field in this.draft.settings)) return
 
@@ -1184,7 +1184,7 @@ class DashboardInstance {
       this.markDirty()
 
       const baseUrlInput = this.root?.querySelector(
-        '[data-da-field="directorBaseUrl"]',
+        '[data-cd-field="directorBaseUrl"]',
       ) as HTMLInputElement | null
       if (baseUrlInput) {
         baseUrlInput.value = providerDefaults.baseUrl
@@ -1200,7 +1200,7 @@ class DashboardInstance {
       this.markDirty()
 
       const baseUrlInput = this.root?.querySelector(
-        '[data-da-field="embeddingBaseUrl"]',
+        '[data-cd-field="embeddingBaseUrl"]',
       ) as HTMLInputElement | null
       if (baseUrlInput) {
         baseUrlInput.value = providerDefaults.baseUrl
@@ -1438,7 +1438,7 @@ class DashboardInstance {
     const current = this.getSelectedCustomPromptPreset()
     if (!current) return
 
-    const role = el.getAttribute('data-da-role')
+    const role = el.getAttribute('data-cd-role')
     if (!role) return
 
     switch (role) {
@@ -1572,7 +1572,7 @@ class DashboardInstance {
   }
 
   private handleMemorySelectionChange(input: HTMLInputElement): void {
-    const itemKey = input.getAttribute('data-da-item-key')
+    const itemKey = input.getAttribute('data-cd-item-key')
     if (!itemKey) return
     if (input.checked) {
       this.selectedMemoryKeys.add(itemKey)
@@ -1581,7 +1581,7 @@ class DashboardInstance {
     }
 
     const bulkDeleteBtn = this.root?.querySelector(
-      '[data-da-action="bulk-delete-memory"]',
+      '[data-cd-action="bulk-delete-memory"]',
     ) as HTMLButtonElement | null
     if (bulkDeleteBtn) {
       bulkDeleteBtn.disabled = this.selectedMemoryKeys.size === 0
@@ -1589,7 +1589,7 @@ class DashboardInstance {
   }
 
   private handleEditMemoryItem(btn: HTMLElement): void {
-    const itemKey = btn.getAttribute('data-da-item-key')
+    const itemKey = btn.getAttribute('data-cd-item-key')
     if (!itemKey) return
     const [kind, id] = itemKey.split(':', 2)
     if (!kind || !id) return
@@ -1606,18 +1606,18 @@ class DashboardInstance {
   }
 
   private async handleSaveMemoryEdit(btn: HTMLElement): Promise<void> {
-    const itemKey = btn.getAttribute('data-da-item-key')
+    const itemKey = btn.getAttribute('data-cd-item-key')
     if (!itemKey) return
     const [kind, id] = itemKey.split(':', 2)
     if (!kind || !id) return
-    const row = btn.closest('.da-memory-item') as HTMLElement | null
+    const row = btn.closest('.cd-memory-item') as HTMLElement | null
     if (!row) return
 
     const applyEdit = (state: DirectorPluginState): void => {
       switch (kind) {
         case 'summary': {
           const input = row.querySelector(
-            'input[data-da-role="edit-summary-text"]',
+            'input[data-cd-role="edit-summary-text"]',
           ) as HTMLInputElement | null
           const text = input?.value.trim() ?? ''
           if (!text) return
@@ -1626,7 +1626,7 @@ class DashboardInstance {
         }
         case 'continuity-fact': {
           const input = row.querySelector(
-            'input[data-da-role="edit-continuity-fact-text"]',
+            'input[data-cd-role="edit-continuity-fact-text"]',
           ) as HTMLInputElement | null
           const text = input?.value.trim() ?? ''
           if (!text) return
@@ -1635,7 +1635,7 @@ class DashboardInstance {
         }
         case 'world-fact': {
           const input = row.querySelector(
-            'input[data-da-role="edit-world-fact-text"]',
+            'input[data-cd-role="edit-world-fact-text"]',
           ) as HTMLInputElement | null
           const text = input?.value.trim() ?? ''
           if (!text) return
@@ -1644,7 +1644,7 @@ class DashboardInstance {
         }
         case 'entity': {
           const input = row.querySelector(
-            'input[data-da-role="edit-entity-name"]',
+            'input[data-cd-role="edit-entity-name"]',
           ) as HTMLInputElement | null
           const name = input?.value.trim() ?? ''
           if (!name) return
@@ -1653,13 +1653,13 @@ class DashboardInstance {
         }
         case 'relation': {
           const sourceInput = row.querySelector(
-            'input[data-da-role="edit-relation-source"]',
+            'input[data-cd-role="edit-relation-source"]',
           ) as HTMLInputElement | null
           const labelInput = row.querySelector(
-            'input[data-da-role="edit-relation-label"]',
+            'input[data-cd-role="edit-relation-label"]',
           ) as HTMLInputElement | null
           const targetInput = row.querySelector(
-            'input[data-da-role="edit-relation-target"]',
+            'input[data-cd-role="edit-relation-target"]',
           ) as HTMLInputElement | null
           const sourceId = sourceInput?.value.trim() ?? ''
           const label = labelInput?.value.trim() ?? ''
@@ -1739,10 +1739,10 @@ class DashboardInstance {
     this.memoryFilterQuery = query
     if (!this.root) return
     const needle = query.trim().toLowerCase()
-    const items = this.root.querySelectorAll('.da-memory-item')
+    const items = this.root.querySelectorAll('.cd-memory-item')
     for (const item of Array.from(items)) {
       const text = (item.textContent ?? '').toLowerCase()
-      item.classList.toggle('da-hidden', needle !== '' && !text.includes(needle))
+      item.classList.toggle('cd-hidden', needle !== '' && !text.includes(needle))
     }
   }
 
@@ -1752,7 +1752,7 @@ class DashboardInstance {
     btn: HTMLElement,
     kind: 'summary' | 'continuity-fact' | 'world-fact' | 'entity' | 'relation',
   ): Promise<void> {
-    const itemId = btn.getAttribute('data-da-item-id')
+    const itemId = btn.getAttribute('data-cd-item-id')
     if (!itemId) return
 
     const applyDelete = (state: DirectorPluginState): void => {
@@ -1796,7 +1796,7 @@ class DashboardInstance {
     }
     const inputRole = inputRoleMap[kind]
     const inputEl = this.root.querySelector(
-      `input[data-da-role="${inputRole}"]`,
+      `input[data-cd-role="${inputRole}"]`,
     ) as HTMLInputElement | null
     if (!inputEl) return
 
@@ -1833,9 +1833,9 @@ class DashboardInstance {
 
   private async handleAddRelation(): Promise<void> {
     if (!this.root) return
-    const srcEl = this.root.querySelector('input[data-da-role="add-relation-source"]') as HTMLInputElement | null
-    const labelEl = this.root.querySelector('input[data-da-role="add-relation-label"]') as HTMLInputElement | null
-    const tgtEl = this.root.querySelector('input[data-da-role="add-relation-target"]') as HTMLInputElement | null
+    const srcEl = this.root.querySelector('input[data-cd-role="add-relation-source"]') as HTMLInputElement | null
+    const labelEl = this.root.querySelector('input[data-cd-role="add-relation-label"]') as HTMLInputElement | null
+    const tgtEl = this.root.querySelector('input[data-cd-role="add-relation-target"]') as HTMLInputElement | null
     if (!srcEl || !labelEl || !tgtEl) return
 
     const sourceId = srcEl.value.trim()
@@ -1981,7 +1981,7 @@ class DashboardInstance {
   // ── Language switch ──────────────────────────────────────────────────
 
   private async handleSwitchLang(btn: HTMLElement): Promise<void> {
-    const nextLocale = (btn.getAttribute('data-da-lang') ?? 'en') as DashboardLocale
+    const nextLocale = (btn.getAttribute('data-cd-lang') ?? 'en') as DashboardLocale
     setLocale(nextLocale)
     await this.store.storage.setItem(DASHBOARD_LOCALE_KEY, nextLocale)
     this.connectionStatus = { kind: this.connectionStatus.kind, message: this.localizedConnectionMessage() }
@@ -1991,11 +1991,11 @@ class DashboardInstance {
   // ── Toast ─────────────────────────────────────────────────────────────
 
   private showToast(message: string, severity: ToastSeverity = 'info'): void {
-    const prev = this.doc.querySelector('.da-toast')
+    const prev = this.doc.querySelector('.cd-toast')
     if (prev) prev.remove()
 
     const toast = this.doc.createElement('div')
-    toast.className = `da-toast da-toast--${severity}`
+    toast.className = `cd-toast cd-toast--${severity}`
 
     if (severity === 'error') {
       toast.setAttribute('role', 'alert')
