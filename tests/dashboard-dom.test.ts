@@ -2,6 +2,7 @@ import { createEmptyState } from '../src/contracts/types.js'
 import { DEFAULT_DIRECTOR_PROMPT_PRESET } from '../src/director/prompt.js'
 import {
   buildDashboardMarkup,
+  buildPageTitle,
   DASHBOARD_TABS
 } from '../src/ui/dashboardDom.js'
 import {
@@ -477,5 +478,42 @@ describe('buildDashboardMarkup', () => {
 
     expect(markup).toMatch(/da-connection-status[^>]*role="status"/);
     expect(markup).toMatch(/da-connection-status[^>]*aria-live="polite"/);
+  })
+})
+
+// ---------------------------------------------------------------------------
+// buildPageTitle helper
+// ---------------------------------------------------------------------------
+
+describe('buildPageTitle', () => {
+  afterEach(() => {
+    setLocale('en')
+  })
+
+  test('returns an h2 with da-page-title class and translated label', () => {
+    const html = buildPageTitle('memory-cache')
+    expect(html).toBe('<h2 class="da-page-title">Memory & Cache</h2>')
+  })
+
+  test('produces the same title used inside buildDashboardMarkup pages', () => {
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'general',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+    })
+
+    for (const tab of DASHBOARD_TABS) {
+      expect(markup).toContain(buildPageTitle(tab.id))
+    }
+  })
+
+  test('respects locale changes', () => {
+    setLocale('ko')
+    const html = buildPageTitle('memory-cache')
+    expect(html).toContain('da-page-title')
+    expect(html).not.toContain('Memory')
   })
 })

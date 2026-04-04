@@ -764,7 +764,7 @@ function buildContent(input: DashboardMarkupInput): string {
     const inner = builder ? builder(input) : ''
     return `
     <div class="da-page${hidden}" id="da-page-${tab.id}">
-      <h2 class="da-page-title">${tabLabel(tab.id)}</h2>${inner}
+      ${buildPageTitle(tab.id)}${inner}
     </div>`
   }).join('')
 
@@ -787,6 +787,11 @@ function buildContent(input: DashboardMarkupInput): string {
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
+
+/** Canonical page-title markup shared by full build and bounded rerender. */
+export function buildPageTitle(tabId: string): string {
+  return `<h2 class="da-page-title">${tabLabel(tabId)}</h2>`
+}
 
 export function buildDashboardMarkup(input: DashboardMarkupInput): string {
   return `<div class="${DASHBOARD_ROOT_CLASS} da-dashboard">${buildSidebar(input.activeTab)}${buildContent(input)}

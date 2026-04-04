@@ -6,7 +6,7 @@ import type {
 } from '../contracts/types.js'
 import { DEFAULT_DIRECTOR_SETTINGS, createEmptyState } from '../contracts/types.js'
 import { buildDashboardCss, DASHBOARD_STYLE_ID, DASHBOARD_ROOT_CLASS } from './dashboardCss.js'
-import { buildDashboardMarkup, buildMemoryCachePage, DASHBOARD_TABS } from './dashboardDom.js'
+import { buildDashboardMarkup, buildMemoryCachePage, buildPageTitle, DASHBOARD_TABS } from './dashboardDom.js'
 import type { DashboardMarkupInput } from './dashboardDom.js'
 import { DashboardLifecycle } from './dashboardLifecycle.js'
 import {
@@ -44,7 +44,7 @@ import {
   loadProviderModels,
 } from './dashboardModel.js'
 import type { ConnectionTestResult } from './dashboardModel.js'
-import { t, setLocale, getLocale, tabLabel } from './i18n.js'
+import { t, setLocale, getLocale } from './i18n.js'
 import type { DashboardLocale } from './i18n.js'
 import { BUILTIN_PROMPT_PRESET_ID } from '../director/prompt.js'
 import { backfillCurrentChat } from '../director/backfill.js'
@@ -544,7 +544,7 @@ class DashboardInstance {
 
     this.clearArmedState()
 
-    const newHtml = `<h2 class="da-page-title">${tabLabel('memory-cache')}</h2>${buildMemoryCachePage(this.buildMarkupInput())}`
+    const newHtml = `${buildPageTitle('memory-cache')}${buildMemoryCachePage(this.buildMarkupInput())}`
     page.innerHTML = newHtml
 
     this.applyAllBusyStates()
