@@ -1728,10 +1728,10 @@ describe('destructive-action arming', () => {
     expect(currentState.memory.summaries.length).toBe(originalSummaryCount)
     // Button should show confirm text and armed class
     expect(delBtn.classList.contains('cd-btn--armed')).toBe(true)
-    expect(delBtn.textContent).toBe('Confirm Delete?')
+    expect(delBtn.textContent).toBe('Delete this item?')
   })
 
-  test('second click on an armed memory delete button executes the deletion', async () => {
+  test('second clickon an armed memory delete button executes the deletion', async () => {
     let currentState = stateWithMemory()
     store = {
       storage: api.pluginStorage,
@@ -1819,7 +1819,7 @@ describe('destructive-action arming', () => {
 
     // Armed state should have cleared
     expect(delBtn.classList.contains('cd-btn--armed')).toBe(false)
-    expect(delBtn.textContent).not.toBe('Confirm Delete?')
+    expect(delBtn.textContent).not.toBe('Delete this item?')
     // State should NOT have mutated
     expect(currentState.memory.summaries.length).toBe(originalCount)
   })
@@ -1892,7 +1892,7 @@ describe('destructive-action arming', () => {
     const originalText = bulkBtn.textContent
 
     bulkBtn.click() // arm
-    expect(bulkBtn.textContent).toBe('Confirm Delete Selected?')
+    expect(bulkBtn.textContent).toBe('Delete selected items?')
     expect(bulkBtn.classList.contains('cd-btn--armed')).toBe(true)
 
     // Block the guard so handler returns early without fullReRender
@@ -1988,7 +1988,7 @@ describe('destructive-action arming', () => {
     ) as HTMLElement
     expect(freshDelBtn).not.toBeNull()
     expect(freshDelBtn.classList.contains('cd-btn--armed')).toBe(false)
-    expect(freshDelBtn.textContent).not.toBe('Confirm Delete?')
+    expect(freshDelBtn.textContent).not.toBe('Delete this item?')
   })
 
   // -- arming cleared on close ---------------------------------------------
@@ -2097,7 +2097,7 @@ describe('destructive-action arming', () => {
       '[data-cd-action="delete-summary"][data-cd-item-id="sum-1"]',
     ) as HTMLElement
     delBtn.click() // arm
-    expect(delBtn.textContent).toBe('삭제 확인?')
+    expect(delBtn.textContent).toBe('이 항목을 삭제할까요?')
   })
 })
 

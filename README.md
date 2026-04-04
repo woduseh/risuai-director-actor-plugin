@@ -14,7 +14,7 @@ Narrative guidance and long-memory continuity plugin for **RisuAI Plugin V3**.
 - Includes latest curated model catalogs such as `GPT-5.4`, `Claude Opus 4.6`, `Claude Sonnet 4.6`, and `Gemini 3.1 Pro Preview`
 - Exposes prompt preset management for director pre-request and post-response templates
 - Includes a scoped canonical memory workbench for summaries, continuity facts, world facts, entities, and relations with live filtering, scope badges, quick navigation, internal section scrolling, bounded rerender updates, manual add/edit/delete, bulk delete, and two-step destructive arming safeguards
-- Adds a read-only Memory Workbench inspector for memdir documents with type/freshness/source filters, embedding-state badges, `MEMORY.md` preview, and session notebook snapshots
+- Adds a read-only Memory Workbench inspector for memory documents with type/status/source filters, embedding-state badges, `MEMORY.md` preview, and session notebook snapshots
 - Can backfill or fully regenerate memory from the current active chat into the scoped store
 - Stores and uses embedding provider/model settings for VoyageAI, OpenAI, Google, Vertex AI, and custom endpoints, with live runtime embedding support for OpenAI-compatible, VoyageAI, Google, and custom providers
 
@@ -35,7 +35,7 @@ The plugin implements a multi-layer memory system inspired by Claude Code's `CLA
 | **Extract** | After each finalized turn, the extraction worker produces new memdir documents from conversation context. Debounced and hash-deduplicated. |
 | **Recall** | Before each Director pass, an optional embedding prefilter narrows memdir candidates before the recall model selects relevant documents. Falls back to deterministic keyword ranking when embeddings are disabled, stale, or fail. |
 | **Session Notebook** | Updated every N turns or N tokens within a single session. Provides stable short-term context independent of retrieval budgets. |
-| **Dream** | Periodic auto-consolidation worker (orient → gather → consolidate → prune) that merges redundant extraction documents and prunes stale entries. Never touches operator/manual-locked memories. |
+| **Consolidation** | Periodic auto-consolidation worker (orient → gather → consolidate → prune) that merges redundant extraction documents and prunes stale entries. Never touches operator/manual-locked memories. |
 
 ### Migration from Legacy Canonical Memory
 
@@ -56,13 +56,13 @@ A per-scope migration marker (`continuity-director-memdir:migrated:{scopeKey}`) 
 The dashboard Memory Operations card provides operator controls:
 
 - **Run Extract Now** — Force an immediate extraction pass
-- **Run Dream Now** — Force an immediate consolidation pass
-- **Inspect Recalled Docs** — View the last recall result
+- **Run Consolidation Now** — Force an immediate consolidation pass
+- **View Recalled Docs** — View the last recall result
 - **Toggle Fallback Retrieval** — Switch between model-based and keyword-based recall
-- **Refresh Embeddings** — Rebuild memdir embeddings for the active scope and update cache-status counts
+- **Refresh Embeddings** — Rebuild memory document embeddings for the active scope and update cache-status counts
 - **Settings Export** — Export the current dashboard settings, profiles, and locale as structured JSON from the fullscreen dashboard
 - **Memory Navigation** — Keep the last-open tab, jump between memory sections, and preserve focus/scroll/filter context during memory CRUD updates
-- **Memory Workbench** — Inspect memdir document metadata, embedding readiness, `MEMORY.md`, and the session notebook without exposing mutating controls
+- **Memory Workbench** — Inspect memory document metadata, embedding readiness, `MEMORY.md`, and the session notebook without exposing mutating controls
 
 ## Project layout
 

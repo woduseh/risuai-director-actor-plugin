@@ -6,6 +6,7 @@
 
 - Rebranded the user-facing plugin and dashboard naming from **Director Actor** to **Continuity Director** for clearer continuity-and-guidance positioning
 - Replaced the dashboard's whimsical **Cupcake-style dashboard** copy with **Operator Console** language and refreshed the bilingual console subtitle/tagline text
+- Polished EN + KO user-facing strings: clearer card descriptions, natural confirmation prompts, consistent terminology (Consolidation over Dream, Memory Workbench, 개입 강도, 삽입 방식, 제공자, 갱신 상태, 사용자 지정)
 
 ## [0.6.0] - 2026-04-04
 
@@ -13,7 +14,7 @@
 
 - Repository-side GitGuardian configuration for generated bundle false positives under `dist/**`
 - Opt-in embedding retrieval runtime with host-safe provider clients, vector-version invalidation, embed-on-persist, per-scope refresh, and dashboard cache status reporting
-- Read-only Memory Workbench memdir inspector with type/freshness/source filters, per-document embedding state, `MEMORY.md` preview, and session notebook snapshot
+- Read-only Memory Workbench inspector with type/status/source filters, per-document embedding state, `MEMORY.md` preview, and session notebook snapshot
 
 ### Changed
 
@@ -114,7 +115,7 @@
 - Safe partial-migration fallback: canonical reads are always available even if memdir state is incomplete
 - Integration test covering full extract → recall → session-memory → dream lifecycle without shared-state conflicts
 - Memory Operations card on the dashboard memory page showing last extraction time, last consolidation time, notebook freshness badge, and document counts by type
-- Operator actions: Run Extract Now, Run Dream Now, Inspect Recalled Docs, Toggle Fallback Retrieval
+- Operator actions: Run Extract Now, Run Consolidation Now, View Recalled Docs, Toggle Fallback Retrieval
 - Stale-memory warnings and locked-memory indicators on the memory ops card
 - Optional `DashboardStore` callbacks (`forceExtract`, `forceDream`, `getRecalledDocs`, `isMemoryLocked`) for composition-root integration
 - Persisted fallback retrieval mode preference (`continuity-director-dashboard-memory-ops-prefs-v1`)

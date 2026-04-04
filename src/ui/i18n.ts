@@ -31,7 +31,7 @@ const EN_CATALOG = {
   // Sidebar
   'sidebar.kicker': 'Continuity Director',
   'sidebar.title': 'Continuity Console',
-  'sidebar.subtitle': 'Fullscreen control center for narrative guidance, models, prompts, memory continuity, and profiles.',
+  'sidebar.subtitle': 'Narrative guidance, models, prompts, memory, and profiles.',
 
   // Sidebar group labels
   'sidebar.group.general': 'General',
@@ -78,11 +78,11 @@ const EN_CATALOG = {
 
   // Card: Plugin Status
   'card.pluginStatus.title': 'Plugin Status',
-  'card.pluginStatus.copy': 'Enable the director, tune tone strictness, and keep a quick view of connection health.',
+  'card.pluginStatus.copy': 'Enable the Director, adjust intervention strength, and check connection health.',
   'label.enabled': 'Enabled',
-  'label.assertiveness': 'Assertiveness',
+  'label.assertiveness': 'Intervention Strength',
   'label.mode': 'Mode',
-  'label.injectionMode': 'Injection Mode',
+  'label.injectionMode': 'Insertion Method',
   'option.light': 'Light',
   'option.standard': 'Standard',
   'option.firm': 'Firm',
@@ -96,7 +96,7 @@ const EN_CATALOG = {
 
   // Card: Metrics Snapshot
   'card.metricsSnapshot.title': 'Metrics Snapshot',
-  'card.metricsSnapshot.copy': 'Quick read-only visibility into runtime behavior before you dive deeper.',
+  'card.metricsSnapshot.copy': 'Read-only snapshot of runtime behavior.',
   'metric.totalDirectorCalls': 'Total Director Calls',
   'metric.totalFailures': 'Total Failures',
   'metric.memoryWrites': 'Memory Writes',
@@ -104,9 +104,9 @@ const EN_CATALOG = {
 
   // Card: Prompt Tuning
   'card.promptTuning.title': 'Prompt Tuning',
-  'card.promptTuning.copy': 'Tune how strongly the Director pushes, how large the brief is, and whether post-review stays active.',
+  'card.promptTuning.copy': 'Adjust Director strength, brief size, and post-review behavior.',
   'card.promptPresets.title': 'Prompt Presets',
-  'card.promptPresets.copy': 'Choose the active preset, clone it into a custom preset, and edit the prompt templates used by the Director.',
+  'card.promptPresets.copy': 'Select, clone, or edit the prompt templates used by the Director.',
   'label.briefTokenCap': 'Brief Token Cap',
   'label.postReview': 'Enable Post-review',
   'label.embeddings': 'Enable Embeddings',
@@ -120,19 +120,20 @@ const EN_CATALOG = {
 
   // Card: Timing & Limits
   'card.timingLimits.title': 'Timing & Limits',
-  'card.timingLimits.copy': 'Cooldown and debounce controls keep the Director stable under streaming and bad responses.',
+  'card.timingLimits.copy': 'Cooldown and debounce settings to keep the Director stable.',
   'label.cooldownFailures': 'Cooldown Failures',
   'label.cooldownMs': 'Cooldown (ms)',
   'label.outputDebounceMs': 'Output Debounce (ms)',
 
   // Card: Director Model Settings
   'card.directorModel.title': 'Director Model Settings',
-  'card.directorModel.copy': 'Keep the Director on its own provider, base URL, key, and model without touching the main RP model.',
+  'card.directorModel.copy': 'Configure an independent provider, Base URL, key, and model for the Director.',
   'label.provider': 'Provider',
   'label.baseUrl': 'Base URL',
   'label.apiKey': 'API Key',
   'label.model': 'Model',
   'label.customModelId': 'Custom Model ID',
+
   'option.openai': 'OpenAI',
   'option.anthropic': 'Anthropic',
   'option.google': 'Google',
@@ -156,7 +157,7 @@ const EN_CATALOG = {
 
   // Card: Memory & Cache
   'card.memoryCache.title': 'Memory & Cache',
-  'card.memoryCache.copy': 'Inspect the long-memory substrate and keep an eye on the cache/memory write behavior.',
+  'card.memoryCache.copy': 'Review memory documents and monitor cache behavior.',
   'card.memoryCache.hint': 'Memory summaries, entity graphs, and cache controls will appear here.',
   'card.memorySummaries.title': 'Summaries',
   'card.continuityFacts.title': 'Continuity Facts',
@@ -192,10 +193,10 @@ const EN_CATALOG = {
 
   // Card: Memory Operations
   'card.memoryOps.title': 'Memory Operations',
-  'card.memoryOps.copy': 'Live status of extraction and consolidation workers, with operator actions.',
+  'card.memoryOps.copy': 'Live status of extraction and consolidation workers.',
   'memoryOps.lastExtract': 'Last Extraction',
   'memoryOps.lastDream': 'Last Consolidation',
-  'memoryOps.freshness': 'Notebook Freshness',
+  'memoryOps.freshness': 'Notebook Status',
   'memoryOps.docCounts': 'Document Counts',
   'memoryOps.freshnessUnknown': 'Unknown',
   'memoryOps.freshnessCurrent': 'Current',
@@ -203,12 +204,13 @@ const EN_CATALOG = {
   'memoryOps.neverRun': 'Never',
   'memoryOps.locked': 'Memory locked — consolidation in progress',
   'memoryOps.staleExtract': 'Memory extraction is more than 24 h old',
-  'memoryOps.staleDream': 'Last consolidation pass is more than 24 h old',
+  'memoryOps.staleDream': 'Last consolidation is more than 24 h old',
+
   'memoryOps.fallbackEnabled': 'Fallback retrieval ON',
   'memoryOps.fallbackDisabled': 'Fallback retrieval OFF',
   'btn.forceExtract': 'Run Extract Now',
-  'btn.forceDream': 'Run Dream Now',
-  'btn.inspectRecalled': 'Inspect Recalled',
+  'btn.forceDream': 'Run Consolidation Now',
+  'btn.inspectRecalled': 'View Recalled Docs',
   'btn.toggleFallback': 'Toggle Fallback Retrieval',
   'btn.refreshEmbeddings': 'Refresh Embeddings',
 
@@ -231,7 +233,7 @@ const EN_CATALOG = {
   'diag.lastError': 'Last Error',
   'diag.noError': 'None',
   'diag.extraction': 'Extraction Worker',
-  'diag.dream': 'Dream Worker',
+  'diag.dream': 'Consolidation Worker',
   'diag.recovery': 'Startup Recovery',
   'diag.breadcrumbs': 'Recent Activity',
   'diag.health.idle': 'Idle',
@@ -248,7 +250,7 @@ const EN_CATALOG = {
 
   // Card: Settings Profiles
   'card.settingsProfiles.title': 'Settings Profiles',
-  'card.settingsProfiles.copy': 'Save reusable presets, swap them in one click, and move them between saves with JSON import/export.',
+  'card.settingsProfiles.copy': 'Save reusable presets, swap them quickly, and import/export as JSON.',
 
   // Connection status
   'connection.notTested': 'Not tested',
@@ -287,10 +289,10 @@ const EN_CATALOG = {
   // Fallback summary (settings.ts non-DOM path)
   'fallback.header': '── Continuity Director Settings ──',
   'fallback.enabled': 'Enabled',
-  'fallback.assertiveness': 'Assertiveness',
+  'fallback.assertiveness': 'Strength',
   'fallback.provider': 'Provider',
   'fallback.model': 'Model',
-  'fallback.injection': 'Injection',
+  'fallback.injection': 'Insertion',
   'fallback.postReview': 'Post-review',
   'fallback.briefCap': 'Brief cap',
   'fallback.briefCapUnit': 'tokens',
@@ -301,20 +303,20 @@ const EN_CATALOG = {
   'guard.blockedMaintenance': 'Please wait — another maintenance task is still running.',
 
   // Destructive confirmation arming
-  'confirm.deleteMemory': 'Confirm Delete?',
-  'confirm.bulkDeleteMemory': 'Confirm Delete Selected?',
-  'confirm.regenerateCurrentChat': 'Confirm Regenerate?',
-  'confirm.deletePromptPreset': 'Confirm Delete Preset?',
+  'confirm.deleteMemory': 'Delete this item?',
+  'confirm.bulkDeleteMemory': 'Delete selected items?',
+  'confirm.regenerateCurrentChat': 'Regenerate memory?',
+  'confirm.deletePromptPreset': 'Delete this preset?',
 
-  // Memory Workbench (read-only memdir inspector)
-  'workbench.title': 'Memdir Workbench',
-  'workbench.copy': 'Read-only inspector for memdir documents in the current scope.',
-  'workbench.loading': 'Loading memdir documents…',
-  'workbench.emptyHint': 'No memdir documents in this scope yet.',
+  // Memory Workbench (read-only memory document inspector)
+  'workbench.title': 'Memory Workbench',
+  'workbench.copy': 'Read-only inspector for memory documents in the current scope.',
+  'workbench.loading': 'Loading memory documents…',
+  'workbench.emptyHint': 'No memory documents in this scope yet.',
   'workbench.noMatchHint': 'No documents match the current filters.',
   'workbench.filterAll': 'All',
   'workbench.filterType': 'Type',
-  'workbench.filterFreshness': 'Freshness',
+  'workbench.filterFreshness': 'Status',
   'workbench.filterSource': 'Source',
   'workbench.embedded': 'Embedded',
   'workbench.notEmbedded': 'Not Embedded',
@@ -335,8 +337,8 @@ const EN_CATALOG = {
 const KO_CATALOG: Record<TranslationKey, string> = {
   // Sidebar
   'sidebar.kicker': 'Continuity Director',
-  'sidebar.title': '연속성 콘솔',
-  'sidebar.subtitle': '내러티브 가이드, 모델, 프롬프트, 메모리 연속성, 프로필을 위한 전체화면 컨트롤 센터.',
+  'sidebar.title': '운영 콘솔',
+  'sidebar.subtitle': '내러티브 가이드, 모델, 프롬프트, 메모리, 프로필 관리.',
 
   // Sidebar group labels
   'sidebar.group.general': '일반',
@@ -352,7 +354,7 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'tab.settingsProfiles': '설정 프로필',
 
   // Toolbar
-  'toolbar.kicker': '오퍼레이터 콘솔',
+  'toolbar.kicker': '운영 콘솔',
   'toolbar.tagline': '장기 롤플레이를 위한 내러티브 가이드와 지속 메모리.',
 
   // Buttons
@@ -383,16 +385,16 @@ const KO_CATALOG: Record<TranslationKey, string> = {
 
   // Card: Plugin Status
   'card.pluginStatus.title': '플러그인 상태',
-  'card.pluginStatus.copy': '디렉터를 활성화하고, 톤 엄격도를 조절하며, 연결 상태를 빠르게 확인하세요.',
+  'card.pluginStatus.copy': 'Director를 활성화하고, 개입 강도를 조절하며, 연결 상태를 확인합니다.',
   'label.enabled': '활성화',
-  'label.assertiveness': '적극성',
+  'label.assertiveness': '개입 강도',
   'label.mode': '모드',
-  'label.injectionMode': '주입 모드',
+  'label.injectionMode': '삽입 방식',
   'option.light': '가벼움',
   'option.standard': '표준',
   'option.firm': '엄격',
   'option.risuAux': 'Risu 보조 모델',
-  'option.independentProvider': '독립 프로바이더',
+  'option.independentProvider': '독립 제공자',
   'option.auto': '자동',
   'option.authorNote': '작성자 노트',
   'option.adjacentUser': '인접 사용자',
@@ -401,7 +403,7 @@ const KO_CATALOG: Record<TranslationKey, string> = {
 
   // Card: Metrics Snapshot
   'card.metricsSnapshot.title': '메트릭 스냅샷',
-  'card.metricsSnapshot.copy': '더 깊이 들어가기 전에 런타임 동작을 빠르게 읽기 전용으로 확인하세요.',
+  'card.metricsSnapshot.copy': '런타임 동작의 읽기 전용 요약입니다.',
   'metric.totalDirectorCalls': '총 디렉터 호출 수',
   'metric.totalFailures': '총 실패 수',
   'metric.memoryWrites': '메모리 쓰기 수',
@@ -409,46 +411,46 @@ const KO_CATALOG: Record<TranslationKey, string> = {
 
   // Card: Prompt Tuning
   'card.promptTuning.title': '프롬프트 튜닝',
-  'card.promptTuning.copy': '디렉터가 얼마나 강하게 유도할지, 브리프 크기, 사후 리뷰 활성화 여부를 조절하세요.',
+  'card.promptTuning.copy': 'Director 개입 강도, 브리프 크기, 사후 리뷰 동작을 조절합니다.',
   'card.promptPresets.title': '프롬프트 프리셋',
-  'card.promptPresets.copy': '활성 프리셋을 선택하고, 현재 프리셋을 복제해 커스텀 프리셋을 만든 뒤 디렉터 프롬프트 템플릿을 편집하세요.',
+  'card.promptPresets.copy': '프리셋을 선택·복제·편집하여 Director 프롬프트 템플릿을 관리합니다.',
   'label.briefTokenCap': '브리프 토큰 상한',
   'label.postReview': '사후 리뷰 활성화',
   'label.embeddings': '임베딩 활성화',
   'label.promptPreset': '활성 프롬프트 프리셋',
   'label.promptPresetName': '프리셋 이름',
-  'label.preRequestSystemTemplate': '사전 요청 시스템 템플릿',
-  'label.preRequestUserTemplate': '사전 요청 사용자 템플릿',
-  'label.postResponseSystemTemplate': '사후 응답 시스템 템플릿',
-  'label.postResponseUserTemplate': '사후 응답 사용자 템플릿',
+  'label.preRequestSystemTemplate': '요청 전 시스템 템플릿',
+  'label.preRequestUserTemplate': '요청 전 사용자 템플릿',
+  'label.postResponseSystemTemplate': '응답 후 시스템 템플릿',
+  'label.postResponseUserTemplate': '응답 후 사용자 템플릿',
   'label.maxRecentMessages': '최근 메시지 상한',
 
   // Card: Timing & Limits
   'card.timingLimits.title': '타이밍 & 제한',
-  'card.timingLimits.copy': '쿨다운과 디바운스 제어로 스트리밍 및 잘못된 응답에서 디렉터를 안정적으로 유지합니다.',
+  'card.timingLimits.copy': '쿨다운·디바운스 설정으로 Director를 안정적으로 유지합니다.',
   'label.cooldownFailures': '쿨다운 실패 횟수',
   'label.cooldownMs': '쿨다운 (ms)',
   'label.outputDebounceMs': '출력 디바운스 (ms)',
 
   // Card: Director Model Settings
   'card.directorModel.title': '디렉터 모델 설정',
-  'card.directorModel.copy': '메인 RP 모델을 건드리지 않고 디렉터 전용 프로바이더, Base URL, 키, 모델을 유지하세요.',
-  'label.provider': '프로바이더',
+  'card.directorModel.copy': 'Director 전용 제공자, Base URL, 키, 모델을 설정합니다.',
+  'label.provider': '제공자',
   'label.baseUrl': 'Base URL',
   'label.apiKey': 'API 키',
   'label.model': '모델',
-  'label.customModelId': '커스텀 모델 ID',
+  'label.customModelId': '사용자 지정 모델 ID',
   'option.openai': 'OpenAI',
   'option.anthropic': 'Anthropic',
   'option.google': 'Google',
   'option.copilot': 'GitHub Copilot',
   'option.vertex': 'Google Vertex AI',
-  'option.custom': '커스텀',
+  'option.custom': '사용자 지정',
 
   // Card: Embedding Settings
   'card.embeddingSettings.title': '임베딩 설정',
-  'card.embeddingSettings.copy': '시맨틱 메모리 검색에 사용할 임베딩 프로바이더를 설정하세요.',
-  'label.embeddingProvider': '임베딩 프로바이더',
+  'card.embeddingSettings.copy': '시맨틱 메모리 검색에 사용할 임베딩 제공자를 설정합니다.',
+  'label.embeddingProvider': '임베딩 제공자',
   'label.embeddingBaseUrl': '임베딩 Base URL',
   'label.embeddingApiKey': '임베딩 API 키',
   'label.embeddingModel': '임베딩 모델',
@@ -457,11 +459,11 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'option.embedding.openai': 'OpenAI',
   'option.embedding.google': 'Google',
   'option.embedding.vertex': 'Google Vertex AI',
-  'option.embedding.custom': '커스텀',
+  'option.embedding.custom': '사용자 지정',
 
   // Card: Memory & Cache
   'card.memoryCache.title': '메모리 & 캐시',
-  'card.memoryCache.copy': '장기 메모리 기반과 캐시/메모리 쓰기 동작을 점검하세요.',
+  'card.memoryCache.copy': '메모리 문서와 캐시 동작을 확인합니다.',
   'card.memoryCache.hint': '메모리 요약, 엔티티 그래프, 캐시 제어가 여기에 표시됩니다.',
   'card.memorySummaries.title': '요약',
   'card.continuityFacts.title': '연속성 사실',
@@ -497,10 +499,10 @@ const KO_CATALOG: Record<TranslationKey, string> = {
 
   // Card: Memory Operations
   'card.memoryOps.title': '메모리 작업',
-  'card.memoryOps.copy': '추출 및 통합 워커의 실시간 상태와 운영자 작업.',
+  'card.memoryOps.copy': '추출·통합 워커의 실시간 상태입니다.',
   'memoryOps.lastExtract': '마지막 추출',
   'memoryOps.lastDream': '마지막 통합',
-  'memoryOps.freshness': '노트북 신선도',
+  'memoryOps.freshness': '노트북 갱신 상태',
   'memoryOps.docCounts': '문서 수',
   'memoryOps.freshnessUnknown': '알 수 없음',
   'memoryOps.freshnessCurrent': '최신',
@@ -508,12 +510,12 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'memoryOps.neverRun': '없음',
   'memoryOps.locked': '메모리 잠김 — 통합 진행 중',
   'memoryOps.staleExtract': '메모리 추출이 24시간 이상 경과했습니다',
-  'memoryOps.staleDream': '마지막 통합 패스가 24시간 이상 경과했습니다',
+  'memoryOps.staleDream': '마지막 통합이 24시간 이상 경과했습니다',
   'memoryOps.fallbackEnabled': '대체 검색 켜짐',
   'memoryOps.fallbackDisabled': '대체 검색 꺼짐',
   'btn.forceExtract': '지금 추출 실행',
-  'btn.forceDream': '지금 통합 실행',
-  'btn.inspectRecalled': '회상 문서 확인',
+  'btn.forceDream': '통합 실행',
+  'btn.inspectRecalled': '회상 문서 보기',
   'btn.toggleFallback': '대체 검색 토글',
   'btn.refreshEmbeddings': '임베딩 새로고침',
 
@@ -523,7 +525,7 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'embeddingStatus.stale': '오래됨',
   'embeddingStatus.missing': '없음',
   'embeddingStatus.disabled': '비활성화',
-  'embeddingStatus.unsupported': '지원되지 않는 프로바이더',
+  'embeddingStatus.unsupported': '지원되지 않는 제공자',
   'embeddingStatus.version': '벡터 버전',
   'embeddingStatus.counts': '임베딩 수',
   'toast.refreshEmbeddingsStarted': '임베딩 새로고침이 시작되었습니다',
@@ -553,7 +555,7 @@ const KO_CATALOG: Record<TranslationKey, string> = {
 
   // Card: Settings Profiles
   'card.settingsProfiles.title': '설정 프로필',
-  'card.settingsProfiles.copy': '재사용 가능한 프리셋을 저장하고, 한 번의 클릭으로 교체하며, JSON 가져오기/내보내기로 이동하세요.',
+  'card.settingsProfiles.copy': '프리셋을 저장·교체하고 JSON으로 가져오기/내보내기합니다.',
 
   // Connection status
   'connection.notTested': '테스트되지 않음',
@@ -586,16 +588,16 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'profile.gentle': '부드러움',
   'profile.strict': '엄격',
   'promptPreset.defaultName': '기본 프리셋',
-  'promptPreset.customName': '커스텀 프리셋 {{n}}',
+  'promptPreset.customName': '사용자 지정 프리셋 {{n}}',
   'promptPreset.readOnlyHint': '내장 프리셋은 읽기 전용입니다. 현재 프리셋을 복제해 사용자 정의하세요.',
 
   // Fallback summary
   'fallback.header': '── 연속성 디렉터 설정 ──',
   'fallback.enabled': '활성화',
-  'fallback.assertiveness': '적극성',
-  'fallback.provider': '프로바이더',
+  'fallback.assertiveness': '개입 강도',
+  'fallback.provider': '제공자',
   'fallback.model': '모델',
-  'fallback.injection': '주입',
+  'fallback.injection': '삽입 방식',
   'fallback.postReview': '사후 리뷰',
   'fallback.briefCap': '브리프 상한',
   'fallback.briefCapUnit': '토큰',
@@ -606,20 +608,20 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'guard.blockedMaintenance': '잠시 기다려 주세요 — 다른 유지보수 작업이 아직 실행 중입니다.',
 
   // Destructive confirmation arming
-  'confirm.deleteMemory': '삭제 확인?',
-  'confirm.bulkDeleteMemory': '선택 삭제 확인?',
-  'confirm.regenerateCurrentChat': '재생성 확인?',
-  'confirm.deletePromptPreset': '프리셋 삭제 확인?',
+  'confirm.deleteMemory': '이 항목을 삭제할까요?',
+  'confirm.bulkDeleteMemory': '선택한 항목을 삭제할까요?',
+  'confirm.regenerateCurrentChat': '메모리를 재생성할까요?',
+  'confirm.deletePromptPreset': '이 프리셋을 삭제할까요?',
 
-  // Memory Workbench (read-only memdir inspector)
-  'workbench.title': '메모리 디렉토리 워크벤치',
-  'workbench.copy': '현재 범위의 memdir 문서를 위한 읽기 전용 인스펙터.',
-  'workbench.loading': 'memdir 문서 로딩 중…',
-  'workbench.emptyHint': '이 범위에 memdir 문서가 아직 없습니다.',
+  // Memory Workbench (read-only memory document inspector)
+  'workbench.title': '메모리 워크벤치',
+  'workbench.copy': '현재 범위의 메모리 문서를 읽기 전용으로 검사합니다.',
+  'workbench.loading': '메모리 문서 불러오는 중…',
+  'workbench.emptyHint': '이 범위에 메모리 문서가 아직 없습니다.',
   'workbench.noMatchHint': '현재 필터에 일치하는 문서가 없습니다.',
   'workbench.filterAll': '전체',
   'workbench.filterType': '유형',
-  'workbench.filterFreshness': '신선도',
+  'workbench.filterFreshness': '갱신 상태',
   'workbench.filterSource': '소스',
   'workbench.embedded': '임베딩됨',
   'workbench.notEmbedded': '임베딩 없음',
