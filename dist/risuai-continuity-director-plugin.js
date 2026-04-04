@@ -1,7 +1,7 @@
 //@name risuai-continuity-director-plugin
 //@display-name RisuAI Continuity Director
 //@api 3.0
-//@version 0.6.1
+//@version 0.7.0
 //@description Narrative guidance and long-memory continuity plugin for RisuAI Plugin V3
 
 "use strict";

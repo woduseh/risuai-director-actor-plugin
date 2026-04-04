@@ -11,12 +11,14 @@ Narrative guidance and long-memory continuity plugin for **RisuAI Plugin V3**.
 - Survives streaming output with debounce-safe finalization
 - Opens a fullscreen bilingual dashboard UI (`en` / `ko`) with sidebar navigation, last-tab restore, modern theme-aware styling, severity-aware status toasts, and profile management
 - Supports director model provider settings for OpenAI, Anthropic, Google, GitHub Copilot, Vertex AI, and custom OpenAI-compatible endpoints
-- Includes latest curated model catalogs such as `GPT-5.4`, `Claude Opus 4.6`, `Claude Sonnet 4.6`, and `Gemini 3.1 Pro Preview`
+- Uses pasted **GitHub Copilot tokens** for live connection tests, model discovery, and direct Director inference
+- Uses pasted **Vertex AI service-account JSON keys** for live connection tests, Gemini Director inference, model discovery, and Vertex text embeddings
+- Includes refreshed curated model catalogs such as `GPT-5.4`, `Claude Haiku 4.5`, `Claude Sonnet 4.6`, `Claude Opus 4.6`, and `Gemini 2.5`
 - Exposes prompt preset management for director pre-request and post-response templates
 - Includes a scoped canonical memory workbench for summaries, continuity facts, world facts, entities, and relations with live filtering, scope badges, quick navigation, internal section scrolling, bounded rerender updates, manual add/edit/delete, bulk delete, and two-step destructive arming safeguards
 - Adds a read-only Memory Workbench inspector for memory documents with type/status/source filters, embedding-state badges, `MEMORY.md` preview, and session notebook snapshots
 - Can backfill or fully regenerate memory from the current active chat into the scoped store
-- Stores and uses embedding provider/model settings for VoyageAI, OpenAI, Google, Vertex AI, and custom endpoints, with live runtime embedding support for OpenAI-compatible, VoyageAI, Google, and custom providers
+- Stores and uses embedding provider/model settings for VoyageAI, OpenAI, Google, Vertex AI, and custom endpoints, with live runtime embedding support for OpenAI-compatible, VoyageAI, Google, Vertex AI, and custom providers
 
 ## Claude-Inspired Memory Lifecycle
 

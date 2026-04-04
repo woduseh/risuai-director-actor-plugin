@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.0] - 2026-04-04
+
+### Added
+
+- Direct GitHub Copilot runtime support using a pasted Copilot token for connection tests, live model discovery, and Director inference
+- Direct Vertex AI runtime support using a pasted service-account JSON key for connection tests, Gemini Director inference, publisher-model discovery, and text embeddings
+
+### Changed
+
+- Refreshed curated provider model presets around the 2026-04-01 lineup: GPT-5.4 family, Claude 4.5/4.6, and Gemini 2.5
+- Dashboard provider settings now use provider-specific auth flows instead of treating Copilot and Vertex as generic API-key providers
+
 ## [0.6.1] - 2026-04-04
 
 ### Changed
