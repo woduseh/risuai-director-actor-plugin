@@ -29,6 +29,11 @@ export type EmbeddingResult =
 
 export interface EmbeddingClient {
   embed(text: string): Promise<EmbeddingResult>
+  /**
+   * Embed multiple texts. Calls are sequential (one-at-a-time) to respect
+   * provider rate limits. Consider calling `embed()` with your own
+   * concurrency control if throughput is critical.
+   */
   embedBatch(texts: string[]): Promise<EmbeddingResult[]>
 }
 

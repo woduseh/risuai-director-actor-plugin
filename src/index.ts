@@ -25,6 +25,7 @@ import {
   formatRecalledDocsBlock,
   RecallCache,
   type RecallDeps,
+  type FindRelevantMemoriesInput,
 } from './memory/findRelevantMemories.js'
 import { makeRecallRequest, isTransientError } from './runtime/network.js'
 import { SessionNotebook, formatNotebookBlock } from './memory/sessionMemory.js'
@@ -265,14 +266,16 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
           })
         }
 
+        // Load settings/client/version once, reuse for all docs
+        const settings = (await store.load()).settings
+        const client = buildEmbeddingClient(api, settings)
+        const version = client ? getVectorVersion(settings) : ''
+
         for (const doc of docs) {
           await memdirStore.putDocument(doc)
 
           // Embed newly persisted doc if embeddings are enabled
-          const settings = (await store.load()).settings
-          const client = buildEmbeddingClient(api, settings)
           if (client) {
-            const version = getVectorVersion(settings)
             await embedSingleDocument(doc, memdirStore, client, version, (msg) => api.log(msg))
           }
         }
@@ -450,7 +453,7 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
         }
       }
 
-      const recallInput = {
+      const recallInput: FindRelevantMemoriesInput = {
         docs: memDocs,
         recentText,
         memoryMdContent,
@@ -459,7 +462,7 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
 
       const recallPromise = findRelevantMemories(
         recallDeps,
-        recallInput as Parameters<typeof findRelevantMemories>[1],
+        recallInput,
         recallCache,
         { signal: recallAbort.signal },
       )
