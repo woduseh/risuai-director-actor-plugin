@@ -5,7 +5,8 @@ Narrative guidance and long-memory continuity plugin for **RisuAI Plugin V3**.
 ## What it does
 
 - Intercepts `beforeRequest` to call a lightweight Director pass
-- Injects `<director-brief>` using author-note-first, latest-user fallback routing
+- Injects `<director-brief>` using author-note-first, latest-user fallback routing (brief token soft cap controls this output only)
+- Injects `<actor-long-memory>` near CBS memory / Past Summary when available, providing the actor model with long-term context independent of the brief
 - Reviews completed responses with a post-response Director pass
 - Persists scoped canonical memory per character/chat in `pluginStorage`
 - Survives streaming output with debounce-safe finalization
@@ -23,6 +24,15 @@ Narrative guidance and long-memory continuity plugin for **RisuAI Plugin V3**.
 ## Claude-Inspired Memory Lifecycle
 
 The plugin implements a multi-layer memory system inspired by Claude Code's `CLAUDE.md` pattern:
+
+### Dual Injection Architecture
+
+The actor model receives context through two independent injection paths:
+
+1. **Director Brief** (`<director-brief>`) — Short-form guidance injected via author-note-first routing. Length is governed by the Brief Token Soft Cap, which acts as a soft cap on the Director output only.
+2. **Actor Long Memory** (`<actor-long-memory>`) — Long-form memory context injected near CBS memory / Past Summary landmarks when available, falling back to latest-user positioning. This path is independent of the brief budget and carries extracted memory, session notebook state, and recalled documents.
+
+This separation ensures the brief stays concise while the actor still receives rich long-term context.
 
 ### Memory Layers
 

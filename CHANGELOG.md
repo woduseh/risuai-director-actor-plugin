@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.8.0] - 2026-04-04
+
+### Added
+
+- Layered Director preset with separate brief and long-memory budget sections
+- Actor-side long-memory injection path independent of the Director brief
+- CBS memory / Past Summary-aware placement for actor long-memory blocks
+- Brief budget vs memory budget separation with explicit soft-cap semantics
+
+### Changed
+
+- Dashboard Prompt Tuning card copy now explains brief soft cap and actor long-memory injection
+- Brief Token Cap label updated to Brief Token Soft Cap across EN and KO locales
+- README updated with dual-injection architecture and Claude-style context layering
+- Usage guide updated with actor long-memory explanation and soft-cap guidance
+
 ## [0.7.0] - 2026-04-04
 
 ### Added

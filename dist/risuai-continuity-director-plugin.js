@@ -1,7 +1,7 @@
 //@name risuai-continuity-director-plugin
 //@display-name RisuAI Continuity Director
 //@api 3.0
-//@version 0.7.0
+//@version 0.8.0
 //@description Narrative guidance and long-memory continuity plugin for RisuAI Plugin V3
 
 "use strict";
@@ -3684,10 +3684,10 @@ ${lines.join("\n").trimEnd()}`;
     "metric.scenePhase": "Scene Phase",
     // Card: Prompt Tuning
     "card.promptTuning.title": "Prompt Tuning",
-    "card.promptTuning.copy": "Adjust Director strength, brief size, and post-review behavior.",
+    "card.promptTuning.copy": "Adjust Director strength, brief soft cap, post-review behavior, and actor long memory injection.",
     "card.promptPresets.title": "Prompt Presets",
     "card.promptPresets.copy": "Select, clone, or edit the prompt templates used by the Director.",
-    "label.briefTokenCap": "Director Brief Token Cap",
+    "label.briefTokenCap": "Director Brief Token Soft Cap",
     "label.postReview": "Enable Post-review",
     "label.embeddings": "Enable Embeddings",
     "label.promptPreset": "Active Prompt Preset",
@@ -3863,7 +3863,7 @@ ${lines.join("\n").trimEnd()}`;
     "fallback.model": "Model",
     "fallback.injection": "Insertion",
     "fallback.postReview": "Post-review",
-    "fallback.briefCap": "Director brief cap",
+    "fallback.briefCap": "Director brief soft cap",
     "fallback.briefCapUnit": "tokens",
     // Refresh guard
     "guard.blockedStartup": "Please wait \u2014 the plugin is still starting up.",
@@ -3963,10 +3963,10 @@ ${lines.join("\n").trimEnd()}`;
     "metric.scenePhase": "\uC7A5\uBA74 \uB2E8\uACC4",
     // Card: Prompt Tuning
     "card.promptTuning.title": "\uD504\uB86C\uD504\uD2B8 \uD29C\uB2DD",
-    "card.promptTuning.copy": "Director \uAC1C\uC785 \uAC15\uB3C4, \uBE0C\uB9AC\uD504 \uD06C\uAE30, \uC0AC\uD6C4 \uB9AC\uBDF0 \uB3D9\uC791\uC744 \uC870\uC808\uD569\uB2C8\uB2E4.",
+    "card.promptTuning.copy": "Director \uAC1C\uC785 \uAC15\uB3C4, \uBE0C\uB9AC\uD504 \uC18C\uD504\uD2B8 \uCEA1, \uC0AC\uD6C4 \uB9AC\uBDF0, \uC561\uD130 \uC7A5\uAE30 \uBA54\uBAA8\uB9AC \uC8FC\uC785\uC744 \uC870\uC808\uD569\uB2C8\uB2E4.",
     "card.promptPresets.title": "\uD504\uB86C\uD504\uD2B8 \uD504\uB9AC\uC14B",
     "card.promptPresets.copy": "\uD504\uB9AC\uC14B\uC744 \uC120\uD0DD\xB7\uBCF5\uC81C\xB7\uD3B8\uC9D1\uD558\uC5EC Director \uD504\uB86C\uD504\uD2B8 \uD15C\uD50C\uB9BF\uC744 \uAD00\uB9AC\uD569\uB2C8\uB2E4.",
-    "label.briefTokenCap": "Director \uBE0C\uB9AC\uD504 \uD1A0\uD070 \uC0C1\uD55C",
+    "label.briefTokenCap": "Director \uBE0C\uB9AC\uD504 \uD1A0\uD070 \uC18C\uD504\uD2B8 \uCEA1",
     "label.postReview": "\uC0AC\uD6C4 \uB9AC\uBDF0 \uD65C\uC131\uD654",
     "label.embeddings": "\uC784\uBCA0\uB529 \uD65C\uC131\uD654",
     "label.promptPreset": "\uD65C\uC131 \uD504\uB86C\uD504\uD2B8 \uD504\uB9AC\uC14B",
@@ -4142,7 +4142,7 @@ ${lines.join("\n").trimEnd()}`;
     "fallback.model": "\uBAA8\uB378",
     "fallback.injection": "\uC0BD\uC785 \uBC29\uC2DD",
     "fallback.postReview": "\uC0AC\uD6C4 \uB9AC\uBDF0",
-    "fallback.briefCap": "Director \uBE0C\uB9AC\uD504 \uC0C1\uD55C",
+    "fallback.briefCap": "Director \uBE0C\uB9AC\uD504 \uC18C\uD504\uD2B8 \uCEA1",
     "fallback.briefCapUnit": "\uD1A0\uD070",
     // Refresh guard
     "guard.blockedStartup": "\uC7A0\uC2DC \uAE30\uB2E4\uB824 \uC8FC\uC138\uC694 \u2014 \uD50C\uB7EC\uADF8\uC778\uC774 \uC544\uC9C1 \uC2DC\uC791 \uC911\uC785\uB2C8\uB2E4.",

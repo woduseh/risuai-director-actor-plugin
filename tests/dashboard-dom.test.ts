@@ -80,6 +80,40 @@ describe('buildDashboardMarkup', () => {
     expect(markup).toContain(DEFAULT_DIRECTOR_PROMPT_PRESET.preRequestSystemTemplate.slice(0, 32))
   })
 
+  test('prompt tuning card copy explains brief soft cap and actor long-memory injection', () => {
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'prompt-tuning',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' }
+    })
+
+    // Card copy should mention both brief and long-memory behavior
+    expect(markup).toContain('soft cap')
+    expect(markup).toContain('long memory')
+
+    // Brief token cap label should indicate soft cap
+    expect(markup).toContain('Brief Token Soft Cap')
+  })
+
+  test('prompt tuning card copy shows updated wording in Korean', () => {
+    setLocale('ko')
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'prompt-tuning',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' }
+    })
+
+    // Korean card copy should mention soft cap and long-memory
+    expect(markup).toContain('소프트 캡')
+    expect(markup).toContain('장기 메모리')
+  })
+
   test('renders expanded director and embedding provider controls on the model settings page', () => {
     const markup = buildDashboardMarkup({
       settings: normalizePersistedSettings({ embeddingsEnabled: true }),
