@@ -617,6 +617,15 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
           log: (msg) => api.log(msg),
         })
       }
+      dashboardStore.getEmbeddingCacheStatus = async () => {
+        const currentState = await store.load()
+        const docs = await memdirStore.listDocuments()
+        const version = getVectorVersion(currentState.settings)
+        const enabled = currentState.settings.embeddingsEnabled
+        const supported = isProviderSupported(currentState.settings.embeddingProvider)
+        const status = computeEmbeddingCacheStatus(docs, version, enabled)
+        return { ...status, supported }
+      }
       await openDashboard(api, dashboardStore)
     }
   })

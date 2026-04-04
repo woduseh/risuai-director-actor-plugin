@@ -146,6 +146,8 @@ export interface DashboardStore {
   markMaintenance?: (kind: import('../runtime/refreshGuard.js').MaintenanceKind) => Promise<void>
   /** Optional callback to refresh embeddings for documents in the active scope. */
   refreshEmbeddings?: () => Promise<number>
+  /** Optional callback to compute the current embedding cache status. */
+  getEmbeddingCacheStatus?: () => Promise<import('./dashboardState.js').EmbeddingCacheStatus>
 }
 
 /**
@@ -1870,6 +1872,10 @@ class DashboardInstance {
       ? await this.store.loadDiagnostics()
       : createDefaultDiagnosticsSnapshot()
 
+    const embeddingCache = this.store.getEmbeddingCacheStatus
+      ? await this.store.getEmbeddingCacheStatus()
+      : this.memoryOpsStatus.embeddingCache
+
     this.memoryOpsStatus = {
       lastExtractTs: latestMemoryTs,
       lastDreamTs: dreamState.lastDreamTs,
@@ -1880,7 +1886,7 @@ class DashboardInstance {
       staleWarnings: buildStaleWarnings(latestMemoryTs, dreamState.lastDreamTs),
       recalledDocs: this.memoryOpsStatus.recalledDocs,
       diagnostics,
-      embeddingCache: this.memoryOpsStatus.embeddingCache,
+      embeddingCache,
     }
   }
 
