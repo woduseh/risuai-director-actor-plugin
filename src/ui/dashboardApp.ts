@@ -4,7 +4,7 @@ import type {
   DirectorPluginState,
   StoredDirectorPromptPreset,
 } from '../contracts/types.js'
-import { DEFAULT_DIRECTOR_SETTINGS, createEmptyState } from '../contracts/types.js'
+import { DEFAULT_DIRECTOR_SETTINGS, createEmptyState, MEMDIR_DOCUMENT_TYPES, MEMDIR_FRESHNESS_VALUES, MEMDIR_SOURCE_VALUES } from '../contracts/types.js'
 import { buildDashboardCss, DASHBOARD_STYLE_ID, DASHBOARD_ROOT_CLASS } from './dashboardCss.js'
 import { buildDashboardMarkup, buildMemoryCachePage, buildPageTitle, DASHBOARD_TABS } from './dashboardDom.js'
 import type { DashboardMarkupInput } from './dashboardDom.js'
@@ -458,11 +458,20 @@ class DashboardInstance {
   private handleWorkbenchFilterChange(role: string, value: string): void {
     const filters = { ...this.workbenchInput.filters }
     if (role === 'workbench-filter-type') {
-      filters.type = value ? (value as WorkbenchFilters['type']) : null
+      filters.type = value === '' ? null
+        : (MEMDIR_DOCUMENT_TYPES as readonly string[]).includes(value)
+          ? value as WorkbenchFilters['type']
+          : null
     } else if (role === 'workbench-filter-freshness') {
-      filters.freshness = value ? (value as WorkbenchFilters['freshness']) : null
+      filters.freshness = value === '' ? null
+        : (MEMDIR_FRESHNESS_VALUES as readonly string[]).includes(value)
+          ? value as WorkbenchFilters['freshness']
+          : null
     } else if (role === 'workbench-filter-source') {
-      filters.source = value ? (value as WorkbenchFilters['source']) : null
+      filters.source = value === '' ? null
+        : (MEMDIR_SOURCE_VALUES as readonly string[]).includes(value)
+          ? value as WorkbenchFilters['source']
+          : null
     }
     this.workbenchInput = { ...this.workbenchInput, filters }
     this.memoryPageReRender()

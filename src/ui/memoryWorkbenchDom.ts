@@ -11,7 +11,7 @@
  * This module is intentionally read-only: no create/edit/delete actions.
  */
 import type { MemdirDocumentType, MemdirFreshness, MemdirSource } from '../contracts/types.js'
-import { MEMDIR_DOCUMENT_TYPES } from '../contracts/types.js'
+import { MEMDIR_DOCUMENT_TYPES, MEMDIR_FRESHNESS_VALUES, MEMDIR_SOURCE_VALUES } from '../contracts/types.js'
 import { escapeXml } from '../utils/xml.js'
 import { t } from './i18n.js'
 
@@ -58,8 +58,8 @@ export interface MemoryWorkbenchInput {
 // Constants
 // ---------------------------------------------------------------------------
 
-const FRESHNESS_VALUES: MemdirFreshness[] = ['current', 'stale', 'archived']
-const SOURCE_VALUES: MemdirSource[] = ['extraction', 'operator', 'migration', 'manual']
+const FRESHNESS_VALUES: readonly MemdirFreshness[] = MEMDIR_FRESHNESS_VALUES
+const SOURCE_VALUES: readonly MemdirSource[] = MEMDIR_SOURCE_VALUES
 
 const NOTEBOOK_SECTION_LABELS: Record<keyof WorkbenchNotebookSnapshot, string> = {
   currentState: 'Current State',
@@ -145,13 +145,16 @@ function buildDocumentItem(doc: WorkbenchDocEntry): string {
 
   return `<li class="da-memory-item" data-da-role="workbench-doc-item" data-da-doc-id="${escapeXml(doc.id)}">
     <span class="da-workbench-doc-title">${escapeXml(doc.title)}</span>
-    <span class="da-workbench-doc-meta">${escapeXml(doc.type)} · ${escapeXml(doc.source)} · ${formatTimestamp(doc.updatedAt)}</span>
+    <span class="da-workbench-doc-meta">${escapeXml(doc.type)} · ${escapeXml(doc.source)} · ${escapeXml(formatTimestamp(doc.updatedAt))}</span>
     ${freshnessBadge}${embeddingBadge}
   </li>`
 }
 
-function buildDocumentList(docs: WorkbenchDocEntry[]): string {
+function buildDocumentList(docs: WorkbenchDocEntry[], hasUnfilteredDocs: boolean): string {
   if (docs.length === 0) {
+    if (hasUnfilteredDocs) {
+      return `<p class="da-empty" data-da-role="workbench-no-match">${t('workbench.noMatchHint')}</p>`
+    }
     return `<p class="da-empty" data-da-role="workbench-empty">${t('workbench.emptyHint')}</p>`
   }
   const items = docs.map(buildDocumentItem).join('')
@@ -222,8 +225,8 @@ export function buildMemoryWorkbench(input: MemoryWorkbenchInput): string {
 
   // Document list or empty state
   const listHtml = input.documents.length > 0
-    ? buildDocumentList(filtered)
-    : buildDocumentList([]) // show empty hint
+    ? buildDocumentList(filtered, true)
+    : buildDocumentList([], false)
 
   // Filter controls (only when there are docs to filter)
   const filterHtml = input.documents.length > 0

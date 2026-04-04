@@ -56,8 +56,11 @@ export const MEMDIR_DOCUMENT_TYPES = [
 
 export type MemdirDocumentType = (typeof MEMDIR_DOCUMENT_TYPES)[number]
 
-export type MemdirFreshness = 'current' | 'stale' | 'archived'
-export type MemdirSource = 'extraction' | 'operator' | 'migration' | 'manual'
+export const MEMDIR_FRESHNESS_VALUES = ['current', 'stale', 'archived'] as const
+export type MemdirFreshness = (typeof MEMDIR_FRESHNESS_VALUES)[number]
+
+export const MEMDIR_SOURCE_VALUES = ['extraction', 'operator', 'migration', 'manual'] as const
+export type MemdirSource = (typeof MEMDIR_SOURCE_VALUES)[number]
 
 /** Embedding metadata stored alongside a memdir document. */
 export interface EmbeddingMeta {
