@@ -202,7 +202,7 @@ export interface DirectorState {
   }
 }
 
-export interface ActorState {
+export interface CharacterState {
   identityAnchor: string[]
   decisionChain: string[]
   behavioralLocks: string[]
@@ -247,7 +247,7 @@ export interface SceneLedgerEntry {
   id: string
   sceneId: string
   userText: string
-  actorText: string
+  responseText: string
   createdAt: number
 }
 
@@ -283,7 +283,7 @@ export interface DirectorPluginState {
   updatedAt: number
   settings: DirectorSettings
   director: DirectorState
-  actor: ActorState
+  character: CharacterState
   memory: CanonicalMemory
   metrics: RuntimeMetrics
 }
@@ -435,7 +435,7 @@ export function createEmptyState(seed?: Partial<Pick<DirectorPluginState, 'proje
         untilTs: null
       }
     },
-    actor: {
+    character: {
       identityAnchor: [],
       decisionChain: [],
       behavioralLocks: [],

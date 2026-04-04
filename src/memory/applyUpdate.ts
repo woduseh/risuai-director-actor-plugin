@@ -21,7 +21,7 @@ const MAX_SCENE_LEDGER = 200
 export interface ApplyMemoryUpdateInput {
   turnId: string
   userText: string
-  actorText: string
+  responseText: string
   brief: SceneBrief
 }
 
@@ -513,7 +513,7 @@ export function applyMemoryUpdate(
     id: input.turnId,
     sceneId: next.director.currentSceneId,
     userText: input.userText,
-    actorText: input.actorText,
+    responseText: input.responseText,
     createdAt: now
   })
   if (next.memory.sceneLedger.length > MAX_SCENE_LEDGER) {
@@ -560,9 +560,9 @@ export function applyMemoryUpdate(
   }
 
   if (update.correction) {
-    next.actor.currentIntentHints = uniqueStrings([
+    next.character.currentIntentHints = uniqueStrings([
       update.correction,
-      ...next.actor.currentIntentHints
+      ...next.character.currentIntentHints
     ]).slice(0, 12)
   }
 

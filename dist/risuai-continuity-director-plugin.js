@@ -576,7 +576,7 @@
           untilTs: null
         }
       },
-      actor: {
+      character: {
         identityAnchor: [],
         decisionChain: [],
         behavioralLocks: [],
@@ -753,7 +753,7 @@
   function isValidState(value) {
     if (value == null || typeof value !== "object") return false;
     const v = value;
-    return typeof v.schemaVersion === "number" && typeof v.projectKey === "string" && typeof v.characterKey === "string" && typeof v.sessionKey === "string" && typeof v.updatedAt === "number" && v.settings != null && typeof v.settings === "object" && v.director != null && typeof v.director === "object" && v.actor != null && typeof v.actor === "object" && v.memory != null && typeof v.memory === "object" && v.metrics != null && typeof v.metrics === "object";
+    return typeof v.schemaVersion === "number" && typeof v.projectKey === "string" && typeof v.characterKey === "string" && typeof v.sessionKey === "string" && typeof v.updatedAt === "number" && v.settings != null && typeof v.settings === "object" && v.director != null && typeof v.director === "object" && v.character != null && typeof v.character === "object" && v.memory != null && typeof v.memory === "object" && v.metrics != null && typeof v.metrics === "object";
   }
   function migrationMarkerKey(scopeKey) {
     return `${MEMDIR_MIGRATION_MARKER_NS}:${scopeKey}`;
@@ -1632,7 +1632,7 @@
       id: input.turnId,
       sceneId: next.director.currentSceneId,
       userText: input.userText,
-      actorText: input.actorText,
+      responseText: input.responseText,
       createdAt: now
     });
     if (next.memory.sceneLedger.length > MAX_SCENE_LEDGER) {
@@ -1669,9 +1669,9 @@
       next.director.failureHistory = next.director.failureHistory.slice(0, MAX_FAILURE_HISTORY);
     }
     if (update.correction) {
-      next.actor.currentIntentHints = uniqueStrings2([
+      next.character.currentIntentHints = uniqueStrings2([
         update.correction,
-        ...next.actor.currentIntentHints
+        ...next.character.currentIntentHints
       ]).slice(0, 12);
     }
     return { state: next, warnings };
@@ -6219,7 +6219,7 @@ ${lines.join("\n").trimEnd()}`;
       const applied = applyMemoryUpdate(state, result.update, {
         turnId: `backfill-turn-${assistantIndex}`,
         userText: findLatestUserText(chat.messages, assistantIndex),
-        actorText: responseText,
+        responseText,
         brief
       });
       state = applied.state;
@@ -8776,7 +8776,7 @@ ${doc.description}`;
           const appliedResult = applyMemoryUpdate(current, result.update, {
             turnId: input.turnId,
             userText,
-            actorText: input.content,
+            responseText: input.content,
             brief: input.brief
           });
           warnings = appliedResult.warnings;

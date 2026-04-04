@@ -67,7 +67,7 @@ export function isValidState(value: unknown): value is DirectorPluginState {
     typeof v.updatedAt === 'number' &&
     v.settings != null && typeof v.settings === 'object' &&
     v.director != null && typeof v.director === 'object' &&
-    v.actor != null && typeof v.actor === 'object' &&
+    v.character != null && typeof v.character === 'object' &&
     v.memory != null && typeof v.memory === 'object' &&
     v.metrics != null && typeof v.metrics === 'object'
   )

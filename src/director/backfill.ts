@@ -142,7 +142,7 @@ export async function backfillCurrentChat(
     const applied = applyMemoryUpdate(state, result.update, {
       turnId: `backfill-turn-${assistantIndex}`,
       userText: findLatestUserText(chat.messages, assistantIndex),
-      actorText: responseText,
+      responseText: responseText,
       brief,
     })
 

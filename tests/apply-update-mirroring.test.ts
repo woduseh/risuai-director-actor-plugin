@@ -28,7 +28,7 @@ function createMinimalInput(overrides?: Partial<ApplyMemoryUpdateInput>): ApplyM
   return {
     turnId: 'turn-test-1',
     userText: 'test user',
-    actorText: 'test actor',
+    responseText: 'test actor',
     brief: createMinimalBrief(overrides?.brief as Partial<SceneBrief>),
     ...overrides
   }

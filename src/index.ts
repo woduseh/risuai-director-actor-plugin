@@ -543,7 +543,7 @@ export async function registerContinuityDirectorPlugin(api: RisuaiApi): Promise<
         const appliedResult = applyMemoryUpdate(current, result.update, {
           turnId: input.turnId,
           userText,
-          actorText: input.content,
+          responseText: input.content,
           brief: input.brief
         })
         warnings = appliedResult.warnings

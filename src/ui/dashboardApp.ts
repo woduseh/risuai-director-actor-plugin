@@ -209,7 +209,7 @@ function createShellPluginState(settings: DirectorSettings): DirectorPluginState
       activeArcs: [], ensembleWeights: {}, failureHistory: [],
       cooldown: { failures: 0, untilTs: null },
     },
-    actor: {
+    character: {
       identityAnchor: [], decisionChain: [], behavioralLocks: [],
       relationshipMap: {}, currentIntentHints: [],
     },
