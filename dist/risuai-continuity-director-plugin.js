@@ -38,9 +38,13 @@
   var BUILTIN_PROMPT_PRESET_NAME = "Default";
   var DEFAULT_DIRECTOR_PROMPT_PRESET = {
     preRequestSystemTemplate: [
-      "You are the Director \u2014 a collaborative-fiction scene analyst.",
-      "Examine the conversation and context below, then produce a SceneBrief:",
-      "a compact JSON plan that guides the next response.",
+      "You are the Director \u2014 a collaborative-fiction continuity analyst.",
+      "Read the user context in three layers:",
+      "1. **hot state** \u2014 current scene parameters and active arcs (changes every turn).",
+      "2. **warm memory** \u2014 session notebook, recalled documents, and memory summaries (updated periodically).",
+      "3. **recent transcript** \u2014 the latest conversation messages.",
+      "",
+      "Produce a SceneBrief: a compact JSON plan that guides the next response.",
       "",
       "Assertiveness: {{assertivenessDirective}}",
       "",
@@ -54,10 +58,8 @@
       "Respond ONLY with a JSON object matching this schema:\n{{sceneBriefSchema}}"
     ].join("\n"),
     preRequestUserTemplate: [
-      "## Current State",
-      "Scene: {{currentSceneId}}",
-      "Phase: {{scenePhase}}",
-      "Pacing: {{pacingMode}}",
+      "# Layer 1 \xB7 Hot State",
+      "Scene: {{currentSceneId}}  |  Phase: {{scenePhase}}  |  Pacing: {{pacingMode}}",
       "",
       "## Active Arcs",
       "{{activeArcs}}",
@@ -65,12 +67,13 @@
       "## Continuity Locks",
       "{{continuityFacts}}",
       "",
+      "# Layer 2 \xB7 Warm Memory",
       "{{notebookBlock}}",
       "{{recalledDocsBlock}}",
       "## Memory Summaries",
       "{{memorySummaries}}",
       "",
-      "## Recent Conversation",
+      "# Layer 3 \xB7 Recent Transcript",
       "{{recentConversation}}"
     ].join("\n"),
     postResponseSystemTemplate: [
@@ -148,12 +151,14 @@
       pacingMode: ctx.directorState.pacingMode,
       activeArcs: formatArcs(ctx.directorState),
       continuityFacts: formatContinuityFacts(ctx.directorState),
-      notebookBlock: ctx.notebookBlock ?? "",
-      recalledDocsBlock: ctx.recalledDocsBlock ?? ""
+      notebookBlock: ctx.notebookBlock ? ctx.notebookBlock + "\n" : "",
+      recalledDocsBlock: ctx.recalledDocsBlock ? ctx.recalledDocsBlock + "\n" : ""
     };
+    const rawUser = applyTemplate(preset.preRequestUserTemplate, vars);
+    const cleanUser = rawUser.replace(/\n{3,}/g, "\n\n");
     return [
       { role: "system", content: applyTemplate(preset.preRequestSystemTemplate, vars) },
-      { role: "user", content: applyTemplate(preset.preRequestUserTemplate, vars) }
+      { role: "user", content: cleanUser }
     ];
   }
   function buildPostResponsePrompt(ctx) {

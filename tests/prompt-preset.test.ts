@@ -152,6 +152,35 @@ describe('director prompt presets', () => {
     expect(msgs[1]?.content).toContain('"confidence": 0.85')
   })
 
+  test('default pre-request preset foregrounds notebook and recalled memory layers', () => {
+    const messages = buildPreRequestPrompt(
+      makeDirectorContext({
+        notebookBlock: '## Session Notebook\n- unresolved thread',
+        recalledDocsBlock: '## Relevant Memory\n- prior oath',
+      }),
+    )
+
+    // System template should instruct the Director to read context in layers
+    expect(messages[0]?.content).toContain('hot state')
+    expect(messages[0]?.content).toContain('warm memory')
+    expect(messages[0]?.content).toContain('recent transcript')
+
+    // User template should present notebook and recalled docs as named context layers
+    expect(messages[1]?.content).toContain('## Session Notebook')
+    expect(messages[1]?.content).toContain('- unresolved thread')
+    expect(messages[1]?.content).toContain('## Relevant Memory')
+    expect(messages[1]?.content).toContain('- prior oath')
+  })
+
+  test('default pre-request preset omits empty context layers gracefully', () => {
+    const messages = buildPreRequestPrompt(makeDirectorContext())
+
+    // Without notebook/recalled docs, the user template should not contain leftover headers
+    const userContent = messages[1]?.content ?? ''
+    expect(userContent).not.toContain('Session Notebook')
+    expect(userContent).not.toContain('Recalled Documents')
+  })
+
   test('dynamic prompt content keeps placeholder-like text literal', () => {
     const preRequestMsgs = buildPreRequestPrompt(
       makeDirectorContext({
