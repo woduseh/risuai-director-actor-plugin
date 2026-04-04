@@ -306,6 +306,21 @@ const EN_CATALOG = {
   'confirm.regenerateCurrentChat': 'Confirm Regenerate?',
   'confirm.deletePromptPreset': 'Confirm Delete Preset?',
 
+  // Memory Workbench (read-only memdir inspector)
+  'workbench.title': 'Memdir Workbench',
+  'workbench.copy': 'Read-only inspector for memdir documents in the current scope.',
+  'workbench.loading': 'Loading memdir documents…',
+  'workbench.emptyHint': 'No memdir documents in this scope yet.',
+  'workbench.filterAll': 'All',
+  'workbench.filterType': 'Type',
+  'workbench.filterFreshness': 'Freshness',
+  'workbench.filterSource': 'Source',
+  'workbench.embedded': 'Embedded',
+  'workbench.notEmbedded': 'Not Embedded',
+  'workbench.memoryMdTitle': 'MEMORY.md Preview',
+  'workbench.notebookTitle': 'Session Notebook',
+  'workbench.notebookEmpty': 'No notebook entries for this session.',
+
   // Language selector
   'lang.label': 'Language',
   'lang.en': 'English',
@@ -594,6 +609,21 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'confirm.bulkDeleteMemory': '선택 삭제 확인?',
   'confirm.regenerateCurrentChat': '재생성 확인?',
   'confirm.deletePromptPreset': '프리셋 삭제 확인?',
+
+  // Memory Workbench (read-only memdir inspector)
+  'workbench.title': '메모리 디렉토리 워크벤치',
+  'workbench.copy': '현재 범위의 memdir 문서를 위한 읽기 전용 인스펙터.',
+  'workbench.loading': 'memdir 문서 로딩 중…',
+  'workbench.emptyHint': '이 범위에 memdir 문서가 아직 없습니다.',
+  'workbench.filterAll': '전체',
+  'workbench.filterType': '유형',
+  'workbench.filterFreshness': '신선도',
+  'workbench.filterSource': '소스',
+  'workbench.embedded': '임베딩됨',
+  'workbench.notEmbedded': '임베딩 없음',
+  'workbench.memoryMdTitle': 'MEMORY.md 미리보기',
+  'workbench.notebookTitle': '세션 노트북',
+  'workbench.notebookEmpty': '이 세션에 대한 노트북 항목이 없습니다.',
 
   // Language selector
   'lang.label': '언어',

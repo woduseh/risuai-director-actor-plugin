@@ -23,6 +23,7 @@ import {
   createProfileExportPayload,
   createSettingsExportPayload,
   createDefaultMemoryOpsStatus,
+  createDefaultWorkbenchInput,
   computeDocumentCounts,
   computeNotebookFreshness,
   loadDreamState,
@@ -37,6 +38,7 @@ import type {
   ProfileExportPayload,
   MemoryOpsStatus,
 } from './dashboardState.js'
+import type { MemoryWorkbenchInput, WorkbenchFilters } from './memoryWorkbenchDom.js'
 import {
   resolveProviderDefaults,
   resolveEmbeddingDefaults,
@@ -148,6 +150,12 @@ export interface DashboardStore {
   refreshEmbeddings?: () => Promise<number>
   /** Optional callback to compute the current embedding cache status. */
   getEmbeddingCacheStatus?: () => Promise<import('./dashboardState.js').EmbeddingCacheStatus>
+  /** Optional callback to list memdir documents for the workbench inspector. */
+  getWorkbenchDocuments?: () => Promise<import('./memoryWorkbenchDom.js').WorkbenchDocEntry[]>
+  /** Optional callback to get the rendered MEMORY.md for the current scope. */
+  getMemoryMdPreview?: () => Promise<string | null>
+  /** Optional callback to get the session notebook snapshot. */
+  getNotebookSnapshot?: () => Promise<import('./memoryWorkbenchDom.js').WorkbenchNotebookSnapshot | null>
 }
 
 /**
@@ -336,6 +344,7 @@ class DashboardInstance {
   } | null = null
   private memoryOpsStatus: MemoryOpsStatus
   private memoryFilterQuery = ''
+  private workbenchInput: MemoryWorkbenchInput
 
   /**
    * Action names currently in flight (used by async busy guards).
@@ -376,6 +385,7 @@ class DashboardInstance {
     this.connectionStatus = { kind: 'idle', message: t('connection.notTested') }
     this.canonicalState = canonicalState
     this.memoryOpsStatus = memoryOpsStatus
+    this.workbenchInput = createDefaultWorkbenchInput()
   }
 
   // ── public ────────────────────────────────────────────────────────────
@@ -385,6 +395,8 @@ class DashboardInstance {
     this.renderRoot()
     this.bindEvents()
     await this.api.showContainer('fullscreen')
+    // Fire-and-forget: load workbench data in the background
+    void this.loadWorkbenchData()
   }
 
   async close(): Promise<void> {
@@ -398,6 +410,62 @@ class DashboardInstance {
   /** Return the storage key that canonical state is persisted under. */
   private resolveStateKey(): string {
     return this.store.stateStorageKey ?? DIRECTOR_STATE_STORAGE_KEY
+  }
+
+  // ── Workbench data loading ───────────────────────────────────────────
+
+  /**
+   * Load memdir workbench data from store callbacks.
+   * Non-fatal: errors are captured as inline workbench error state.
+   */
+  private async loadWorkbenchData(): Promise<void> {
+    this.workbenchInput = { ...this.workbenchInput, loading: true, error: null }
+    this.memoryPageReRender()
+
+    try {
+      const documents = this.store.getWorkbenchDocuments
+        ? await this.store.getWorkbenchDocuments()
+        : []
+      const memoryMdPreview = this.store.getMemoryMdPreview
+        ? await this.store.getMemoryMdPreview()
+        : null
+      const notebookSnapshot = this.store.getNotebookSnapshot
+        ? await this.store.getNotebookSnapshot()
+        : null
+
+      this.workbenchInput = {
+        ...this.workbenchInput,
+        documents,
+        memoryMdPreview,
+        notebookSnapshot,
+        loading: false,
+        error: null,
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error loading memdir'
+      this.workbenchInput = {
+        ...this.workbenchInput,
+        loading: false,
+        error: message,
+      }
+    }
+    this.memoryPageReRender()
+  }
+
+  /**
+   * Update workbench filter and rerender.
+   */
+  private handleWorkbenchFilterChange(role: string, value: string): void {
+    const filters = { ...this.workbenchInput.filters }
+    if (role === 'workbench-filter-type') {
+      filters.type = value ? (value as WorkbenchFilters['type']) : null
+    } else if (role === 'workbench-filter-freshness') {
+      filters.freshness = value ? (value as WorkbenchFilters['freshness']) : null
+    } else if (role === 'workbench-filter-source') {
+      filters.source = value ? (value as WorkbenchFilters['source']) : null
+    }
+    this.workbenchInput = { ...this.workbenchInput, filters }
+    this.memoryPageReRender()
   }
 
   // ── CSS ───────────────────────────────────────────────────────────────
@@ -436,6 +504,7 @@ class DashboardInstance {
       memoryOpsStatus: this.memoryOpsStatus,
       memoryFilterQuery: this.memoryFilterQuery,
       scopeLabel,
+      workbenchInput: this.workbenchInput,
     }
   }
 
@@ -853,6 +922,16 @@ class DashboardInstance {
         target.getAttribute('data-da-role') === 'prompt-preset-select'
       ) {
         this.handlePromptPresetSelect(target.value)
+        return
+      }
+      // Workbench filter selects
+      const role = target.getAttribute('data-da-role')
+      if (
+        target instanceof HTMLSelectElement &&
+        role != null &&
+        role.startsWith('workbench-filter-')
+      ) {
+        this.handleWorkbenchFilterChange(role, target.value)
         return
       }
       this.handleFieldChange(target)

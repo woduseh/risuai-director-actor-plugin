@@ -2824,3 +2824,100 @@ describe('bounded memory-page rerender', () => {
     expect(root.textContent).toContain('allies-with')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Workbench integration tests in memory page context
+// ---------------------------------------------------------------------------
+
+describe('memory-cache page – workbench coexistence', () => {
+  let api: ReturnType<typeof createMockRisuaiApi>
+  let store: DashboardStore
+
+  beforeEach(() => {
+    api = createMockRisuaiApi()
+    store = createTestStore(api)
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  afterEach(async () => {
+    await closeDashboard()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  test('workbench renders alongside existing memory sections', async () => {
+    const state = stateWithMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+
+    store.getWorkbenchDocuments = async () => [
+      { id: 'wd-1', type: 'character' as const, title: 'Workbench Character', source: 'extraction' as const, freshness: 'current' as const, updatedAt: Date.now(), hasEmbedding: true },
+    ]
+
+    await openDashboard(api, store)
+    await new Promise((r) => setTimeout(r, 50))
+
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+
+    // Existing memory items still render
+    expect(memoryPage.textContent).toContain('The hero crossed the river at dawn.')
+    // Workbench section also renders
+    expect(memoryPage.querySelector('[data-da-role="workbench-section"]')).not.toBeNull()
+    expect(memoryPage.textContent).toContain('Workbench Character')
+  })
+
+  test('workbench load failure does not break existing memory items', async () => {
+    const state = stateWithMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+
+    store.getWorkbenchDocuments = async () => { throw new Error('disk full') }
+
+    await openDashboard(api, store)
+    await new Promise((r) => setTimeout(r, 50))
+
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+
+    // Existing memory items still render
+    expect(memoryPage.textContent).toContain('The hero crossed the river at dawn.')
+    // Error shown inline in workbench
+    expect(memoryPage.querySelector('[data-da-role="workbench-error"]')).not.toBeNull()
+    expect(memoryPage.textContent).toContain('disk full')
+  })
+
+  test('MEMORY.md and notebook snapshots reflect current scoped data', async () => {
+    store.getWorkbenchDocuments = async () => []
+    store.getMemoryMdPreview = async () => '# MEMORY.md\n## Characters\n- **Hero** [current]: A warrior'
+    store.getNotebookSnapshot = async () => ({
+      currentState: 'The hero rests at the inn',
+      immediateGoals: 'Find the sword of light',
+      recentDevelopments: '',
+      unresolvedThreads: '',
+      recentMistakes: '',
+    })
+
+    await openDashboard(api, store)
+    await new Promise((r) => setTimeout(r, 50))
+
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+
+    // MEMORY.md preview
+    expect(memoryPage.querySelector('[data-da-role="workbench-memory-md"]')).not.toBeNull()
+    expect(memoryPage.textContent).toContain('A warrior')
+
+    // Notebook snapshot
+    expect(memoryPage.querySelector('[data-da-role="workbench-notebook"]')).not.toBeNull()
+    expect(memoryPage.textContent).toContain('The hero rests at the inn')
+    expect(memoryPage.textContent).toContain('Find the sword of light')
+  })
+})

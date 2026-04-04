@@ -1666,3 +1666,112 @@ describe('last-open tab persistence', () => {
     expect(activeBtn.getAttribute('data-da-target')).toBe('prompt-tuning')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Memory Workbench integration
+// ---------------------------------------------------------------------------
+
+describe('Memory Workbench integration in dashboard', () => {
+  let api: ReturnType<typeof createMockRisuaiApi>
+  let store: DashboardStore
+
+  beforeEach(() => {
+    api = createMockRisuaiApi()
+    store = createTestStore(api)
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+  })
+
+  afterEach(async () => {
+    await closeDashboard()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+  })
+
+  test('loads workbench data from store callbacks after mount', async () => {
+    const testDocs = [
+      { id: 'doc-1', type: 'character' as const, title: 'Hero', source: 'extraction' as const, freshness: 'current' as const, updatedAt: Date.now(), hasEmbedding: true },
+    ]
+    store.getWorkbenchDocuments = async () => testDocs
+    store.getMemoryMdPreview = async () => '# MEMORY.md\n- Test'
+    store.getNotebookSnapshot = async () => ({
+      currentState: 'Active scene',
+      immediateGoals: '',
+      recentDevelopments: '',
+      unresolvedThreads: '',
+      recentMistakes: '',
+    })
+
+    await openDashboard(api, store)
+    // Wait for fire-and-forget loadWorkbenchData
+    await new Promise((r) => setTimeout(r, 50))
+
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const memBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memBtn.click()
+
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    expect(memoryPage.textContent).toContain('Hero')
+    expect(memoryPage.textContent).toContain('MEMORY.md')
+  })
+
+  test('workbench shows empty state when no store callbacks are provided', async () => {
+    await openDashboard(api, store)
+    await new Promise((r) => setTimeout(r, 50))
+
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const memBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memBtn.click()
+
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    expect(memoryPage.querySelector('[data-da-role="workbench-empty"]')).not.toBeNull()
+  })
+
+  test('workbench shows inline error when load fails', async () => {
+    store.getWorkbenchDocuments = async () => { throw new Error('Storage unavailable') }
+
+    await openDashboard(api, store)
+    await new Promise((r) => setTimeout(r, 50))
+
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const memBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memBtn.click()
+
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    const errorEl = memoryPage.querySelector('[data-da-role="workbench-error"]')
+    expect(errorEl).not.toBeNull()
+    expect(errorEl?.textContent).toContain('Storage unavailable')
+    // Rest of memory page should still be functional
+    expect(memoryPage.querySelector('[data-da-action="backfill-current-chat"]')).not.toBeNull()
+  })
+
+  test('workbench filter change updates the visible document list', async () => {
+    store.getWorkbenchDocuments = async () => [
+      { id: 'd1', type: 'character' as const, title: 'Char Doc', source: 'extraction' as const, freshness: 'current' as const, updatedAt: Date.now(), hasEmbedding: false },
+      { id: 'd2', type: 'world' as const, title: 'World Doc', source: 'operator' as const, freshness: 'stale' as const, updatedAt: Date.now(), hasEmbedding: true },
+    ]
+
+    await openDashboard(api, store)
+    await new Promise((r) => setTimeout(r, 50))
+
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const memBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memBtn.click()
+
+    // Both docs should be visible initially
+    let memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    expect(memoryPage.textContent).toContain('Char Doc')
+    expect(memoryPage.textContent).toContain('World Doc')
+
+    // Apply type filter
+    const typeFilter = memoryPage.querySelector('[data-da-role="workbench-filter-type"]') as HTMLSelectElement
+    expect(typeFilter).not.toBeNull()
+    typeFilter.value = 'character'
+    typeFilter.dispatchEvent(new Event('change', { bubbles: true }))
+
+    // Re-query after rerender
+    memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    expect(memoryPage.textContent).toContain('Char Doc')
+    expect(memoryPage.textContent).not.toContain('World Doc')
+  })
+})

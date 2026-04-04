@@ -881,6 +881,51 @@ export function buildDashboardCss(): string {
   outline-offset: 2px;
 }
 
+/* ── Memory Workbench ───────────────────────────────────────────────── */
+
+.da-workbench-filters {
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.da-workbench-filters .da-label {
+  min-width: 120px;
+}
+
+.da-workbench-doc-title {
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.da-workbench-doc-meta {
+  color: var(--da-text-muted);
+  font-size: 0.82em;
+  flex-shrink: 0;
+}
+
+.da-workbench-preview {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  font-size: 0.85em;
+  color: var(--da-text-muted);
+  background: var(--da-bg-muted);
+  border-radius: var(--da-radius-sm);
+  padding: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+
+.da-workbench-error {
+  color: var(--da-danger);
+}
+
 /* ── Reduced motion ─────────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {

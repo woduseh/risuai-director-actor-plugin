@@ -1,5 +1,7 @@
 import type { DirectorSettings, DirectorPluginState } from '../contracts/types.js'
 import type { ProfileManifest, MemoryOpsStatus, EmbeddingCacheStatus } from './dashboardState.js'
+import type { MemoryWorkbenchInput } from './memoryWorkbenchDom.js'
+import { buildMemoryWorkbench } from './memoryWorkbenchDom.js'
 import { DASHBOARD_ROOT_CLASS } from './dashboardCss.js'
 import { EMBEDDING_PROVIDER_CATALOG } from './dashboardModel.js'
 import { resolveSelectedPromptPreset } from './dashboardState.js'
@@ -56,6 +58,8 @@ export interface DashboardMarkupInput {
   memoryFilterQuery?: string
   /** Scope label for the active scoped storage key. */
   scopeLabel?: string
+  /** Read-only memdir workbench input. */
+  workbenchInput?: MemoryWorkbenchInput
 }
 
 // ---------------------------------------------------------------------------
@@ -716,10 +720,15 @@ export function buildMemoryCachePage(input: DashboardMarkupInput): string {
     ? buildMemoryOpsCard(input.memoryOpsStatus)
     : ''
 
+  const workbenchHtml = input.workbenchInput
+    ? buildMemoryWorkbench(input.workbenchInput)
+    : ''
+
   return `
       ${scopeBadgeHtml}${quickNavHtml}
       ${backfillHtml}${regenerateHtml}${bulkDeleteHtml}${crossLinkHtml}${filterHtml}${emptyHintHtml}
       ${memoryOpsCardHtml}
+      ${workbenchHtml}
       <div class="da-grid">
         <section class="da-card" id="da-memory-section-summaries">
           <div class="da-card-header">

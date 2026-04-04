@@ -577,3 +577,97 @@ describe('buildPageTitle', () => {
   })
 })
 
+// ---------------------------------------------------------------------------
+// Workbench integration in buildDashboardMarkup
+// ---------------------------------------------------------------------------
+
+describe('buildDashboardMarkup – workbench integration', () => {
+  afterEach(() => {
+    setLocale('en')
+  })
+
+  test('renders workbench section when workbenchInput is provided on memory-cache page', () => {
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'memory-cache',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+      workbenchInput: {
+        documents: [
+          { id: 'doc-1', type: 'character', title: 'Test Doc', source: 'extraction', freshness: 'current', updatedAt: Date.now(), hasEmbedding: true },
+        ],
+        memoryMdPreview: null,
+        notebookSnapshot: null,
+        loading: false,
+        error: null,
+        filters: { type: null, freshness: null, source: null },
+      },
+    })
+
+    expect(markup).toContain('data-da-role="workbench-section"')
+    expect(markup).toContain('Test Doc')
+  })
+
+  test('renders workbench empty state when documents array is empty', () => {
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'memory-cache',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+      workbenchInput: {
+        documents: [],
+        memoryMdPreview: null,
+        notebookSnapshot: null,
+        loading: false,
+        error: null,
+        filters: { type: null, freshness: null, source: null },
+      },
+    })
+
+    expect(markup).toContain('data-da-role="workbench-empty"')
+  })
+
+  test('does not render workbench section when workbenchInput is not provided', () => {
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'memory-cache',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+    })
+
+    expect(markup).not.toContain('data-da-role="workbench-section"')
+  })
+
+  test('workbench load failure does not break the rest of the memory page', () => {
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'memory-cache',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+      workbenchInput: {
+        documents: [],
+        memoryMdPreview: null,
+        notebookSnapshot: null,
+        loading: false,
+        error: 'Failed to load memdir documents',
+        filters: { type: null, freshness: null, source: null },
+      },
+    })
+
+    // Workbench error shows inline
+    expect(markup).toContain('data-da-role="workbench-error"')
+    expect(markup).toContain('Failed to load memdir documents')
+    // Rest of the memory page still renders
+    expect(markup).toContain('data-da-role="memory-empty"')
+    expect(markup).toContain('data-da-action="backfill-current-chat"')
+  })
+})
+

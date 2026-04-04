@@ -614,3 +614,20 @@ export async function saveMemoryOpsPrefs(
 ): Promise<void> {
   await storage.setItem(DASHBOARD_MEMORY_OPS_PREFS_KEY, prefs)
 }
+
+// ---------------------------------------------------------------------------
+// Memory Workbench state
+// ---------------------------------------------------------------------------
+
+export type { MemoryWorkbenchInput, WorkbenchDocEntry, WorkbenchFilters, WorkbenchNotebookSnapshot } from './memoryWorkbenchDom.js'
+
+export function createDefaultWorkbenchInput(): import('./memoryWorkbenchDom.js').MemoryWorkbenchInput {
+  return {
+    documents: [],
+    memoryMdPreview: null,
+    notebookSnapshot: null,
+    loading: false,
+    error: null,
+    filters: { type: null, freshness: null, source: null },
+  }
+}

@@ -514,6 +514,14 @@
   }
 
   // src/contracts/types.ts
+  var MEMDIR_DOCUMENT_TYPES = [
+    "character",
+    "relationship",
+    "world",
+    "plot",
+    "continuity",
+    "operator"
+  ];
   var DEFAULT_DIRECTOR_SETTINGS = {
     enabled: true,
     assertiveness: "standard",
@@ -2209,8 +2217,39 @@ ${recentText}`
     }
   };
 
+  // src/memory/vectorRetrieval.ts
+  var DEFAULT_MAX_RESULTS = 10;
+  var DEFAULT_MIN_SIMILARITY = 0;
+  function cosineSimilarity(a, b) {
+    if (a.length !== b.length || a.length === 0) return 0;
+    let dot = 0;
+    let normA = 0;
+    let normB = 0;
+    for (let i = 0; i < a.length; i++) {
+      dot += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+    const denom = Math.sqrt(normA) * Math.sqrt(normB);
+    if (denom === 0) return 0;
+    return dot / denom;
+  }
+  function vectorPrefilter(candidates, queryVector, options) {
+    const maxResults = options?.maxResults ?? DEFAULT_MAX_RESULTS;
+    const minSimilarity = options?.minSimilarity ?? DEFAULT_MIN_SIMILARITY;
+    const scored = [];
+    for (const candidate of candidates) {
+      const similarity = cosineSimilarity(candidate.vector, queryVector);
+      if (similarity > minSimilarity) {
+        scored.push({ id: candidate.id, similarity });
+      }
+    }
+    scored.sort((a, b) => b.similarity - a.similarity);
+    return scored.slice(0, maxResults);
+  }
+
   // src/memory/findRelevantMemories.ts
-  var DEFAULT_MAX_RESULTS = 5;
+  var DEFAULT_MAX_RESULTS2 = 5;
   var STALE_FRESHNESS = /* @__PURE__ */ new Set([
     "stale",
     "archived"
@@ -2270,7 +2309,7 @@ ${recentText}`
     };
   }
   async function findRelevantMemories(deps, input, cache, retryOptions) {
-    const maxResults = input.maxResults ?? DEFAULT_MAX_RESULTS;
+    const maxResults = input.maxResults ?? DEFAULT_MAX_RESULTS2;
     if (cache) {
       const cached = cache.get(input.nowMs);
       if (cached) {
@@ -2287,7 +2326,30 @@ ${recentText}`
       if (cache) cache.set(result, input.nowMs);
       return result;
     }
-    const manifest = formatManifest(input.docs);
+    let manifestDocs = input.docs;
+    if (input.queryVector && input.vectorVersion) {
+      const candidates = [];
+      const unembedded = [];
+      for (const doc of input.docs) {
+        if (doc.embedding && doc.embedding.version === input.vectorVersion && doc.embedding.vector.length > 0) {
+          candidates.push({ id: doc.id, vector: doc.embedding.vector });
+        } else {
+          unembedded.push(doc);
+        }
+      }
+      if (candidates.length > 0) {
+        const prefiltered = vectorPrefilter(candidates, input.queryVector, {
+          maxResults: maxResults * 2,
+          minSimilarity: 0.1
+        });
+        const prefilteredIds = new Set(prefiltered.map((r) => r.id));
+        const prefilteredDocs = input.docs.filter((d) => prefilteredIds.has(d.id));
+        const mergedIds = new Set(prefilteredDocs.map((d) => d.id));
+        for (const ue of unembedded) mergedIds.add(ue.id);
+        manifestDocs = input.docs.filter((d) => mergedIds.has(d.id));
+      }
+    }
+    const manifest = formatManifest(manifestDocs);
     try {
       const recallRetryOpts = {
         ...retryOptions,
@@ -3087,6 +3149,19 @@ ${lines.join("\n").trimEnd()}`;
     "btn.forceDream": "Run Dream Now",
     "btn.inspectRecalled": "Inspect Recalled",
     "btn.toggleFallback": "Toggle Fallback Retrieval",
+    "btn.refreshEmbeddings": "Refresh Embeddings",
+    // Embedding status
+    "embeddingStatus.title": "Embedding Status",
+    "embeddingStatus.ready": "Ready",
+    "embeddingStatus.stale": "Stale",
+    "embeddingStatus.missing": "Missing",
+    "embeddingStatus.disabled": "Disabled",
+    "embeddingStatus.unsupported": "Unsupported Provider",
+    "embeddingStatus.version": "Vector Version",
+    "embeddingStatus.counts": "Embedding Counts",
+    "toast.refreshEmbeddingsStarted": "Embedding refresh started",
+    "toast.refreshEmbeddingsComplete": "Embeddings refreshed ({{count}} docs)",
+    "toast.refreshEmbeddingsFailed": "Embedding refresh failed: {{error}}",
     // Diagnostics
     "diag.title": "Runtime Diagnostics",
     "diag.lastHook": "Last Hook",
@@ -3157,6 +3232,20 @@ ${lines.join("\n").trimEnd()}`;
     "confirm.bulkDeleteMemory": "Confirm Delete Selected?",
     "confirm.regenerateCurrentChat": "Confirm Regenerate?",
     "confirm.deletePromptPreset": "Confirm Delete Preset?",
+    // Memory Workbench (read-only memdir inspector)
+    "workbench.title": "Memdir Workbench",
+    "workbench.copy": "Read-only inspector for memdir documents in the current scope.",
+    "workbench.loading": "Loading memdir documents\u2026",
+    "workbench.emptyHint": "No memdir documents in this scope yet.",
+    "workbench.filterAll": "All",
+    "workbench.filterType": "Type",
+    "workbench.filterFreshness": "Freshness",
+    "workbench.filterSource": "Source",
+    "workbench.embedded": "Embedded",
+    "workbench.notEmbedded": "Not Embedded",
+    "workbench.memoryMdTitle": "MEMORY.md Preview",
+    "workbench.notebookTitle": "Session Notebook",
+    "workbench.notebookEmpty": "No notebook entries for this session.",
     // Language selector
     "lang.label": "Language",
     "lang.en": "English",
@@ -3329,6 +3418,19 @@ ${lines.join("\n").trimEnd()}`;
     "btn.forceDream": "\uC9C0\uAE08 \uD1B5\uD569 \uC2E4\uD589",
     "btn.inspectRecalled": "\uD68C\uC0C1 \uBB38\uC11C \uD655\uC778",
     "btn.toggleFallback": "\uB300\uCCB4 \uAC80\uC0C9 \uD1A0\uAE00",
+    "btn.refreshEmbeddings": "\uC784\uBCA0\uB529 \uC0C8\uB85C\uACE0\uCE68",
+    // Embedding status
+    "embeddingStatus.title": "\uC784\uBCA0\uB529 \uC0C1\uD0DC",
+    "embeddingStatus.ready": "\uC900\uBE44\uB428",
+    "embeddingStatus.stale": "\uC624\uB798\uB428",
+    "embeddingStatus.missing": "\uC5C6\uC74C",
+    "embeddingStatus.disabled": "\uBE44\uD65C\uC131\uD654",
+    "embeddingStatus.unsupported": "\uC9C0\uC6D0\uB418\uC9C0 \uC54A\uB294 \uD504\uB85C\uBC14\uC774\uB354",
+    "embeddingStatus.version": "\uBCA1\uD130 \uBC84\uC804",
+    "embeddingStatus.counts": "\uC784\uBCA0\uB529 \uC218",
+    "toast.refreshEmbeddingsStarted": "\uC784\uBCA0\uB529 \uC0C8\uB85C\uACE0\uCE68\uC774 \uC2DC\uC791\uB418\uC5C8\uC2B5\uB2C8\uB2E4",
+    "toast.refreshEmbeddingsComplete": "\uC784\uBCA0\uB529\uC774 \uC0C8\uB85C\uACE0\uCE68\uB418\uC5C8\uC2B5\uB2C8\uB2E4 ({{count}}\uAC1C \uBB38\uC11C)",
+    "toast.refreshEmbeddingsFailed": "\uC784\uBCA0\uB529 \uC0C8\uB85C\uACE0\uCE68 \uC2E4\uD328: {{error}}",
     // Diagnostics
     "diag.title": "\uB7F0\uD0C0\uC784 \uC9C4\uB2E8",
     "diag.lastHook": "\uB9C8\uC9C0\uB9C9 \uD6C5",
@@ -3399,6 +3501,20 @@ ${lines.join("\n").trimEnd()}`;
     "confirm.bulkDeleteMemory": "\uC120\uD0DD \uC0AD\uC81C \uD655\uC778?",
     "confirm.regenerateCurrentChat": "\uC7AC\uC0DD\uC131 \uD655\uC778?",
     "confirm.deletePromptPreset": "\uD504\uB9AC\uC14B \uC0AD\uC81C \uD655\uC778?",
+    // Memory Workbench (read-only memdir inspector)
+    "workbench.title": "\uBA54\uBAA8\uB9AC \uB514\uB809\uD1A0\uB9AC \uC6CC\uD06C\uBCA4\uCE58",
+    "workbench.copy": "\uD604\uC7AC \uBC94\uC704\uC758 memdir \uBB38\uC11C\uB97C \uC704\uD55C \uC77D\uAE30 \uC804\uC6A9 \uC778\uC2A4\uD399\uD130.",
+    "workbench.loading": "memdir \uBB38\uC11C \uB85C\uB529 \uC911\u2026",
+    "workbench.emptyHint": "\uC774 \uBC94\uC704\uC5D0 memdir \uBB38\uC11C\uAC00 \uC544\uC9C1 \uC5C6\uC2B5\uB2C8\uB2E4.",
+    "workbench.filterAll": "\uC804\uCCB4",
+    "workbench.filterType": "\uC720\uD615",
+    "workbench.filterFreshness": "\uC2E0\uC120\uB3C4",
+    "workbench.filterSource": "\uC18C\uC2A4",
+    "workbench.embedded": "\uC784\uBCA0\uB529\uB428",
+    "workbench.notEmbedded": "\uC784\uBCA0\uB529 \uC5C6\uC74C",
+    "workbench.memoryMdTitle": "MEMORY.md \uBBF8\uB9AC\uBCF4\uAE30",
+    "workbench.notebookTitle": "\uC138\uC158 \uB178\uD2B8\uBD81",
+    "workbench.notebookEmpty": "\uC774 \uC138\uC158\uC5D0 \uB300\uD55C \uB178\uD2B8\uBD81 \uD56D\uBAA9\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.",
     // Language selector
     "lang.label": "\uC5B8\uC5B4",
     "lang.en": "English",
@@ -3635,6 +3751,16 @@ ${lines.join("\n").trimEnd()}`;
   }
   async function saveMemoryOpsPrefs(storage, prefs) {
     await storage.setItem(DASHBOARD_MEMORY_OPS_PREFS_KEY, prefs);
+  }
+  function createDefaultWorkbenchInput() {
+    return {
+      documents: [],
+      memoryMdPreview: null,
+      notebookSnapshot: null,
+      loading: false,
+      error: null,
+      filters: { type: null, freshness: null, source: null }
+    };
   }
 
   // src/runtime/circuitBreaker.ts
@@ -4934,6 +5060,51 @@ ${lines.join("\n").trimEnd()}`;
   outline-offset: 2px;
 }
 
+/* \u2500\u2500 Memory Workbench \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.da-workbench-filters {
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.da-workbench-filters .da-label {
+  min-width: 120px;
+}
+
+.da-workbench-doc-title {
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.da-workbench-doc-meta {
+  color: var(--da-text-muted);
+  font-size: 0.82em;
+  flex-shrink: 0;
+}
+
+.da-workbench-preview {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  font-size: 0.85em;
+  color: var(--da-text-muted);
+  background: var(--da-bg-muted);
+  border-radius: var(--da-radius-sm);
+  padding: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+
+.da-workbench-error {
+  color: var(--da-danger);
+}
+
 /* \u2500\u2500 Reduced motion \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 
 @media (prefers-reduced-motion: reduce) {
@@ -4952,6 +5123,114 @@ ${lines.join("\n").trimEnd()}`;
 }
 `
     );
+  }
+
+  // src/ui/memoryWorkbenchDom.ts
+  var FRESHNESS_VALUES = ["current", "stale", "archived"];
+  var SOURCE_VALUES = ["extraction", "operator", "migration", "manual"];
+  var NOTEBOOK_SECTION_LABELS = {
+    currentState: "Current State",
+    immediateGoals: "Immediate Goals",
+    recentDevelopments: "Recent Developments",
+    unresolvedThreads: "Unresolved Threads",
+    recentMistakes: "Recent Mistakes"
+  };
+  function formatTimestamp(ts) {
+    if (ts === 0) return "\u2014";
+    try {
+      return new Date(ts).toLocaleString();
+    } catch {
+      return String(ts);
+    }
+  }
+  function applyFilters(docs, filters) {
+    return docs.filter((d) => {
+      if (filters.type != null && d.type !== filters.type) return false;
+      if (filters.freshness != null && d.freshness !== filters.freshness) return false;
+      if (filters.source != null && d.source !== filters.source) return false;
+      return true;
+    });
+  }
+  function buildFilterControls(filters) {
+    const typeOptions = [
+      `<option value=""${filters.type == null ? " selected" : ""}>${t("workbench.filterAll")}</option>`,
+      ...MEMDIR_DOCUMENT_TYPES.map(
+        (tp) => `<option value="${tp}"${filters.type === tp ? " selected" : ""}>${escapeXml(tp)}</option>`
+      )
+    ].join("");
+    const freshnessOptions = [
+      `<option value=""${filters.freshness == null ? " selected" : ""}>${t("workbench.filterAll")}</option>`,
+      ...FRESHNESS_VALUES.map(
+        (f) => `<option value="${f}"${filters.freshness === f ? " selected" : ""}>${escapeXml(f)}</option>`
+      )
+    ].join("");
+    const sourceOptions = [
+      `<option value=""${filters.source == null ? " selected" : ""}>${t("workbench.filterAll")}</option>`,
+      ...SOURCE_VALUES.map(
+        (s) => `<option value="${s}"${filters.source === s ? " selected" : ""}>${escapeXml(s)}</option>`
+      )
+    ].join("");
+    return `<div class="da-inline da-workbench-filters">
+    <label class="da-label"><span class="da-label-text">${t("workbench.filterType")}</span><select class="da-select da-select--sm" data-da-role="workbench-filter-type">${typeOptions}</select></label>
+    <label class="da-label"><span class="da-label-text">${t("workbench.filterFreshness")}</span><select class="da-select da-select--sm" data-da-role="workbench-filter-freshness">${freshnessOptions}</select></label>
+    <label class="da-label"><span class="da-label-text">${t("workbench.filterSource")}</span><select class="da-select da-select--sm" data-da-role="workbench-filter-source">${sourceOptions}</select></label>
+  </div>`;
+  }
+  function buildDocumentItem(doc) {
+    const embeddingBadge = doc.hasEmbedding ? `<span class="da-badge da-badge--sm" data-kind="success">${t("workbench.embedded")}</span>` : `<span class="da-badge da-badge--sm" data-kind="neutral">${t("workbench.notEmbedded")}</span>`;
+    const freshnessBadge = `<span class="da-badge da-badge--sm" data-kind="${doc.freshness === "current" ? "success" : doc.freshness === "stale" ? "stale" : "neutral"}">${escapeXml(doc.freshness)}</span>`;
+    return `<li class="da-memory-item" data-da-role="workbench-doc-item" data-da-doc-id="${escapeXml(doc.id)}">
+    <span class="da-workbench-doc-title">${escapeXml(doc.title)}</span>
+    <span class="da-workbench-doc-meta">${escapeXml(doc.type)} \xB7 ${escapeXml(doc.source)} \xB7 ${formatTimestamp(doc.updatedAt)}</span>
+    ${freshnessBadge}${embeddingBadge}
+  </li>`;
+  }
+  function buildDocumentList(docs) {
+    if (docs.length === 0) {
+      return `<p class="da-empty" data-da-role="workbench-empty">${t("workbench.emptyHint")}</p>`;
+    }
+    const items = docs.map(buildDocumentItem).join("");
+    return `<ul class="da-memory-list" data-da-role="workbench-doc-list">${items}</ul>`;
+  }
+  function buildMemoryMdPreview(content) {
+    return `<section class="da-card" data-da-role="workbench-memory-md">
+    <div class="da-card-header"><div><h4 class="da-card-title">${t("workbench.memoryMdTitle")}</h4></div></div>
+    <pre class="da-workbench-preview">${escapeXml(content)}</pre>
+  </section>`;
+  }
+  function buildNotebookSnapshot(snap) {
+    const entries = Object.keys(NOTEBOOK_SECTION_LABELS).filter((key) => snap[key].length > 0).map(
+      (key) => `<li class="da-metric-item" data-da-role="workbench-notebook-entry"><span>${escapeXml(NOTEBOOK_SECTION_LABELS[key])}</span><strong>${escapeXml(snap[key])}</strong></li>`
+    ).join("");
+    if (entries.length === 0) {
+      return `<section class="da-card" data-da-role="workbench-notebook">
+      <div class="da-card-header"><div><h4 class="da-card-title">${t("workbench.notebookTitle")}</h4></div></div>
+      <p class="da-empty">${t("workbench.notebookEmpty")}</p>
+    </section>`;
+    }
+    return `<section class="da-card" data-da-role="workbench-notebook">
+    <div class="da-card-header"><div><h4 class="da-card-title">${t("workbench.notebookTitle")}</h4></div></div>
+    <ul class="da-metric-list">${entries}</ul>
+  </section>`;
+  }
+  function buildMemoryWorkbench(input) {
+    const errorHtml = input.error ? `<p class="da-empty da-workbench-error" data-da-role="workbench-error">${escapeXml(input.error)}</p>` : "";
+    if (input.loading) {
+      return `<section class="da-card" data-da-role="workbench-section">
+      <div class="da-card-header"><div><h4 class="da-card-title">${t("workbench.title")}</h4><p class="da-card-copy">${t("workbench.copy")}</p></div></div>
+      <p class="da-empty" data-da-role="workbench-loading">${t("workbench.loading")}</p>
+    </section>`;
+    }
+    const filtered = applyFilters(input.documents, input.filters);
+    const listHtml = input.documents.length > 0 ? buildDocumentList(filtered) : buildDocumentList([]);
+    const filterHtml = input.documents.length > 0 ? buildFilterControls(input.filters) : "";
+    const memoryMdHtml = input.memoryMdPreview != null ? buildMemoryMdPreview(input.memoryMdPreview) : "";
+    const notebookHtml = input.notebookSnapshot != null ? buildNotebookSnapshot(input.notebookSnapshot) : "";
+    return `<section class="da-card" data-da-role="workbench-section">
+    <div class="da-card-header"><div><h4 class="da-card-title">${t("workbench.title")}</h4><p class="da-card-copy">${t("workbench.copy")}</p></div></div>
+    ${errorHtml}${filterHtml}${listHtml}
+  </section>
+  ${memoryMdHtml}${notebookHtml}`;
   }
 
   // src/ui/dashboardModel.ts
@@ -5446,7 +5725,7 @@ ${lines.join("\n").trimEnd()}`;
         </section>${embeddingSection}
       </div>`;
   }
-  function formatTimestamp(ts) {
+  function formatTimestamp2(ts) {
     if (ts === 0) return t("memoryOps.neverRun");
     return new Date(ts).toLocaleString();
   }
@@ -5460,6 +5739,36 @@ ${lines.join("\n").trimEnd()}`;
         return t("memoryOps.freshnessUnknown");
     }
   }
+  function embeddingStatusBadgeKind(cache) {
+    if (!cache.enabled) return "neutral";
+    if (!cache.supported) return "error";
+    if (cache.missingCount > 0 || cache.staleCount > 0) return "error";
+    if (cache.readyCount > 0) return "success";
+    return "neutral";
+  }
+  function embeddingStatusLabel(cache) {
+    if (!cache.enabled) return t("embeddingStatus.disabled");
+    if (!cache.supported) return t("embeddingStatus.unsupported");
+    if (cache.readyCount > 0 && cache.staleCount === 0 && cache.missingCount === 0) {
+      return t("embeddingStatus.ready");
+    }
+    if (cache.staleCount > 0) return t("embeddingStatus.stale");
+    if (cache.missingCount > 0) return t("embeddingStatus.missing");
+    return t("embeddingStatus.disabled");
+  }
+  function buildEmbeddingStatusSection(cache) {
+    const badge = `<span class="da-badge da-badge--sm" data-kind="${embeddingStatusBadgeKind(cache)}">${embeddingStatusLabel(cache)}</span>`;
+    const countsLabel = `${t("embeddingStatus.ready")}: ${cache.readyCount} \xB7 ${t("embeddingStatus.stale")}: ${cache.staleCount} \xB7 ${t("embeddingStatus.missing")}: ${cache.missingCount}`;
+    const versionLabel = cache.currentVersion || "\u2014";
+    return `
+          <div class="da-embedding-status" data-da-role="embedding-status">
+            <h4 class="da-card-title">${t("embeddingStatus.title")} ${badge}</h4>
+            <ul class="da-metric-list">
+              <li class="da-metric-item"><span>${t("embeddingStatus.counts")}</span><strong>${countsLabel}</strong></li>
+              <li class="da-metric-item"><span>${t("embeddingStatus.version")}</span><strong>${escapeXml(versionLabel)}</strong></li>
+            </ul>
+          </div>`;
+  }
   function buildMemoryOpsCard(status) {
     const { documentCounts: dc } = status;
     const freshnessBadge = `<span class="da-badge" data-kind="${status.notebookFreshness === "stale" ? "error" : status.notebookFreshness === "current" ? "success" : "neutral"}">${freshnessLabel(status.notebookFreshness)}</span>`;
@@ -5470,6 +5779,7 @@ ${lines.join("\n").trimEnd()}`;
       const badge = d.freshness !== "current" ? ` <span class="da-badge da-badge--sm" data-kind="${d.freshness === "stale" ? "error" : "neutral"}">${escapeXml(d.freshness)}</span>` : "";
       return `<li class="da-recalled-item">${escapeXml(d.title)}${badge}</li>`;
     }).join("")}</ul>` : "";
+    const embeddingStatusHtml = buildEmbeddingStatusSection(status.embeddingCache);
     const diagHtml = buildDiagnosticsSection(status);
     return `
         <section class="da-card" data-da-role="memory-ops-status">
@@ -5482,8 +5792,8 @@ ${lines.join("\n").trimEnd()}`;
           </div>
           ${lockedHtml}${staleHtml}
           <ul class="da-metric-list">
-            <li class="da-metric-item"><span>${t("memoryOps.lastExtract")}</span><strong>${formatTimestamp(status.lastExtractTs)}</strong></li>
-            <li class="da-metric-item"><span>${t("memoryOps.lastDream")}</span><strong>${formatTimestamp(status.lastDreamTs)}</strong></li>
+            <li class="da-metric-item"><span>${t("memoryOps.lastExtract")}</span><strong>${formatTimestamp2(status.lastExtractTs)}</strong></li>
+            <li class="da-metric-item"><span>${t("memoryOps.lastDream")}</span><strong>${formatTimestamp2(status.lastDreamTs)}</strong></li>
             <li class="da-metric-item"><span>${t("memoryOps.docCounts")}</span><strong>${t("card.memorySummaries.title")}: ${dc.summaries} \xB7 ${t("card.continuityFacts.title")}: ${dc.continuityFacts} \xB7 ${t("card.worldFacts.title")}: ${dc.worldFacts} \xB7 ${t("card.entities.title")}: ${dc.entities} \xB7 ${t("card.relations.title")}: ${dc.relations}</strong></li>
             <li class="da-metric-item"><span>${fallbackLabel}</span></li>
           </ul>
@@ -5492,7 +5802,9 @@ ${lines.join("\n").trimEnd()}`;
             <button class="da-btn da-btn--sm" data-da-action="force-dream">${t("btn.forceDream")}</button>
             <button class="da-btn da-btn--sm" data-da-action="inspect-recalled">${t("btn.inspectRecalled")}</button>
             <button class="da-btn da-btn--sm" data-da-action="toggle-fallback-retrieval">${t("btn.toggleFallback")}</button>
+            <button class="da-btn da-btn--sm" data-da-action="refresh-embeddings">${t("btn.refreshEmbeddings")}</button>
           </div>
+          ${embeddingStatusHtml}
           ${recalledHtml}
           ${diagHtml}
         </section>`;
@@ -5520,19 +5832,19 @@ ${lines.join("\n").trimEnd()}`;
   function buildDiagnosticsSection(status) {
     const diag = status.diagnostics;
     if (!diag) return "";
-    const lastHookLabel = diag.lastHookKind ? `${diag.lastHookKind} @ ${formatTimestamp(diag.lastHookTs)}` : t("memoryOps.neverRun");
-    const lastErrorLabel = diag.lastErrorMessage ? `${escapeXml(diag.lastErrorMessage)} @ ${formatTimestamp(diag.lastErrorTs)}` : t("diag.noError");
+    const lastHookLabel = diag.lastHookKind ? `${diag.lastHookKind} @ ${formatTimestamp2(diag.lastHookTs)}` : t("memoryOps.neverRun");
+    const lastErrorLabel = diag.lastErrorMessage ? `${escapeXml(diag.lastErrorMessage)} @ ${formatTimestamp2(diag.lastErrorTs)}` : t("diag.noError");
     const workerRows = ["extraction", "dream", "recovery"].map((kind) => {
       const ws = diag[kind];
       const labelKey = kind === "extraction" ? "diag.extraction" : kind === "dream" ? "diag.dream" : "diag.recovery";
       const badge = `<span class="da-badge da-badge--sm" data-kind="${healthBadgeKind(ws.health)}">${healthLabel(ws.health)}</span>`;
-      const ts = ws.lastTs > 0 ? formatTimestamp(ws.lastTs) : "";
+      const ts = ws.lastTs > 0 ? formatTimestamp2(ws.lastTs) : "";
       const detail = ws.lastDetail ? ` \u2014 ${escapeXml(ws.lastDetail)}` : "";
       return `<li class="da-metric-item" data-da-role="diag-worker-${kind}"><span>${t(labelKey)}</span><strong>${badge} ${ts}${detail}</strong></li>`;
     }).join("");
     const breadcrumbsHtml = diag.breadcrumbs.length > 0 ? `<ul class="da-breadcrumb-list" data-da-role="diag-breadcrumbs">${diag.breadcrumbs.slice().reverse().map((b) => {
       const detail = b.detail ? ` \u2014 ${escapeXml(b.detail)}` : "";
-      return `<li class="da-breadcrumb-item">${formatTimestamp(b.ts)} <strong>${escapeXml(b.label)}</strong>${detail}</li>`;
+      return `<li class="da-breadcrumb-item">${formatTimestamp2(b.ts)} <strong>${escapeXml(b.label)}</strong>${detail}</li>`;
     }).join("")}</ul>` : `<p class="da-empty">${t("diag.noBreadcrumbs")}</p>`;
     return `
           <div class="da-diag-section" data-da-role="diagnostics">
@@ -5659,10 +5971,12 @@ ${lines.join("\n").trimEnd()}`;
     ).join("");
     const emptyHintHtml = isEmpty ? `<p class="da-empty" data-da-role="memory-empty">${t("memory.emptyHint")}</p>` : "";
     const memoryOpsCardHtml = input.memoryOpsStatus ? buildMemoryOpsCard(input.memoryOpsStatus) : "";
+    const workbenchHtml = input.workbenchInput ? buildMemoryWorkbench(input.workbenchInput) : "";
     return `
       ${scopeBadgeHtml}${quickNavHtml}
       ${backfillHtml}${regenerateHtml}${bulkDeleteHtml}${crossLinkHtml}${filterHtml}${emptyHintHtml}
       ${memoryOpsCardHtml}
+      ${workbenchHtml}
       <div class="da-grid">
         <section class="da-card" id="da-memory-section-summaries">
           <div class="da-card-header">
@@ -6000,7 +6314,15 @@ ${lines.join("\n").trimEnd()}`;
       isMemoryLocked: isLocked,
       staleWarnings: buildStaleWarnings(latestMemoryTs, dreamState.lastDreamTs),
       recalledDocs: [],
-      diagnostics
+      diagnostics,
+      embeddingCache: {
+        enabled: false,
+        supported: true,
+        readyCount: 0,
+        staleCount: 0,
+        missingCount: 0,
+        currentVersion: ""
+      }
     };
   }
   function guardReasonToast(reason) {
@@ -6031,6 +6353,7 @@ ${lines.join("\n").trimEnd()}`;
     editingMemory = null;
     memoryOpsStatus;
     memoryFilterQuery = "";
+    workbenchInput;
     /**
      * Action names currently in flight (used by async busy guards).
      * Key = canonical busy key, value = UI action to disable (may differ
@@ -6056,6 +6379,7 @@ ${lines.join("\n").trimEnd()}`;
       this.connectionStatus = { kind: "idle", message: t("connection.notTested") };
       this.canonicalState = canonicalState;
       this.memoryOpsStatus = memoryOpsStatus;
+      this.workbenchInput = createDefaultWorkbenchInput();
     }
     // ── public ────────────────────────────────────────────────────────────
     async mount() {
@@ -6063,6 +6387,7 @@ ${lines.join("\n").trimEnd()}`;
       this.renderRoot();
       this.bindEvents();
       await this.api.showContainer("fullscreen");
+      void this.loadWorkbenchData();
     }
     async close() {
       this.clearArmedState();
@@ -6074,6 +6399,51 @@ ${lines.join("\n").trimEnd()}`;
     /** Return the storage key that canonical state is persisted under. */
     resolveStateKey() {
       return this.store.stateStorageKey ?? DIRECTOR_STATE_STORAGE_KEY;
+    }
+    // ── Workbench data loading ───────────────────────────────────────────
+    /**
+     * Load memdir workbench data from store callbacks.
+     * Non-fatal: errors are captured as inline workbench error state.
+     */
+    async loadWorkbenchData() {
+      this.workbenchInput = { ...this.workbenchInput, loading: true, error: null };
+      this.memoryPageReRender();
+      try {
+        const documents = this.store.getWorkbenchDocuments ? await this.store.getWorkbenchDocuments() : [];
+        const memoryMdPreview = this.store.getMemoryMdPreview ? await this.store.getMemoryMdPreview() : null;
+        const notebookSnapshot = this.store.getNotebookSnapshot ? await this.store.getNotebookSnapshot() : null;
+        this.workbenchInput = {
+          ...this.workbenchInput,
+          documents,
+          memoryMdPreview,
+          notebookSnapshot,
+          loading: false,
+          error: null
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Unknown error loading memdir";
+        this.workbenchInput = {
+          ...this.workbenchInput,
+          loading: false,
+          error: message
+        };
+      }
+      this.memoryPageReRender();
+    }
+    /**
+     * Update workbench filter and rerender.
+     */
+    handleWorkbenchFilterChange(role, value) {
+      const filters = { ...this.workbenchInput.filters };
+      if (role === "workbench-filter-type") {
+        filters.type = value ? value : null;
+      } else if (role === "workbench-filter-freshness") {
+        filters.freshness = value ? value : null;
+      } else if (role === "workbench-filter-source") {
+        filters.source = value ? value : null;
+      }
+      this.workbenchInput = { ...this.workbenchInput, filters };
+      this.memoryPageReRender();
     }
     // ── CSS ───────────────────────────────────────────────────────────────
     injectCss() {
@@ -6103,7 +6473,8 @@ ${lines.join("\n").trimEnd()}`;
         editingMemory: this.editingMemory,
         memoryOpsStatus: this.memoryOpsStatus,
         memoryFilterQuery: this.memoryFilterQuery,
-        scopeLabel
+        scopeLabel,
+        workbenchInput: this.workbenchInput
       };
     }
     renderRoot() {
@@ -6434,6 +6805,11 @@ ${lines.join("\n").trimEnd()}`;
           this.handlePromptPresetSelect(target.value);
           return;
         }
+        const role = target.getAttribute("data-da-role");
+        if (target instanceof HTMLSelectElement && role != null && role.startsWith("workbench-filter-")) {
+          this.handleWorkbenchFilterChange(role, target.value);
+          return;
+        }
         this.handleFieldChange(target);
       });
       this.lifecycle.listen(this.root, "input", (e) => {
@@ -6590,6 +6966,9 @@ ${lines.join("\n").trimEnd()}`;
           break;
         case "toggle-fallback-retrieval":
           await this.handleToggleFallbackRetrieval();
+          break;
+        case "refresh-embeddings":
+          await this.withBusyGuard("refresh-embeddings", () => this.handleRefreshEmbeddings());
           break;
       }
     }
@@ -7311,6 +7690,22 @@ ${lines.join("\n").trimEnd()}`;
       this.showToast(t("toast.fallbackToggled"), "info");
       this.fullReRender();
     }
+    async handleRefreshEmbeddings() {
+      if (!this.store.refreshEmbeddings) {
+        this.showToast(t("toast.noCallback"), "warning");
+        return;
+      }
+      try {
+        this.showToast(t("toast.refreshEmbeddingsStarted"), "info");
+        const count = await this.store.refreshEmbeddings();
+        this.showToast(t("toast.refreshEmbeddingsComplete", { count: String(count) }), "success");
+        await this.refreshMemoryOpsStatus();
+        this.fullReRender();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.showToast(t("toast.refreshEmbeddingsFailed", { error: message }), "error");
+      }
+    }
     async refreshMemoryOpsStatus() {
       const dreamState = await loadDreamState(this.store.storage);
       const prefs = await loadMemoryOpsPrefs(this.store.storage);
@@ -7319,6 +7714,7 @@ ${lines.join("\n").trimEnd()}`;
       const isLocked = this.store.isMemoryLocked ? await this.store.isMemoryLocked() : false;
       const latestMemoryTs = computeLatestMemoryTs(canonicalState);
       const diagnostics = this.store.loadDiagnostics ? await this.store.loadDiagnostics() : createDefaultDiagnosticsSnapshot();
+      const embeddingCache = this.store.getEmbeddingCacheStatus ? await this.store.getEmbeddingCacheStatus() : this.memoryOpsStatus.embeddingCache;
       this.memoryOpsStatus = {
         lastExtractTs: latestMemoryTs,
         lastDreamTs: dreamState.lastDreamTs,
@@ -7328,7 +7724,8 @@ ${lines.join("\n").trimEnd()}`;
         isMemoryLocked: isLocked,
         staleWarnings: buildStaleWarnings(latestMemoryTs, dreamState.lastDreamTs),
         recalledDocs: this.memoryOpsStatus.recalledDocs,
-        diagnostics
+        diagnostics,
+        embeddingCache
       };
     }
     // ── Language switch ──────────────────────────────────────────────────
@@ -7809,9 +8206,213 @@ ${lines.join("\n").trimEnd()}`;
     }
   };
 
+  // src/memory/embeddingClient.ts
+  var SUPPORTED_PROVIDERS = /* @__PURE__ */ new Set([
+    "openai",
+    "voyageai",
+    "google",
+    "custom"
+  ]);
+  function isProviderSupported(provider) {
+    return SUPPORTED_PROVIDERS.has(provider);
+  }
+  async function embedOpenAICompatible(text, config, nativeFetch) {
+    const url = `${config.baseUrl.replace(/\/+$/, "")}/embeddings`;
+    const response = await nativeFetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${config.apiKey}`
+      },
+      body: JSON.stringify({
+        model: config.model,
+        input: text,
+        dimensions: config.dimensions
+      })
+    });
+    if (!response.ok) {
+      return { ok: false, error: `Embedding request failed (HTTP ${response.status})` };
+    }
+    const json = await response.json();
+    const vector = json?.data?.[0]?.embedding;
+    if (!Array.isArray(vector)) {
+      return { ok: false, error: "Malformed embedding response: missing data[0].embedding" };
+    }
+    return { ok: true, vector };
+  }
+  async function embedGemini(text, config, nativeFetch) {
+    const base = config.baseUrl.replace(/\/+$/, "");
+    const url = `${base}/models/${config.model}:embedContent?key=${config.apiKey}`;
+    const response = await nativeFetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        content: {
+          parts: [{ text }]
+        }
+      })
+    });
+    if (!response.ok) {
+      return { ok: false, error: `Gemini embedding request failed (HTTP ${response.status})` };
+    }
+    const json = await response.json();
+    const vector = json?.embedding?.values;
+    if (!Array.isArray(vector)) {
+      return { ok: false, error: "Malformed Gemini response: missing embedding.values" };
+    }
+    return { ok: true, vector };
+  }
+  function createEmbeddingClient(config, nativeFetch) {
+    async function embed(text) {
+      if (!isProviderSupported(config.provider)) {
+        return {
+          ok: false,
+          error: `Embedding provider "${config.provider}" is unsupported in this version`
+        };
+      }
+      try {
+        if (config.provider === "google") {
+          return await embedGemini(text, config, nativeFetch);
+        }
+        return await embedOpenAICompatible(text, config, nativeFetch);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
+      }
+    }
+    async function embedBatch(texts) {
+      const results = [];
+      for (const text of texts) {
+        results.push(await embed(text));
+      }
+      return results;
+    }
+    return { embed, embedBatch };
+  }
+
+  // src/memory/vectorVersion.ts
+  function computeVectorVersion(input) {
+    const normalizedUrl = input.baseUrl.replace(/\/+$/, "");
+    const raw = [
+      input.provider,
+      normalizedUrl,
+      input.model,
+      String(input.dimensions)
+    ].join("|");
+    return `emb-${fnv1aHash(raw)}`;
+  }
+
+  // src/memory/embeddingIntegration.ts
+  async function embedDocuments(input) {
+    const { memdirStore, embeddingClient, vectorVersion, log } = input;
+    const docs = await memdirStore.listDocuments();
+    const needsEmbedding = docs.filter(
+      (doc) => !doc.embedding || doc.embedding.version !== vectorVersion
+    );
+    if (needsEmbedding.length === 0) return 0;
+    let embedded = 0;
+    for (const doc of needsEmbedding) {
+      const text = `${doc.title}
+${doc.description}`;
+      const result = await embeddingClient.embed(text);
+      if (result.ok) {
+        const updated = {
+          ...doc,
+          embedding: {
+            vector: result.vector,
+            version: vectorVersion,
+            embeddedAt: Date.now()
+          }
+        };
+        await memdirStore.putDocument(updated);
+        embedded++;
+      } else {
+        log(`Failed to embed doc "${doc.id}": ${result.error}`);
+      }
+    }
+    return embedded;
+  }
+  async function embedSingleDocument(doc, memdirStore, embeddingClient, vectorVersion, log) {
+    const text = `${doc.title}
+${doc.description}`;
+    const result = await embeddingClient.embed(text);
+    if (result.ok) {
+      const updated = {
+        ...doc,
+        embedding: {
+          vector: result.vector,
+          version: vectorVersion,
+          embeddedAt: Date.now()
+        }
+      };
+      await memdirStore.putDocument(updated);
+      return true;
+    }
+    log(`Failed to embed doc "${doc.id}": ${result.error}`);
+    return false;
+  }
+  function computeEmbeddingCacheStatus(docs, currentVersion, enabled) {
+    if (!enabled) {
+      return {
+        enabled: false,
+        supported: true,
+        readyCount: 0,
+        staleCount: 0,
+        missingCount: 0,
+        currentVersion: ""
+      };
+    }
+    let readyCount = 0;
+    let staleCount = 0;
+    let missingCount = 0;
+    for (const doc of docs) {
+      if (!doc.embedding) {
+        missingCount++;
+      } else if (doc.embedding.version === currentVersion) {
+        readyCount++;
+      } else {
+        staleCount++;
+      }
+    }
+    return {
+      enabled: true,
+      supported: true,
+      readyCount,
+      staleCount,
+      missingCount,
+      currentVersion
+    };
+  }
+
   // src/index.ts
   function createId3(prefix) {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+  function buildEmbeddingClient(api, settings) {
+    if (!settings.embeddingsEnabled) return null;
+    if (!isProviderSupported(settings.embeddingProvider)) return null;
+    if (!settings.embeddingApiKey || !settings.embeddingBaseUrl || !settings.embeddingModel) return null;
+    return createEmbeddingClient(
+      {
+        provider: settings.embeddingProvider,
+        baseUrl: settings.embeddingBaseUrl,
+        apiKey: settings.embeddingApiKey,
+        model: settings.embeddingModel,
+        dimensions: settings.embeddingDimensions
+      },
+      (url, opts) => api.nativeFetch(url, opts)
+    );
+  }
+  function getVectorVersion(settings) {
+    if (!settings.embeddingsEnabled) return "";
+    return computeVectorVersion({
+      provider: settings.embeddingProvider,
+      baseUrl: settings.embeddingBaseUrl,
+      model: settings.embeddingModel,
+      dimensions: settings.embeddingDimensions
+    });
   }
   var LS_LAST_EXTRACTION_TS = "director:extraction:lastTs";
   var LS_LAST_PROCESSED_CURSOR = "director:extraction:cursor";
@@ -7946,8 +8547,14 @@ ${lines.join("\n").trimEnd()}`;
               tags: []
             });
           }
+          const settings = (await store.load()).settings;
+          const client = buildEmbeddingClient(api, settings);
+          const version = client ? getVectorVersion(settings) : "";
           for (const doc of docs) {
             await memdirStore.putDocument(doc);
+            if (client) {
+              await embedSingleDocument(doc, memdirStore, client, version, (msg) => api.log(msg));
+            }
           }
         },
         log(message) {
@@ -8079,9 +8686,30 @@ ${lines.join("\n").trimEnd()}`;
           log: (msg) => api.log(msg)
         };
         const recallAbort = new AbortController();
+        let queryVector;
+        let vectorVersion;
+        const settings = state.settings;
+        const embeddingClient = buildEmbeddingClient(api, settings);
+        if (embeddingClient) {
+          vectorVersion = getVectorVersion(settings);
+          try {
+            const embResult = await embeddingClient.embed(recentText.slice(0, 2e3));
+            if (embResult.ok) {
+              queryVector = embResult.vector;
+            }
+          } catch (err) {
+            api.log(`Query embedding failed: ${err}`);
+          }
+        }
+        const recallInput = {
+          docs: memDocs,
+          recentText,
+          memoryMdContent,
+          ...queryVector && vectorVersion ? { queryVector, vectorVersion } : {}
+        };
         const recallPromise = findRelevantMemories(
           recallDeps,
-          { docs: memDocs, recentText, memoryMdContent },
+          recallInput,
           recallCache,
           { signal: recallAbort.signal }
         );
@@ -8211,6 +8839,47 @@ ${lines.join("\n").trimEnd()}`;
         dashboardStore.loadDiagnostics = () => diagnostics.loadSnapshot();
         dashboardStore.checkRefreshGuard = () => refreshGuard.checkBlocked();
         dashboardStore.markMaintenance = (kind) => refreshGuard.markMaintenance(kind);
+        dashboardStore.refreshEmbeddings = async () => {
+          const currentState = await store.load();
+          const client = buildEmbeddingClient(api, currentState.settings);
+          if (!client) return 0;
+          const version = getVectorVersion(currentState.settings);
+          return embedDocuments({
+            memdirStore,
+            embeddingClient: client,
+            vectorVersion: version,
+            log: (msg) => api.log(msg)
+          });
+        };
+        dashboardStore.getEmbeddingCacheStatus = async () => {
+          const currentState = await store.load();
+          const docs = await memdirStore.listDocuments();
+          const version = getVectorVersion(currentState.settings);
+          const enabled = currentState.settings.embeddingsEnabled;
+          const supported = isProviderSupported(currentState.settings.embeddingProvider);
+          const status = computeEmbeddingCacheStatus(docs, version, enabled);
+          return { ...status, supported };
+        };
+        dashboardStore.getWorkbenchDocuments = async () => {
+          const docs = await memdirStore.listDocuments();
+          return docs.map((d) => ({
+            id: d.id,
+            type: d.type,
+            title: d.title,
+            source: d.source,
+            freshness: d.freshness,
+            updatedAt: d.updatedAt,
+            hasEmbedding: d.embedding != null
+          }));
+        };
+        dashboardStore.getMemoryMdPreview = async () => {
+          return memdirStore.getMemoryMd();
+        };
+        dashboardStore.getNotebookSnapshot = async () => {
+          const snap = sessionNotebook.snapshot();
+          const hasContent = Object.values(snap).some((v) => v.length > 0);
+          return hasContent ? snap : null;
+        };
         await openDashboard(api, dashboardStore);
       }
     });

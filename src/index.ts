@@ -629,6 +629,26 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
         const status = computeEmbeddingCacheStatus(docs, version, enabled)
         return { ...status, supported }
       }
+      dashboardStore.getWorkbenchDocuments = async () => {
+        const docs = await memdirStore.listDocuments()
+        return docs.map((d) => ({
+          id: d.id,
+          type: d.type,
+          title: d.title,
+          source: d.source,
+          freshness: d.freshness,
+          updatedAt: d.updatedAt,
+          hasEmbedding: d.embedding != null,
+        }))
+      }
+      dashboardStore.getMemoryMdPreview = async () => {
+        return memdirStore.getMemoryMd()
+      }
+      dashboardStore.getNotebookSnapshot = async () => {
+        const snap = sessionNotebook.snapshot()
+        const hasContent = Object.values(snap).some((v) => v.length > 0)
+        return hasContent ? snap : null
+      }
       await openDashboard(api, dashboardStore)
     }
   })
