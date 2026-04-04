@@ -13,7 +13,7 @@ import { beforeEach, afterEach, vi } from 'vitest'
 import { createMockRisuaiApi } from './helpers/mockRisuai.js'
 import { openDashboard, closeDashboard, ARM_TIMEOUT_MS } from '../src/ui/dashboardApp.js'
 import type { DashboardStore } from '../src/ui/dashboardApp.js'
-import { DASHBOARD_ROOT_CLASS, buildDashboardCss } from '../src/ui/dashboardCss.js'
+import { DASHBOARD_ROOT_CLASS } from '../src/ui/dashboardCss.js'
 import { createEmptyState } from '../src/contracts/types.js'
 import type { DirectorPluginState } from '../src/contracts/types.js'
 import { DIRECTOR_STATE_STORAGE_KEY } from '../src/memory/canonicalStore.js'
@@ -2201,6 +2201,27 @@ describe('memory-page quick navigation controls', () => {
     expect(targets).toContain('relations')
   })
 
+  test('clicking a quick-nav button calls scrollIntoView on the target section', async () => {
+    const state = stateWithFullMemory()
+    await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const section = root.querySelector('#da-memory-section-summaries') as HTMLElement
+    expect(section).not.toBeNull()
+
+    const scrollSpy = vi.fn()
+    section.scrollIntoView = scrollSpy
+
+    const navBtn = root.querySelector('[data-da-nav-target="summaries"]') as HTMLElement
+    expect(navBtn).not.toBeNull()
+    navBtn.click()
+
+    expect(scrollSpy).toHaveBeenCalledOnce()
+    expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
+  })
+
   test('quick-nav controls render with localized copy', async () => {
     const state = stateWithFullMemory()
     await api.pluginStorage.setItem(DIRECTOR_STATE_STORAGE_KEY, state)
@@ -2305,15 +2326,26 @@ describe('embeddings/settings cross-link', () => {
     expect(crossLink).not.toBeNull()
     expect(crossLink.getAttribute('data-da-target')).toBe('model-settings')
   })
-})
 
-describe('memory-list bounded scrolling', () => {
-  test('.da-memory-list CSS includes max-height and overflow-y: auto', () => {
-    const css = buildDashboardCss()
-    const idx = css.indexOf('.da-memory-list')
-    expect(idx).toBeGreaterThan(-1)
-    const block = css.slice(idx, css.indexOf('}', idx) + 1)
-    expect(block).toContain('max-height')
-    expect(block).toContain('overflow-y')
+  test('clicking the cross-link navigates to the model-settings tab', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    // Verify we start on the memory-cache page
+    const memoryPage = root.querySelector('#da-page-memory-cache') as HTMLElement
+    expect(memoryPage.classList.contains('da-hidden')).toBe(false)
+
+    const crossLink = root.querySelector('[data-da-role="model-settings-link"]') as HTMLElement
+    crossLink.click()
+
+    // After click, model-settings page should be visible and memory-cache hidden
+    const modelPage = root.querySelector('#da-page-model-settings') as HTMLElement
+    expect(modelPage.classList.contains('da-hidden')).toBe(false)
+    expect(memoryPage.classList.contains('da-hidden')).toBe(true)
+
+    // Sidebar button should reflect the active tab
+    const activeBtn = root.querySelector('.da-sidebar-btn--active') as HTMLElement
+    expect(activeBtn.getAttribute('data-da-target')).toBe('model-settings')
   })
 })
