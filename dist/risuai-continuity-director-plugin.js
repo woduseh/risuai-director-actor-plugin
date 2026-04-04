@@ -1,8 +1,8 @@
-//@name risuai-director-actor-plugin
-//@display-name RisuAI Director Actor
+//@name risuai-continuity-director-plugin
+//@display-name RisuAI Continuity Director
 //@api 3.0
-//@version 0.6.0
-//@description Director-Actor collaborative long-memory plugin for RisuAI Plugin V3
+//@version 0.6.1
+//@description Narrative guidance and long-memory continuity plugin for RisuAI Plugin V3
 
 "use strict";
 (() => {
@@ -2986,9 +2986,9 @@ ${lines.join("\n").trimEnd()}`;
   }
   var EN_CATALOG = {
     // Sidebar
-    "sidebar.kicker": "Director Actor",
-    "sidebar.title": "Director Dashboard",
-    "sidebar.subtitle": "Fullscreen control center for settings, models, prompts, memory, and profiles.",
+    "sidebar.kicker": "Continuity Director",
+    "sidebar.title": "Continuity Console",
+    "sidebar.subtitle": "Fullscreen control center for narrative guidance, models, prompts, memory continuity, and profiles.",
     // Sidebar group labels
     "sidebar.group.general": "General",
     "sidebar.group.tuning": "Prompt Tuning",
@@ -3001,8 +3001,8 @@ ${lines.join("\n").trimEnd()}`;
     "tab.memoryCache": "Memory & Cache",
     "tab.settingsProfiles": "Settings Profiles",
     // Toolbar
-    "toolbar.kicker": "Cupcake-style dashboard",
-    "toolbar.tagline": "Modern control surface for Director behavior, models, and memory.",
+    "toolbar.kicker": "Operator Console",
+    "toolbar.tagline": "Narrative guidance and persistent memory for long-form roleplay.",
     // Buttons
     "btn.save": "Save",
     "btn.saveChanges": "Save Changes",
@@ -3216,7 +3216,7 @@ ${lines.join("\n").trimEnd()}`;
     "promptPreset.customName": "Custom Preset {{n}}",
     "promptPreset.readOnlyHint": "Built-in presets are read-only. Clone the current preset to customize it.",
     // Fallback summary (settings.ts non-DOM path)
-    "fallback.header": "\u2500\u2500 Director Plugin Settings \u2500\u2500",
+    "fallback.header": "\u2500\u2500 Continuity Director Settings \u2500\u2500",
     "fallback.enabled": "Enabled",
     "fallback.assertiveness": "Assertiveness",
     "fallback.provider": "Provider",
@@ -3256,9 +3256,9 @@ ${lines.join("\n").trimEnd()}`;
   };
   var KO_CATALOG = {
     // Sidebar
-    "sidebar.kicker": "Director Actor",
-    "sidebar.title": "\uB514\uB809\uD130 \uB300\uC2DC\uBCF4\uB4DC",
-    "sidebar.subtitle": "\uC124\uC815, \uBAA8\uB378, \uD504\uB86C\uD504\uD2B8, \uBA54\uBAA8\uB9AC, \uD504\uB85C\uD544\uC744 \uC704\uD55C \uC804\uCCB4\uD654\uBA74 \uCEE8\uD2B8\uB864 \uC13C\uD130.",
+    "sidebar.kicker": "Continuity Director",
+    "sidebar.title": "\uC5F0\uC18D\uC131 \uCF58\uC194",
+    "sidebar.subtitle": "\uB0B4\uB7EC\uD2F0\uBE0C \uAC00\uC774\uB4DC, \uBAA8\uB378, \uD504\uB86C\uD504\uD2B8, \uBA54\uBAA8\uB9AC \uC5F0\uC18D\uC131, \uD504\uB85C\uD544\uC744 \uC704\uD55C \uC804\uCCB4\uD654\uBA74 \uCEE8\uD2B8\uB864 \uC13C\uD130.",
     // Sidebar group labels
     "sidebar.group.general": "\uC77C\uBC18",
     "sidebar.group.tuning": "\uD504\uB86C\uD504\uD2B8 \uD29C\uB2DD",
@@ -3271,8 +3271,8 @@ ${lines.join("\n").trimEnd()}`;
     "tab.memoryCache": "\uBA54\uBAA8\uB9AC & \uCE90\uC2DC",
     "tab.settingsProfiles": "\uC124\uC815 \uD504\uB85C\uD544",
     // Toolbar
-    "toolbar.kicker": "\uCEF5\uCF00\uC774\uD06C \uC2A4\uD0C0\uC77C \uB300\uC2DC\uBCF4\uB4DC",
-    "toolbar.tagline": "\uB514\uB809\uD130 \uD589\uB3D9, \uBAA8\uB378, \uBA54\uBAA8\uB9AC\uB97C \uC704\uD55C \uBAA8\uB358 \uCEE8\uD2B8\uB864 \uC11C\uD53C\uC2A4.",
+    "toolbar.kicker": "\uC624\uD37C\uB808\uC774\uD130 \uCF58\uC194",
+    "toolbar.tagline": "\uC7A5\uAE30 \uB864\uD50C\uB808\uC774\uB97C \uC704\uD55C \uB0B4\uB7EC\uD2F0\uBE0C \uAC00\uC774\uB4DC\uC640 \uC9C0\uC18D \uBA54\uBAA8\uB9AC.",
     // Buttons
     "btn.save": "\uC800\uC7A5",
     "btn.saveChanges": "\uBCC0\uACBD\uC0AC\uD56D \uC800\uC7A5",
@@ -3486,7 +3486,7 @@ ${lines.join("\n").trimEnd()}`;
     "promptPreset.customName": "\uCEE4\uC2A4\uD140 \uD504\uB9AC\uC14B {{n}}",
     "promptPreset.readOnlyHint": "\uB0B4\uC7A5 \uD504\uB9AC\uC14B\uC740 \uC77D\uAE30 \uC804\uC6A9\uC785\uB2C8\uB2E4. \uD604\uC7AC \uD504\uB9AC\uC14B\uC744 \uBCF5\uC81C\uD574 \uC0AC\uC6A9\uC790 \uC815\uC758\uD558\uC138\uC694.",
     // Fallback summary
-    "fallback.header": "\u2500\u2500 \uB514\uB809\uD130 \uD50C\uB7EC\uADF8\uC778 \uC124\uC815 \u2500\u2500",
+    "fallback.header": "\u2500\u2500 \uC5F0\uC18D\uC131 \uB514\uB809\uD130 \uC124\uC815 \u2500\u2500",
     "fallback.enabled": "\uD65C\uC131\uD654",
     "fallback.assertiveness": "\uC801\uADF9\uC131",
     "fallback.provider": "\uD504\uB85C\uBC14\uC774\uB354",
@@ -7826,8 +7826,8 @@ ${lines.join("\n").trimEnd()}`;
   var SETTING_NAME = "Director Settings";
   var BUTTON_NAME = "Director";
   var BUTTON_ICON = "\u{1F3AC}";
-  var SETTING_ID = "director-dashboard-settings";
-  var BUTTON_ID = "director-dashboard-button";
+  var SETTING_ID = "continuity-director-settings";
+  var BUTTON_ID = "continuity-director-button";
   function buildFallbackSummary(settings) {
     return [
       t("fallback.header"),
@@ -8469,7 +8469,7 @@ ${doc.description}`;
     next.director.cooldown.untilTs = null;
     return next;
   }
-  async function registerDirectorActorPlugin(api) {
+  async function registerContinuityDirectorPlugin(api) {
     const scopeResolution = await resolveScopeStorageKey(api);
     const memdirScopeKey = scopeResolution.isFallback ? "default" : scopeResolution.storageKey;
     const memdirStore = new MemdirStore(api.pluginStorage, memdirScopeKey);
@@ -8898,7 +8898,7 @@ ${doc.description}`;
       await diagnostics.recordRecovery("error", err instanceof Error ? err.message : String(err));
     }
   }
-  var index_default = registerDirectorActorPlugin;
+  var index_default = registerContinuityDirectorPlugin;
   function isRisuaiApiLike(value) {
     if (value == null || typeof value !== "object") return false;
     const candidate = value;
@@ -8911,8 +8911,8 @@ ${doc.description}`;
   ];
   for (const candidate of autoApiCandidates) {
     if (!isRisuaiApiLike(candidate)) continue;
-    void registerDirectorActorPlugin(candidate).catch((error) => {
-      console.error("RisuAI Director Actor Plugin bootstrap failed:", error);
+    void registerContinuityDirectorPlugin(candidate).catch((error) => {
+      console.error("RisuAI Continuity Director Plugin bootstrap failed:", error);
     });
     break;
   }

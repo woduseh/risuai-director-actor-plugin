@@ -12,8 +12,8 @@ export interface PluginUiOptions {
 const SETTING_NAME = 'Director Settings'
 const BUTTON_NAME = 'Director'
 const BUTTON_ICON = '🎬'
-const SETTING_ID = 'director-dashboard-settings'
-const BUTTON_ID = 'director-dashboard-button'
+const SETTING_ID = 'continuity-director-settings'
+const BUTTON_ID = 'continuity-director-button'
 
 function buildFallbackSummary(settings: DirectorSettings): string {
   return [

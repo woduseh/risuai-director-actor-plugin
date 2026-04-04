@@ -37,7 +37,7 @@ describe('buildDashboardMarkup', () => {
       expect(markup).toContain(`id="da-page-${tab.id}"`)
     }
 
-    expect(markup).toContain('Director Dashboard')
+    expect(markup).toContain('Continuity Console')
     expect(markup).toContain('Settings Profiles')
     expect(markup).toContain('Test Connection')
     expect(markup).toContain('Memory & Cache')

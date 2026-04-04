@@ -34,13 +34,13 @@ describe('i18n module', () => {
 
   test('t() returns en string for a known key when locale is en', () => {
     setLocale('en')
-    expect(t('sidebar.title')).toBe('Director Dashboard')
+    expect(t('sidebar.title')).toBe('Continuity Console')
   })
 
   test('t() returns ko string when locale is ko', () => {
     setLocale('ko')
     const value = t('sidebar.title')
-    expect(value).not.toBe('Director Dashboard')
+    expect(value).not.toBe('Continuity Console')
     expect(value.length).toBeGreaterThan(0)
   })
 

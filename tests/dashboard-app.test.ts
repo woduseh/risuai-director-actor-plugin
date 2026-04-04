@@ -63,7 +63,7 @@ describe('openDashboard', () => {
     expect(root).not.toBeNull()
     expect(root?.querySelector('.da-sidebar')).not.toBeNull()
     expect(root?.querySelector('.da-content')).not.toBeNull()
-    expect(root?.innerHTML).toContain('Director Dashboard')
+    expect(root?.innerHTML).toContain('Continuity Console')
   })
 
   test('renders the general page content by default', async () => {

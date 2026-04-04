@@ -7,10 +7,10 @@ const packageJson = JSON.parse(
 )
 
 const banner = createPluginBanner({
-  name: 'risuai-director-actor-plugin',
-  displayName: 'RisuAI Director Actor',
+  name: 'risuai-continuity-director-plugin',
+  displayName: 'RisuAI Continuity Director',
   version: packageJson.version,
-  description: 'Director-Actor collaborative long-memory plugin for RisuAI Plugin V3'
+  description: 'Narrative guidance and long-memory continuity plugin for RisuAI Plugin V3'
 })
 
 await rm(new URL('./dist', import.meta.url), { recursive: true, force: true })
@@ -18,7 +18,7 @@ await mkdir(new URL('./dist', import.meta.url), { recursive: true })
 
 await build({
   entryPoints: ['src/index.ts'],
-  outfile: 'dist/risuai-director-actor-plugin.js',
+  outfile: 'dist/risuai-continuity-director-plugin.js',
   bundle: true,
   format: 'iife',
   platform: 'browser',

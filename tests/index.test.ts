@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import { registerDirectorActorPlugin } from '../src/index.js'
+import { registerContinuityDirectorPlugin } from '../src/index.js'
 import { createEmptyState } from '../src/contracts/types.js'
 import { DIRECTOR_STATE_STORAGE_KEY } from '../src/memory/canonicalStore.js'
 import {
@@ -14,7 +14,7 @@ import {
 } from '../src/runtime/diagnostics.js'
 import { refreshGuardStorageKey } from '../src/runtime/refreshGuard.js'
 
-describe('registerDirectorActorPlugin', () => {
+describe('registerContinuityDirectorPlugin', () => {
   test('wires the live plugin, injects via author-note routing, and persists memory updates', async () => {
     const api = createMockRisuaiApi()
 
@@ -51,7 +51,7 @@ describe('registerDirectorActorPlugin', () => {
       })
     })
 
-    await registerDirectorActorPlugin(api)
+    await registerContinuityDirectorPlugin(api)
 
     const before = await api.runBeforeRequest([
       { role: 'system', content: 'Main prompt rules.' },
@@ -113,7 +113,7 @@ describe('registerDirectorActorPlugin', () => {
 
     const spy = vi.spyOn(api, 'runLLMModel')
 
-    await registerDirectorActorPlugin(api)
+    await registerContinuityDirectorPlugin(api)
     await api.runBeforeRequest([
       { role: 'system', content: 'Main prompt rules.' },
       { role: 'user', content: 'Continue the scene.' },
@@ -156,7 +156,7 @@ describe('registerDirectorActorPlugin', () => {
       }),
     })
 
-    await registerDirectorActorPlugin(api)
+    await registerContinuityDirectorPlugin(api)
 
     await api.runBeforeRequest([
       { role: 'system', content: 'Rules.' },
@@ -220,7 +220,7 @@ describe('registerDirectorActorPlugin', () => {
       }),
     })
 
-    await registerDirectorActorPlugin(api)
+    await registerContinuityDirectorPlugin(api)
 
     await api.runBeforeRequest([
       { role: 'system', content: 'Rules.' },
@@ -273,7 +273,7 @@ describe('registerDirectorActorPlugin', () => {
       result: 'Invalid model configuration',
     })
 
-    await registerDirectorActorPlugin(api)
+    await registerContinuityDirectorPlugin(api)
 
     await api.runBeforeRequest([
       { role: 'system', content: 'Rules.' },
@@ -326,7 +326,7 @@ describe('composition root wiring', () => {
       }),
     })
 
-    await registerDirectorActorPlugin(api)
+    await registerContinuityDirectorPlugin(api)
 
     // After registration, memdir store should contain migrated documents
     // The default scope uses 'default' as the memdir scope key
@@ -354,7 +354,7 @@ describe('composition root wiring', () => {
       }),
     })
 
-    await registerDirectorActorPlugin(api)
+    await registerContinuityDirectorPlugin(api)
 
     // The plugin should have registered a setting callback for the dashboard
     const settingEntry = api.__registerCalls.find((c) => c.kind === 'setting')
@@ -387,7 +387,7 @@ describe('composition root wiring', () => {
     })
 
     const beforeTs = Date.now()
-    await registerDirectorActorPlugin(api)
+    await registerContinuityDirectorPlugin(api)
 
     // The scope resolves to DIRECTOR_STATE_STORAGE_KEY in tests (fallback)
     const guardKey = refreshGuardStorageKey(DIRECTOR_STATE_STORAGE_KEY)
@@ -415,7 +415,7 @@ describe('composition root wiring', () => {
       }),
     })
 
-    await registerDirectorActorPlugin(api)
+    await registerContinuityDirectorPlugin(api)
     const beforeShutdown = Date.now()
     await api.runUnload()
 
@@ -445,7 +445,7 @@ describe('composition root wiring', () => {
       }),
     })
 
-    await registerDirectorActorPlugin(api)
+    await registerContinuityDirectorPlugin(api)
 
     // Make safeLocalStorage.setItem throw so markShutdown fails
     const guardKey = refreshGuardStorageKey(DIRECTOR_STATE_STORAGE_KEY)

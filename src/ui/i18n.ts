@@ -29,9 +29,9 @@ export function setLocale(locale: DashboardLocale): void {
 
 const EN_CATALOG = {
   // Sidebar
-  'sidebar.kicker': 'Director Actor',
-  'sidebar.title': 'Director Dashboard',
-  'sidebar.subtitle': 'Fullscreen control center for settings, models, prompts, memory, and profiles.',
+  'sidebar.kicker': 'Continuity Director',
+  'sidebar.title': 'Continuity Console',
+  'sidebar.subtitle': 'Fullscreen control center for narrative guidance, models, prompts, memory continuity, and profiles.',
 
   // Sidebar group labels
   'sidebar.group.general': 'General',
@@ -47,8 +47,8 @@ const EN_CATALOG = {
   'tab.settingsProfiles': 'Settings Profiles',
 
   // Toolbar
-  'toolbar.kicker': 'Cupcake-style dashboard',
-  'toolbar.tagline': 'Modern control surface for Director behavior, models, and memory.',
+  'toolbar.kicker': 'Operator Console',
+  'toolbar.tagline': 'Narrative guidance and persistent memory for long-form roleplay.',
 
   // Buttons
   'btn.save': 'Save',
@@ -285,7 +285,7 @@ const EN_CATALOG = {
   'promptPreset.readOnlyHint': 'Built-in presets are read-only. Clone the current preset to customize it.',
 
   // Fallback summary (settings.ts non-DOM path)
-  'fallback.header': '── Director Plugin Settings ──',
+  'fallback.header': '── Continuity Director Settings ──',
   'fallback.enabled': 'Enabled',
   'fallback.assertiveness': 'Assertiveness',
   'fallback.provider': 'Provider',
@@ -334,9 +334,9 @@ const EN_CATALOG = {
 
 const KO_CATALOG: Record<TranslationKey, string> = {
   // Sidebar
-  'sidebar.kicker': 'Director Actor',
-  'sidebar.title': '디렉터 대시보드',
-  'sidebar.subtitle': '설정, 모델, 프롬프트, 메모리, 프로필을 위한 전체화면 컨트롤 센터.',
+  'sidebar.kicker': 'Continuity Director',
+  'sidebar.title': '연속성 콘솔',
+  'sidebar.subtitle': '내러티브 가이드, 모델, 프롬프트, 메모리 연속성, 프로필을 위한 전체화면 컨트롤 센터.',
 
   // Sidebar group labels
   'sidebar.group.general': '일반',
@@ -352,8 +352,8 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'tab.settingsProfiles': '설정 프로필',
 
   // Toolbar
-  'toolbar.kicker': '컵케이크 스타일 대시보드',
-  'toolbar.tagline': '디렉터 행동, 모델, 메모리를 위한 모던 컨트롤 서피스.',
+  'toolbar.kicker': '오퍼레이터 콘솔',
+  'toolbar.tagline': '장기 롤플레이를 위한 내러티브 가이드와 지속 메모리.',
 
   // Buttons
   'btn.save': '저장',
@@ -590,7 +590,7 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'promptPreset.readOnlyHint': '내장 프리셋은 읽기 전용입니다. 현재 프리셋을 복제해 사용자 정의하세요.',
 
   // Fallback summary
-  'fallback.header': '── 디렉터 플러그인 설정 ──',
+  'fallback.header': '── 연속성 디렉터 설정 ──',
   'fallback.enabled': '활성화',
   'fallback.assertiveness': '적극성',
   'fallback.provider': '프로바이더',

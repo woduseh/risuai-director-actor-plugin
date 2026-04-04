@@ -1,6 +1,6 @@
 {
-  "name": "risuai-director-actor-plugin",
-  "version": "0.6.0",
+  "name": "risuai-continuity-director-plugin",
+  "version": "0.6.1",
   "private": true,
   "type": "module",
   "scripts": {

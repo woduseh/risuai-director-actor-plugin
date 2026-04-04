@@ -172,7 +172,7 @@ function recordDirectorSuccess(
   return next
 }
 
-export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void> {
+export async function registerContinuityDirectorPlugin(api: RisuaiApi): Promise<void> {
   const scopeResolution = await resolveScopeStorageKey(api)
 
   // Create memdir store first so CanonicalStore can migrate into it on load
@@ -671,7 +671,7 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
   }
 }
 
-export default registerDirectorActorPlugin
+export default registerContinuityDirectorPlugin
 
 function isRisuaiApiLike(value: unknown): value is RisuaiApi {
   if (value == null || typeof value !== 'object') return false
@@ -692,8 +692,8 @@ const autoApiCandidates = [
 
 for (const candidate of autoApiCandidates) {
   if (!isRisuaiApiLike(candidate)) continue
-  void registerDirectorActorPlugin(candidate).catch((error) => {
-    console.error('RisuAI Director Actor Plugin bootstrap failed:', error)
+  void registerContinuityDirectorPlugin(candidate).catch((error) => {
+    console.error('RisuAI Continuity Director Plugin bootstrap failed:', error)
   })
   break
 }

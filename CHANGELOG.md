@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1] - 2026-04-04
+
+### Changed
+
+- Rebranded the user-facing plugin and dashboard naming from **Director Actor** to **Continuity Director** for clearer continuity-and-guidance positioning
+- Replaced the dashboard's whimsical **Cupcake-style dashboard** copy with **Operator Console** language and refreshed the bilingual console subtitle/tagline text
+
 ## [0.6.0] - 2026-04-04
 
 ### Added
@@ -67,7 +74,7 @@
 - Stage-aware recovery record tracks `post-response-pending` and `housekeeping-pending` stages
 - `attemptStartupRecovery()` replays incomplete turns on next plugin startup without double-applying canonical memory updates
 - `bootstrapPlugin` accepts optional `turnRecovery` option for crash-safe turn processing
-- Startup recovery wired in `registerDirectorActorPlugin` composition root
+- Startup recovery wired in `registerContinuityDirectorPlugin` composition root
 - 16 focused tests covering persist/advance/clear lifecycle, stage-aware replay, idempotent recovery, and failure retention
 - Reusable JSON repair layer for LLM outputs shared by director validation, recall parsing, and dream consolidation
 - Focused JSON repair coverage for fenced/prose-wrapped payloads, smart quotes, trailing commas, and repaired recall arrays

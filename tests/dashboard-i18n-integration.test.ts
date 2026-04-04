@@ -48,8 +48,8 @@ describe('dashboard i18n integration', () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
 
-    // Should initially show English title
-    expect(root.innerHTML).toContain('Director Dashboard')
+    // Should initially show the English title
+    expect(root.innerHTML).toContain('Continuity Console')
 
     // Click the language switch
     const langBtn = root.querySelector('[data-da-action="switch-lang"]') as HTMLElement
@@ -59,7 +59,7 @@ describe('dashboard i18n integration', () => {
 
     // After switch, the dashboard should re-render with Korean text
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    expect(updatedRoot.innerHTML).not.toContain('Director Dashboard')
+    expect(updatedRoot.innerHTML).not.toContain('Continuity Console')
     expect(getLocale()).toBe('ko')
   })
 
@@ -73,7 +73,7 @@ describe('dashboard i18n integration', () => {
     await new Promise((r) => { setTimeout(r, 50) })
 
     const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    expect(updatedRoot.innerHTML).toContain('Director Dashboard')
+    expect(updatedRoot.innerHTML).toContain('Continuity Console')
     expect(getLocale()).toBe('en')
   })
 
@@ -97,8 +97,8 @@ describe('dashboard i18n integration', () => {
 
     expect(getLocale()).toBe('ko')
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    // Should render in Korean (no "Director Dashboard" English text)
-    expect(root.innerHTML).not.toContain('Director Dashboard')
+    // Should render in Korean (no "Continuity Console" English text)
+    expect(root.innerHTML).not.toContain('Continuity Console')
   })
 
   test('persisted locale survives close and reopen', async () => {
@@ -114,7 +114,7 @@ describe('dashboard i18n integration', () => {
     await openDashboard(api, store)
     expect(getLocale()).toBe('ko')
     const newRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    expect(newRoot.innerHTML).not.toContain('Director Dashboard')
+    expect(newRoot.innerHTML).not.toContain('Continuity Console')
   })
 
   // ── Localized tab labels ───────────────────────────────────────────

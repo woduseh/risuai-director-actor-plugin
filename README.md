@@ -1,6 +1,6 @@
-# RisuAI Director Actor Plugin
+# RisuAI Continuity Director Plugin
 
-Director-Actor collaborative long-memory plugin for **RisuAI Plugin V3**.
+Narrative guidance and long-memory continuity plugin for **RisuAI Plugin V3**.
 
 ## What it does
 
@@ -72,7 +72,7 @@ The dashboard Memory Operations card provides operator controls:
 - `src/adapter/` — prompt topology classification and injection
 - `src/memory/` — canonical store, memdir store, extraction worker, recall, session notebook, auto-dream consolidation, migration
 - `src/ui/` — fullscreen dashboard registration, state, model adapters, and rendering
-- `dist/risuai-director-actor-plugin.js` — bundled Plugin V3 output
+- `dist/risuai-continuity-director-plugin.js` — bundled Plugin V3 output
 
 ## Commands
 
@@ -88,7 +88,7 @@ npm run build
 `npm run build` emits the single-file plugin bundle to:
 
 ```text
-dist/risuai-director-actor-plugin.js
+dist/risuai-continuity-director-plugin.js
 ```
 
 ## Notes
