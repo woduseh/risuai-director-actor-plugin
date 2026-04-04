@@ -16,6 +16,7 @@ import {
   type CanonicalMemory,
   type DirectorState,
 } from '../src/contracts/types.js'
+import { COPILOT_API_BASE } from '../src/provider/copilotClient.js'
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -334,6 +335,134 @@ describe('DirectorService', () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.update.turnScore).toBe(0.78)
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // Copilot provider integration
+  // -----------------------------------------------------------------------
+
+  describe('Copilot provider', () => {
+    const COPILOT_EXCHANGE_RESPONSE = {
+      token: 'tid=copilot-test-token',
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+    }
+
+    function copilotSettings(
+      overrides?: Partial<DirectorSettings>,
+    ): DirectorSettings {
+      return {
+        ...DEFAULT_DIRECTOR_SETTINGS,
+        directorProvider: 'copilot',
+        directorCopilotToken: 'ghp_test123',
+        directorModel: 'gpt-4.1',
+        ...overrides,
+      }
+    }
+
+    test('uses nativeFetch for Copilot instead of runLLMModel', async () => {
+      const api = createMockRisuaiApi()
+      api.enqueueNativeFetchJson(COPILOT_EXCHANGE_RESPONSE)
+      api.enqueueNativeFetchJson({
+        choices: [{ message: { content: VALID_BRIEF_JSON } }],
+      })
+
+      const spy = vi.spyOn(api, 'runLLMModel')
+      const svc = createDirectorService(api, copilotSettings())
+      const result = await svc.preRequest(makeDirectorContext())
+
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.brief.confidence).toBe(0.85)
+      expect(spy).not.toHaveBeenCalled()
+    })
+
+    test('preserves host runLLMModel path for non-Copilot providers', async () => {
+      const api = createMockRisuaiApi()
+      api.enqueueLlmResult({ type: 'success', result: VALID_BRIEF_JSON })
+
+      const spy = vi.spyOn(api, 'runLLMModel')
+      const svc = createDirectorService(api, {
+        ...DEFAULT_DIRECTOR_SETTINGS,
+        directorProvider: 'openai',
+      })
+      await svc.preRequest(makeDirectorContext())
+
+      expect(spy).toHaveBeenCalledOnce()
+    })
+
+    test('returns ok:false when Copilot inference fails', async () => {
+      const api = createMockRisuaiApi()
+      api.enqueueNativeFetchJson(COPILOT_EXCHANGE_RESPONSE)
+      api.enqueueNativeFetchJson({ error: 'Rate limited' }, { status: 429 })
+
+      const svc = createDirectorService(api, copilotSettings())
+      const result = await svc.preRequest(makeDirectorContext())
+
+      expect(result.ok).toBe(false)
+      if (result.ok) return
+      expect(result.error).toContain('LLM call failed')
+    })
+
+    test('Copilot postResponse works with responses API for gpt-5.4', async () => {
+      const api = createMockRisuaiApi()
+      api.enqueueNativeFetchJson(COPILOT_EXCHANGE_RESPONSE)
+      api.enqueueNativeFetchJson({
+        output: [
+          {
+            type: 'message',
+            content: [
+              { type: 'output_text', text: VALID_UPDATE_JSON },
+            ],
+          },
+        ],
+      })
+
+      const svc = createDirectorService(
+        api,
+        copilotSettings({ directorModel: 'gpt-5.4' }),
+      )
+      const result = await svc.postResponse(makePostReviewContext())
+
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.update.status).toBe('pass')
+      expect(result.update.turnScore).toBe(0.78)
+    })
+
+    test('Copilot preRequest works with Claude via /v1/messages', async () => {
+      const api = createMockRisuaiApi()
+      api.enqueueNativeFetchJson(COPILOT_EXCHANGE_RESPONSE)
+      api.enqueueNativeFetchJson({
+        content: [{ type: 'text', text: VALID_BRIEF_JSON }],
+      })
+
+      const svc = createDirectorService(
+        api,
+        copilotSettings({ directorModel: 'claude-sonnet-4-6' }),
+      )
+      const result = await svc.preRequest(makeDirectorContext())
+
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.brief.confidence).toBe(0.85)
+    })
+
+    test('handles markdown-fenced JSON from Copilot inference', async () => {
+      const api = createMockRisuaiApi()
+      api.enqueueNativeFetchJson(COPILOT_EXCHANGE_RESPONSE)
+      api.enqueueNativeFetchJson({
+        choices: [
+          { message: { content: '```json\n' + VALID_BRIEF_JSON + '\n```' } },
+        ],
+      })
+
+      const svc = createDirectorService(api, copilotSettings())
+      const result = await svc.preRequest(makeDirectorContext())
+
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.brief.confidence).toBe(0.85)
     })
   })
 })

@@ -113,20 +113,121 @@ describe('dashboardModel', () => {
     expect(result.models).toContain('gpt-4.1-mini')
   })
 
-  test('returns curated models for oauth-based providers without requiring an API key', async () => {
+  test('returns error for Copilot connection test when token is not configured', async () => {
     const api = createMockRisuaiApi()
 
     const result = await testDirectorConnection(
       api,
       normalizePersistedSettings({
         directorProvider: 'copilot',
-        directorApiKey: '',
-        directorBaseUrl: 'https://api.githubcopilot.com/v1'
+        directorCopilotToken: '',
+      })
+    )
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toMatch(/token/i)
+  })
+
+  test('tests Copilot connection with real auth check when token is set', async () => {
+    const api = createMockRisuaiApi()
+    // Token exchange
+    api.enqueueNativeFetchJson({
+      token: 'tid=test-copilot-token',
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+    })
+    // Model list
+    api.enqueueNativeFetchJson({
+      data: [{ id: 'gpt-4.1' }, { id: 'gpt-5.4' }],
+    })
+
+    const result = await testDirectorConnection(
+      api,
+      normalizePersistedSettings({
+        directorProvider: 'copilot',
+        directorCopilotToken: 'ghp_test123',
       })
     )
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.models).toEqual(expect.arrayContaining(['gpt-4.1']))
+    expect(result.models).toContain('gpt-4.1')
+  })
+
+  test('returns error for Copilot connection test when auth fails', async () => {
+    const api = createMockRisuaiApi()
+    // Token exchange fails hard
+    api.enqueueNativeFetchJson({ message: 'Server error' }, { status: 500 })
+
+    const result = await testDirectorConnection(
+      api,
+      normalizePersistedSettings({
+        directorProvider: 'copilot',
+        directorCopilotToken: 'ghp_bad_token',
+      })
+    )
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toBeTruthy()
+  })
+
+  test('loads Copilot models dynamically when token is configured', async () => {
+    const api = createMockRisuaiApi()
+    // Token exchange
+    api.enqueueNativeFetchJson({
+      token: 'tid=test-copilot-token',
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+    })
+    // Model list
+    api.enqueueNativeFetchJson({
+      data: [
+        { id: 'gpt-5.4' },
+        { id: 'gpt-4.1' },
+        { id: 'claude-sonnet-4-6' },
+      ],
+    })
+
+    const models = await loadProviderModels(
+      api,
+      normalizePersistedSettings({
+        directorProvider: 'copilot',
+        directorCopilotToken: 'ghp_test123',
+      })
+    )
+
+    expect(models).toEqual(['claude-sonnet-4-6', 'gpt-4.1', 'gpt-5.4'])
+  })
+
+  test('falls back to curated Copilot models when token is not set', async () => {
+    const api = createMockRisuaiApi()
+
+    const models = await loadProviderModels(
+      api,
+      normalizePersistedSettings({
+        directorProvider: 'copilot',
+        directorCopilotToken: '',
+      })
+    )
+
+    expect(models.length).toBeGreaterThan(0)
+    expect(models).toEqual(expect.arrayContaining(['gpt-4.1']))
+  })
+
+  test('falls back to curated Copilot models when listing fails', async () => {
+    const api = createMockRisuaiApi()
+    // Token exchange fails
+    api.enqueueNativeFetchJson({ message: 'error' }, { status: 500 })
+
+    const models = await loadProviderModels(
+      api,
+      normalizePersistedSettings({
+        directorProvider: 'copilot',
+        directorCopilotToken: 'ghp_test123',
+      })
+    )
+
+    expect(models.length).toBeGreaterThan(0)
+    expect(models).toEqual(expect.arrayContaining(['gpt-4.1']))
   })
 })

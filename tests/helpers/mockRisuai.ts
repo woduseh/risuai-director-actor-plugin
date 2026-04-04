@@ -153,7 +153,7 @@ export function createMockRisuaiApi(): MockRisuaiApi {
     async runLLMModel(_input: RunLLMModelInput): Promise<RunLLMModelResult> {
       return llmQueue.shift() ?? { type: 'fail', result: 'Mock LLM queue exhausted' }
     },
-    async nativeFetch(): Promise<Response> {
+    async nativeFetch(_url: string, _init?: RequestInit): Promise<Response> {
       return nativeFetchQueue.shift() ?? new Response('Mock fetch queue exhausted', {
         status: 500
       })

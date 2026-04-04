@@ -3,10 +3,11 @@ import type {
   MemoryUpdate,
   SceneBrief,
 } from '../contracts/types.js'
-import type { RisuaiApi } from '../contracts/risuai.js'
+import type { RisuaiApi, RunLLMModelResult } from '../contracts/risuai.js'
 import type { DirectorContext, PostReviewContext } from './prompt.js'
 import { buildPreRequestPrompt, buildPostResponsePrompt } from './prompt.js'
 import { parseSceneBrief, parseMemoryUpdate, ModelPayloadError } from './validator.js'
+import { createCopilotClient, type CopilotClient } from '../provider/copilotClient.js'
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -50,15 +51,39 @@ export function createDirectorService(
   api: RisuaiApi,
   settings: DirectorSettings,
 ): DirectorService {
+  const copilotClient: CopilotClient | null =
+    settings.directorProvider === 'copilot'
+      ? createCopilotClient((url, init) => api.nativeFetch(url, init))
+      : null
+
+  async function callLlm(
+    messages: Array<{ role: string; content: string }>,
+  ): Promise<RunLLMModelResult> {
+    if (copilotClient) {
+      try {
+        const text = await copilotClient.complete(
+          settings.directorCopilotToken,
+          settings.directorModel,
+          messages,
+        )
+        return { type: 'success', result: text }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        return { type: 'fail', result: msg }
+      }
+    }
+
+    return api.runLLMModel({
+      messages: messages as Parameters<typeof api.runLLMModel>[0]['messages'],
+      staticModel: settings.directorModel,
+      mode: settings.directorMode,
+    })
+  }
+
   return {
     async preRequest(ctx: DirectorContext): Promise<PreRequestResult> {
       const messages = buildPreRequestPrompt(ctx)
-
-      const llmResult = await api.runLLMModel({
-        messages,
-        staticModel: settings.directorModel,
-        mode: settings.directorMode,
-      })
+      const llmResult = await callLlm(messages)
 
       if (llmResult.type === 'fail') {
         return { ok: false, error: `LLM call failed: ${llmResult.result}` }
@@ -79,12 +104,7 @@ export function createDirectorService(
 
     async postResponse(ctx: PostReviewContext): Promise<PostResponseResult> {
       const messages = buildPostResponsePrompt(ctx)
-
-      const llmResult = await api.runLLMModel({
-        messages,
-        staticModel: settings.directorModel,
-        mode: settings.directorMode,
-      })
+      const llmResult = await callLlm(messages)
 
       if (llmResult.type === 'fail') {
         return { ok: false, error: `LLM call failed: ${llmResult.result}` }

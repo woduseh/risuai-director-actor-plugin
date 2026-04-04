@@ -469,16 +469,240 @@
     return result;
   }
 
+  // src/provider/copilotClient.ts
+  var GITHUB_TOKEN_EXCHANGE_URL = "https://api.github.com/copilot_internal/v2/token";
+  var COPILOT_API_BASE = "https://api.githubcopilot.com";
+  var TOKEN_EXPIRY_SAFETY_MARGIN_MS = 5 * 60 * 1e3;
+  var DIRECT_TOKEN_TTL_MS = 30 * 60 * 1e3;
+  var COMMON_HEADERS = {
+    "User-Agent": "GitHubCopilotChat/1.0",
+    "Editor-Version": "vscode/1.99.0",
+    "Editor-Plugin-Version": "copilot-chat/1.0"
+  };
+  var EXCHANGE_HEADERS_BASE = {
+    Accept: "application/json",
+    "X-GitHub-Api-Version": "2024-12-15",
+    ...COMMON_HEADERS
+  };
+  var INFERENCE_HEADERS_BASE = {
+    "Content-Type": "application/json",
+    "Copilot-Integration-Id": "vscode-chat",
+    "X-Github-Api-Version": "2025-10-01",
+    "X-Initiator": "user",
+    "X-Interaction-Type": "conversation-panel",
+    "X-Vscode-User-Agent-Library-Version": "electron-fetch",
+    ...COMMON_HEADERS
+  };
+  var ANTHROPIC_MAX_TOKENS = 4096;
+  var RESPONSES_API_PATTERN = /^gpt-5\.4/;
+  var ANTHROPIC_PATTERN = /^claude-/;
+  function resolveCopilotEndpoint(model) {
+    if (RESPONSES_API_PATTERN.test(model)) {
+      return { path: "/responses", format: "responses" };
+    }
+    if (ANTHROPIC_PATTERN.test(model)) {
+      return { path: "/v1/messages", format: "anthropic" };
+    }
+    return { path: "/chat/completions", format: "chat" };
+  }
+  function parseChatCompletion(json) {
+    const choices = json.choices;
+    const content = choices?.[0]?.message?.content;
+    if (typeof content !== "string") {
+      throw new Error(
+        "Unexpected chat completion response: missing choices[0].message.content"
+      );
+    }
+    return content;
+  }
+  function parseResponsesApi(json) {
+    if (typeof json.output_text === "string") {
+      return json.output_text;
+    }
+    const output = json.output;
+    if (!Array.isArray(output)) {
+      throw new Error(
+        "Unexpected responses API response: missing output array"
+      );
+    }
+    const parts = [];
+    for (const item of output) {
+      if (Array.isArray(item.content)) {
+        for (const block of item.content) {
+          if (typeof block.text === "string") {
+            parts.push(block.text);
+          }
+        }
+      }
+    }
+    if (parts.length === 0) {
+      throw new Error(
+        "Unexpected responses API response: no text content in output"
+      );
+    }
+    return parts.join("");
+  }
+  function parseAnthropicMessages(json) {
+    const content = json.content;
+    if (!Array.isArray(content)) {
+      throw new Error("Unexpected anthropic response: missing content array");
+    }
+    const parts = [];
+    for (const block of content) {
+      if (block.type === "text" && typeof block.text === "string") {
+        parts.push(block.text);
+      }
+    }
+    if (parts.length === 0) {
+      throw new Error("Unexpected anthropic response: no text content");
+    }
+    return parts.join("");
+  }
+  function createCopilotClient(fetchFn) {
+    let cached = null;
+    let inflight = null;
+    async function exchangeToken(inputToken) {
+      const response = await fetchFn(GITHUB_TOKEN_EXCHANGE_URL, {
+        method: "GET",
+        headers: {
+          ...EXCHANGE_HEADERS_BASE,
+          Authorization: `Bearer ${inputToken}`
+        }
+      });
+      if (response.status === 401 || response.status === 403) {
+        cached = {
+          token: inputToken,
+          expiresAt: Date.now() + DIRECT_TOKEN_TTL_MS
+        };
+        return inputToken;
+      }
+      if (!response.ok) {
+        throw new Error(
+          `Copilot token exchange failed (HTTP ${String(response.status)})`
+        );
+      }
+      const data = await response.json();
+      if (typeof data.token !== "string" || typeof data.expires_at !== "number") {
+        throw new Error(
+          "Copilot token exchange returned unexpected response"
+        );
+      }
+      cached = {
+        token: data.token,
+        expiresAt: data.expires_at * 1e3 - TOKEN_EXPIRY_SAFETY_MARGIN_MS
+      };
+      return data.token;
+    }
+    async function getApiToken(inputToken) {
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.token;
+      }
+      if (inflight) return inflight;
+      inflight = exchangeToken(inputToken).finally(() => {
+        inflight = null;
+      });
+      return inflight;
+    }
+    function inferenceHeaders(apiToken) {
+      return {
+        ...INFERENCE_HEADERS_BASE,
+        Authorization: `Bearer ${apiToken}`
+      };
+    }
+    async function listModels(inputToken) {
+      const apiToken = await getApiToken(inputToken);
+      const response = await fetchFn(`${COPILOT_API_BASE}/models`, {
+        method: "GET",
+        headers: inferenceHeaders(apiToken)
+      });
+      if (!response.ok) {
+        throw new Error(
+          `Copilot model listing failed (HTTP ${String(response.status)})`
+        );
+      }
+      const json = await response.json();
+      const ids = (json.data ?? []).map((entry) => entry.id);
+      return [...new Set(ids)].sort();
+    }
+    async function complete(inputToken, model, messages) {
+      const apiToken = await getApiToken(inputToken);
+      const { path, format } = resolveCopilotEndpoint(model);
+      let body;
+      if (format === "anthropic") {
+        const systemParts = messages.filter((m) => m.role === "system").map((m) => m.content);
+        const nonSystem = messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role, content: m.content }));
+        body = JSON.stringify({
+          model,
+          ...systemParts.length > 0 ? { system: systemParts.join("\n") } : {},
+          messages: nonSystem,
+          max_tokens: ANTHROPIC_MAX_TOKENS
+        });
+      } else if (format === "responses") {
+        body = JSON.stringify({
+          model,
+          input: messages.map((m) => ({ role: m.role, content: m.content })),
+          stream: false
+        });
+      } else {
+        body = JSON.stringify({
+          model,
+          messages: messages.map((m) => ({
+            role: m.role,
+            content: m.content
+          })),
+          stream: false
+        });
+      }
+      const response = await fetchFn(`${COPILOT_API_BASE}${path}`, {
+        method: "POST",
+        headers: inferenceHeaders(apiToken),
+        body
+      });
+      if (!response.ok) {
+        throw new Error(
+          `Copilot inference failed (HTTP ${String(response.status)})`
+        );
+      }
+      const json = await response.json();
+      switch (format) {
+        case "chat":
+          return parseChatCompletion(json);
+        case "responses":
+          return parseResponsesApi(json);
+        case "anthropic":
+          return parseAnthropicMessages(json);
+      }
+    }
+    return { getApiToken, listModels, complete };
+  }
+
   // src/director/service.ts
   function createDirectorService(api, settings) {
+    const copilotClient = settings.directorProvider === "copilot" ? createCopilotClient((url, init) => api.nativeFetch(url, init)) : null;
+    async function callLlm(messages) {
+      if (copilotClient) {
+        try {
+          const text = await copilotClient.complete(
+            settings.directorCopilotToken,
+            settings.directorModel,
+            messages
+          );
+          return { type: "success", result: text };
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return { type: "fail", result: msg };
+        }
+      }
+      return api.runLLMModel({
+        messages,
+        staticModel: settings.directorModel,
+        mode: settings.directorMode
+      });
+    }
     return {
       async preRequest(ctx) {
         const messages = buildPreRequestPrompt(ctx);
-        const llmResult = await api.runLLMModel({
-          messages,
-          staticModel: settings.directorModel,
-          mode: settings.directorMode
-        });
+        const llmResult = await callLlm(messages);
         if (llmResult.type === "fail") {
           return { ok: false, error: `LLM call failed: ${llmResult.result}` };
         }
@@ -493,11 +717,7 @@
       },
       async postResponse(ctx) {
         const messages = buildPostResponsePrompt(ctx);
-        const llmResult = await api.runLLMModel({
-          messages,
-          staticModel: settings.directorModel,
-          mode: settings.directorMode
-        });
+        const llmResult = await callLlm(messages);
         if (llmResult.type === "fail") {
           return { ok: false, error: `LLM call failed: ${llmResult.result}` };
         }
@@ -530,6 +750,10 @@
     directorProvider: "openai",
     directorBaseUrl: "https://api.openai.com/v1",
     directorApiKey: "",
+    directorCopilotToken: "",
+    directorVertexJsonKey: "",
+    directorVertexProject: "",
+    directorVertexLocation: "",
     directorModel: "gpt-4.1-mini",
     directorMode: "otherAx",
     briefTokenCap: 320,
@@ -543,6 +767,9 @@
     embeddingProvider: "openai",
     embeddingBaseUrl: "https://api.openai.com/v1",
     embeddingApiKey: "",
+    embeddingVertexJsonKey: "",
+    embeddingVertexProject: "",
+    embeddingVertexLocation: "",
     embeddingModel: "text-embedding-3-small",
     embeddingDimensions: 1536,
     promptPresetId: "builtin-default",
@@ -3105,6 +3332,12 @@ ${lines.join("\n").trimEnd()}`;
     "label.apiKey": "API Key",
     "label.model": "Model",
     "label.customModelId": "Custom Model ID",
+    "label.copilotToken": "Copilot Token",
+    "help.copilotToken": "Personal access token or GitHub Copilot token for authentication.",
+    "label.vertexJsonKey": "Service Account JSON Key",
+    "label.vertexProject": "Project ID",
+    "label.vertexLocation": "Location",
+    "help.vertexJsonKey": "Paste the full JSON key for the Vertex AI service account.",
     "option.openai": "OpenAI",
     "option.anthropic": "Anthropic",
     "option.google": "Google",
@@ -3119,6 +3352,9 @@ ${lines.join("\n").trimEnd()}`;
     "label.embeddingApiKey": "Embedding API Key",
     "label.embeddingModel": "Embedding Model",
     "label.embeddingDimensions": "Embedding Dimensions",
+    "label.embeddingVertexJsonKey": "Embedding Service Account JSON Key",
+    "label.embeddingVertexProject": "Embedding Project ID",
+    "label.embeddingVertexLocation": "Embedding Location",
     "option.embedding.voyageai": "Voyage AI",
     "option.embedding.openai": "OpenAI",
     "option.embedding.google": "Google",
@@ -3375,6 +3611,12 @@ ${lines.join("\n").trimEnd()}`;
     "label.apiKey": "API \uD0A4",
     "label.model": "\uBAA8\uB378",
     "label.customModelId": "\uC0AC\uC6A9\uC790 \uC9C0\uC815 \uBAA8\uB378 ID",
+    "label.copilotToken": "Copilot \uD1A0\uD070",
+    "help.copilotToken": "\uC778\uC99D\uC744 \uC704\uD55C \uAC1C\uC778 \uC561\uC138\uC2A4 \uD1A0\uD070 \uB610\uB294 GitHub Copilot \uD1A0\uD070\uC785\uB2C8\uB2E4.",
+    "label.vertexJsonKey": "\uC11C\uBE44\uC2A4 \uACC4\uC815 JSON \uD0A4",
+    "label.vertexProject": "\uD504\uB85C\uC81D\uD2B8 ID",
+    "label.vertexLocation": "\uC704\uCE58",
+    "help.vertexJsonKey": "Vertex AI \uC11C\uBE44\uC2A4 \uACC4\uC815\uC758 \uC804\uCCB4 JSON \uD0A4\uB97C \uBD99\uC5EC\uB123\uC73C\uC138\uC694.",
     "option.openai": "OpenAI",
     "option.anthropic": "Anthropic",
     "option.google": "Google",
@@ -3389,6 +3631,9 @@ ${lines.join("\n").trimEnd()}`;
     "label.embeddingApiKey": "\uC784\uBCA0\uB529 API \uD0A4",
     "label.embeddingModel": "\uC784\uBCA0\uB529 \uBAA8\uB378",
     "label.embeddingDimensions": "\uC784\uBCA0\uB529 \uCC28\uC6D0",
+    "label.embeddingVertexJsonKey": "\uC784\uBCA0\uB529 \uC11C\uBE44\uC2A4 \uACC4\uC815 JSON \uD0A4",
+    "label.embeddingVertexProject": "\uC784\uBCA0\uB529 \uD504\uB85C\uC81D\uD2B8 ID",
+    "label.embeddingVertexLocation": "\uC784\uBCA0\uB529 \uC704\uCE58",
     "option.embedding.voyageai": "Voyage AI",
     "option.embedding.openai": "OpenAI",
     "option.embedding.google": "Google",
@@ -5394,9 +5639,60 @@ ${lines.join("\n").trimEnd()}`;
       authMode: "api-key"
     };
   }
+  var STANDARD_DIRECTOR_AUTH = [
+    { field: "directorBaseUrl", labelKey: "label.baseUrl", inputType: "text" },
+    { field: "directorApiKey", labelKey: "label.apiKey", inputType: "password" }
+  ];
+  var COPILOT_DIRECTOR_AUTH = [
+    { field: "directorCopilotToken", labelKey: "label.copilotToken", inputType: "password", helpKey: "help.copilotToken" }
+  ];
+  var VERTEX_DIRECTOR_AUTH = [
+    { field: "directorVertexJsonKey", labelKey: "label.vertexJsonKey", inputType: "textarea", helpKey: "help.vertexJsonKey" },
+    { field: "directorVertexProject", labelKey: "label.vertexProject", inputType: "text" },
+    { field: "directorVertexLocation", labelKey: "label.vertexLocation", inputType: "text" }
+  ];
+  function directorAuthFields(provider) {
+    switch (provider) {
+      case "copilot":
+        return COPILOT_DIRECTOR_AUTH;
+      case "vertex":
+        return VERTEX_DIRECTOR_AUTH;
+      default:
+        return STANDARD_DIRECTOR_AUTH;
+    }
+  }
+  var STANDARD_EMBEDDING_AUTH = [
+    { field: "embeddingBaseUrl", labelKey: "label.embeddingBaseUrl", inputType: "text" },
+    { field: "embeddingApiKey", labelKey: "label.embeddingApiKey", inputType: "password" }
+  ];
+  var VERTEX_EMBEDDING_AUTH = [
+    { field: "embeddingVertexJsonKey", labelKey: "label.embeddingVertexJsonKey", inputType: "textarea" },
+    { field: "embeddingVertexProject", labelKey: "label.embeddingVertexProject", inputType: "text" },
+    { field: "embeddingVertexLocation", labelKey: "label.embeddingVertexLocation", inputType: "text" }
+  ];
+  function embeddingAuthFields(provider) {
+    switch (provider) {
+      case "vertex":
+        return VERTEX_EMBEDDING_AUTH;
+      default:
+        return STANDARD_EMBEDDING_AUTH;
+    }
+  }
   async function loadProviderModels(api, settings) {
     const provider = settings.directorProvider;
     const catalogEntry = DIRECTOR_PROVIDER_CATALOG.find((e) => e.id === provider);
+    if (provider === "copilot") {
+      if (settings.directorCopilotToken) {
+        try {
+          const client = createCopilotClient(
+            (url, init) => api.nativeFetch(url, init)
+          );
+          return await client.listModels(settings.directorCopilotToken);
+        } catch {
+        }
+      }
+      return [...catalogEntry?.curatedModels ?? []];
+    }
     if (catalogEntry?.manualModelOnly) {
       return [...catalogEntry.curatedModels];
     }
@@ -5428,6 +5724,16 @@ ${lines.join("\n").trimEnd()}`;
     try {
       const provider = settings.directorProvider;
       const catalogEntry = DIRECTOR_PROVIDER_CATALOG.find((e) => e.id === provider);
+      if (provider === "copilot") {
+        if (!settings.directorCopilotToken) {
+          return { ok: false, error: "Copilot token is not configured" };
+        }
+        const client = createCopilotClient(
+          (url, init) => api.nativeFetch(url, init)
+        );
+        const models2 = await client.listModels(settings.directorCopilotToken);
+        return { ok: true, models: models2 };
+      }
       if (catalogEntry?.manualModelOnly) {
         if (catalogEntry.authMode === "api-key" && !settings.directorApiKey) {
           return { ok: false, error: "API key is not configured" };
@@ -5671,6 +5977,24 @@ ${lines.join("\n").trimEnd()}`;
         </section>
       </div>`;
   }
+  function renderAuthFieldHtml(desc, settings) {
+    const rawValue = String(settings[desc.field] ?? "");
+    const labelText = escapeXml(t(desc.labelKey));
+    const helpEl = desc.helpKey ? `
+              <small class="cd-field-help">${escapeXml(t(desc.helpKey))}</small>` : "";
+    if (desc.inputType === "textarea") {
+      return `
+            <label class="cd-label">
+              <span class="cd-label-text">${labelText}</span>
+              <textarea class="cd-input" data-cd-field="${desc.field}" rows="4">${escapeXml(rawValue)}</textarea>${helpEl}
+            </label>`;
+    }
+    return `
+            <label class="cd-label">
+              <span class="cd-label-text">${labelText}</span>
+              <input type="${desc.inputType}" class="cd-input" data-cd-field="${desc.field}" value="${escapeXml(rawValue)}" />${helpEl}
+            </label>`;
+  }
   function buildModelSettingsPage(input) {
     const { settings, modelOptions } = input;
     const modelOptionEls = modelOptions.map(
@@ -5679,6 +6003,8 @@ ${lines.join("\n").trimEnd()}`;
     const embeddingProviderOptionEls = EMBEDDING_PROVIDER_CATALOG.map(
       (entry) => `<option value="${entry.id}"${settings.embeddingProvider === entry.id ? " selected" : ""}>${embeddingProviderLabel(entry.id)}</option>`
     ).join("");
+    const directorAuthFieldEls = directorAuthFields(settings.directorProvider).map((desc) => renderAuthFieldHtml(desc, settings)).join("");
+    const embeddingAuthFieldEls = embeddingAuthFields(settings.embeddingProvider).map((desc) => renderAuthFieldHtml(desc, settings)).join("");
     const embeddingSection = `
         <section class="cd-card">
           <div class="cd-card-header">
@@ -5691,15 +6017,7 @@ ${lines.join("\n").trimEnd()}`;
             <label class="cd-label">
               <span class="cd-label-text">${t("label.embeddingProvider")}</span>
               <select class="cd-select" data-cd-field="embeddingProvider">${embeddingProviderOptionEls}</select>
-            </label>
-            <label class="cd-label">
-              <span class="cd-label-text">${t("label.embeddingBaseUrl")}</span>
-              <input type="text" class="cd-input" data-cd-field="embeddingBaseUrl" value="${escapeXml(settings.embeddingBaseUrl)}" />
-            </label>
-            <label class="cd-label">
-              <span class="cd-label-text">${t("label.embeddingApiKey")}</span>
-              <input type="password" class="cd-input" data-cd-field="embeddingApiKey" value="${escapeXml(settings.embeddingApiKey)}" />
-            </label>
+            </label>${embeddingAuthFieldEls}
             <label class="cd-label">
               <span class="cd-label-text">${t("label.embeddingModel")}</span>
               <input type="text" class="cd-input" data-cd-field="embeddingModel" value="${escapeXml(settings.embeddingModel)}" />
@@ -5731,16 +6049,7 @@ ${lines.join("\n").trimEnd()}`;
                 <option value="custom"${settings.directorProvider === "custom" ? " selected" : ""}>${t("option.custom")}</option>
               </select>
             </label>
-            <div class="cd-split">
-              <label class="cd-label">
-                <span class="cd-label-text">${t("label.baseUrl")}</span>
-                <input type="text" class="cd-input" data-cd-field="directorBaseUrl" value="${escapeXml(settings.directorBaseUrl)}" />
-              </label>
-              <label class="cd-label">
-                <span class="cd-label-text">${t("label.apiKey")}</span>
-                <input type="password" class="cd-input" data-cd-field="directorApiKey" value="${escapeXml(settings.directorApiKey)}" />
-              </label>
-            </div>
+            <div class="cd-split" data-cd-role="director-auth-fields">${directorAuthFieldEls}</div>
             <label class="cd-label">
               <span class="cd-label-text">${t("label.model")}</span>
               <select class="cd-select" data-cd-field="directorModel">${modelOptionEls}</select>
@@ -6858,6 +7167,9 @@ ${lines.join("\n").trimEnd()}`;
         if (el instanceof HTMLInputElement && (el.type === "text" || el.type === "password" || el.type === "number")) {
           this.handleFieldChange(el);
         }
+        if (el instanceof HTMLTextAreaElement && el.hasAttribute("data-cd-field")) {
+          this.handleFieldChange(el);
+        }
       });
     }
     handleTabClick(target) {
@@ -7029,6 +7341,8 @@ ${lines.join("\n").trimEnd()}`;
         }
       } else if (el instanceof HTMLSelectElement) {
         value = el.value;
+      } else if (el instanceof HTMLTextAreaElement) {
+        value = el.value;
       } else {
         return;
       }
@@ -7050,13 +7364,7 @@ ${lines.join("\n").trimEnd()}`;
           ])
         );
         this.markDirty();
-        const baseUrlInput = this.root?.querySelector(
-          '[data-cd-field="directorBaseUrl"]'
-        );
-        if (baseUrlInput) {
-          baseUrlInput.value = providerDefaults.baseUrl;
-        }
-        this.updateModelSelectDom();
+        this.fullReRender();
       }
       if (key === "embeddingProvider") {
         const providerDefaults = resolveEmbeddingDefaults(
@@ -7064,12 +7372,7 @@ ${lines.join("\n").trimEnd()}`;
         );
         this.draft.settings.embeddingBaseUrl = providerDefaults.baseUrl;
         this.markDirty();
-        const baseUrlInput = this.root?.querySelector(
-          '[data-cd-field="embeddingBaseUrl"]'
-        );
-        if (baseUrlInput) {
-          baseUrlInput.value = providerDefaults.baseUrl;
-        }
+        this.fullReRender();
       }
     }
     // ── Save / Discard ────────────────────────────────────────────────────

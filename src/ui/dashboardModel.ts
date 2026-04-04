@@ -5,6 +5,7 @@ import type {
   EmbeddingProvider,
 } from '../contracts/types.js'
 import type { TranslationKey } from './i18n.js'
+import { createCopilotClient } from '../provider/copilotClient.js'
 
 /* ------------------------------------------------------------------ */
 /*  Provider catalog                                                  */
@@ -275,6 +276,21 @@ export async function loadProviderModels(
   const provider = settings.directorProvider
   const catalogEntry = DIRECTOR_PROVIDER_CATALOG.find((e) => e.id === provider)
 
+  // Copilot: try dynamic model listing when a token is configured
+  if (provider === 'copilot') {
+    if (settings.directorCopilotToken) {
+      try {
+        const client = createCopilotClient(
+          (url, init) => api.nativeFetch(url, init),
+        )
+        return await client.listModels(settings.directorCopilotToken)
+      } catch {
+        // Fall through to curated list
+      }
+    }
+    return [...(catalogEntry?.curatedModels ?? [])]
+  }
+
   // Providers that are manualModelOnly return curated list
   if (catalogEntry?.manualModelOnly) {
     return [...(catalogEntry.curatedModels)]
@@ -332,6 +348,18 @@ export async function testDirectorConnection(
   try {
     const provider = settings.directorProvider
     const catalogEntry = DIRECTOR_PROVIDER_CATALOG.find((e) => e.id === provider)
+
+    // Copilot: real auth check via token exchange + model listing
+    if (provider === 'copilot') {
+      if (!settings.directorCopilotToken) {
+        return { ok: false, error: 'Copilot token is not configured' }
+      }
+      const client = createCopilotClient(
+        (url, init) => api.nativeFetch(url, init),
+      )
+      const models = await client.listModels(settings.directorCopilotToken)
+      return { ok: true, models }
+    }
 
     if (catalogEntry?.manualModelOnly) {
       if (catalogEntry.authMode === 'api-key' && !settings.directorApiKey) {
