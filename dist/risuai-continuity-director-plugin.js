@@ -729,6 +729,25 @@
   var DIRECTOR_STATE_STORAGE_KEY = "continuity-director-state";
   var MEMDIR_MIGRATION_MARKER_NS = "continuity-director-memdir:migrated";
   var MEMDIR_SCHEMA_VERSION = 2;
+  function normalizeActorResidue(raw) {
+    let patched = false;
+    if (raw.actor != null && raw.character == null) {
+      raw.character = raw.actor;
+      delete raw.actor;
+      patched = true;
+    }
+    const mem = raw.memory;
+    if (mem != null && Array.isArray(mem.sceneLedger)) {
+      for (const entry of mem.sceneLedger) {
+        if (entry.actorText != null && entry.responseText == null) {
+          entry.responseText = entry.actorText;
+          delete entry.actorText;
+          patched = true;
+        }
+      }
+    }
+    return patched;
+  }
   function patchLegacyMemory(state) {
     if (!Array.isArray(state.memory.continuityFacts)) {
       if (Array.isArray(state.director.continuityFacts) && state.director.continuityFacts.length > 0) {
@@ -801,6 +820,9 @@
     }
     async load() {
       const raw = await this.storage.getItem(this.storageKey);
+      if (raw != null && typeof raw === "object") {
+        normalizeActorResidue(raw);
+      }
       if (isValidState(raw)) {
         this.current = structuredClone(raw);
         patchLegacyMemory(this.current);
@@ -811,6 +833,9 @@
         const legacy = await this.storage.getItem(
           DIRECTOR_STATE_STORAGE_KEY
         );
+        if (legacy != null && typeof legacy === "object") {
+          normalizeActorResidue(legacy);
+        }
         if (isValidState(legacy)) {
           this.current = structuredClone(legacy);
           patchLegacyMemory(this.current);

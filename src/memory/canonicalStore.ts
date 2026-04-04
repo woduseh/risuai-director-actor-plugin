@@ -27,6 +27,43 @@ export interface MemdirMigrationMarker {
 }
 
 /**
+ * Normalize property names from state blobs persisted under the current
+ * continuity-director namespace *before* the actor→character rename
+ * (commit ee894cc). Without this, {@link isValidState} rejects the blob
+ * (it checks for `.character`, not `.actor`) and load() silently falls
+ * back to an empty state, discarding user data.
+ *
+ * Scope: only the two renamed properties are patched — no old namespace
+ * fallback or broad compatibility shim.
+ *
+ * Mutates `raw` in place and returns `true` if any rename was applied.
+ */
+export function normalizeActorResidue(raw: Record<string, unknown>): boolean {
+  let patched = false
+
+  // Top-level .actor → .character
+  if (raw.actor != null && raw.character == null) {
+    raw.character = raw.actor
+    delete raw.actor
+    patched = true
+  }
+
+  // memory.sceneLedger[].actorText → .responseText
+  const mem = raw.memory as Record<string, unknown> | undefined
+  if (mem != null && Array.isArray(mem.sceneLedger)) {
+    for (const entry of mem.sceneLedger as Record<string, unknown>[]) {
+      if (entry.actorText != null && entry.responseText == null) {
+        entry.responseText = entry.actorText
+        delete entry.actorText
+        patched = true
+      }
+    }
+  }
+
+  return patched
+}
+
+/**
  * Patch fields that may be absent in states persisted before the
  * continuityFacts migration. Mutates `state` in place.
  */
@@ -150,6 +187,13 @@ export class CanonicalStore {
 
   async load(): Promise<DirectorPluginState> {
     const raw = await this.storage.getItem<unknown>(this.storageKey)
+
+    // Normalize actor→character residue saved under this namespace
+    // before the property rename, so isValidState does not reject it.
+    if (raw != null && typeof raw === 'object') {
+      normalizeActorResidue(raw as Record<string, unknown>)
+    }
+
     if (isValidState(raw)) {
       this.current = structuredClone(raw)
       patchLegacyMemory(this.current)
@@ -162,6 +206,11 @@ export class CanonicalStore {
       const legacy = await this.storage.getItem<unknown>(
         DIRECTOR_STATE_STORAGE_KEY,
       )
+
+      if (legacy != null && typeof legacy === 'object') {
+        normalizeActorResidue(legacy as Record<string, unknown>)
+      }
+
       if (isValidState(legacy)) {
         this.current = structuredClone(legacy)
         patchLegacyMemory(this.current)
