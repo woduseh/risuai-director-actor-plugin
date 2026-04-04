@@ -50,7 +50,11 @@ import { t, setLocale, getLocale } from './i18n.js'
 import type { DashboardLocale } from './i18n.js'
 import { BUILTIN_PROMPT_PRESET_ID } from '../director/prompt.js'
 import { backfillCurrentChat } from '../director/backfill.js'
-import { DIRECTOR_STATE_STORAGE_KEY, patchLegacyMemory } from '../memory/canonicalStore.js'
+import {
+  DIRECTOR_STATE_STORAGE_KEY,
+  normalizeActorResidue,
+  patchLegacyMemory,
+} from '../memory/canonicalStore.js'
 import { resolveScopeStorageKey } from '../memory/scopeResolver.js'
 import { createDefaultDiagnosticsSnapshot } from '../runtime/diagnostics.js'
 import { deleteSummary, deleteContinuityFact, upsertSummary, upsertContinuityFact, deleteWorldFact, upsertWorldFact, deleteEntity, upsertEntity, deleteRelation, upsertRelation } from '../memory/memoryMutations.js'
@@ -239,6 +243,7 @@ async function readCanonicalState(store: DashboardStore): Promise<DirectorPlugin
     return createEmptyState()
   }
   const state = structuredClone(raw)
+  normalizeActorResidue(state as unknown as Record<string, unknown>)
   patchLegacyMemory(state)
   return state
 }

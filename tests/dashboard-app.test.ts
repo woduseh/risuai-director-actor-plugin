@@ -639,6 +639,74 @@ describe('openDashboard', () => {
     expect(memoryPage.textContent).toContain('The key is hidden under the altar.')
   })
 
+  test('backfill-current-chat normalizes pre-rename fallback state before applying corrections', async () => {
+    const host = api as unknown as Record<string, unknown>
+    host.getCharacter = async () => ({ chaId: 'cha-1', name: 'Hero' })
+    host.getCurrentCharacterIndex = async () => 0
+    host.getCurrentChatIndex = async () => 0
+    host.getChatFromIndex = async () => ({
+      id: 'chat-1',
+      name: 'Session 1',
+      lastDate: 1,
+      messages: [
+        { role: 'user', content: 'Stay focused on the altar.' },
+        { role: 'assistant', content: 'Understood.' },
+      ],
+    })
+
+    api.enqueueLlmResult({
+      type: 'success',
+      result: JSON.stringify({
+        status: 'pass',
+        turnScore: 0.8,
+        violations: [],
+        correction: 'Keep the altar clue in focus.',
+        durableFacts: ['The altar clue still matters.'],
+        sceneDelta: { scenePhase: 'turn', activeCharacters: ['A'] },
+        entityUpdates: [],
+        relationUpdates: [],
+        memoryOps: [],
+      }),
+    })
+
+    const scopeKey = (await resolveScopeStorageKey(api)).storageKey
+    const legacyState = createEmptyState({ projectKey: 'legacy-dashboard' }) as unknown as Record<string, unknown>
+    legacyState.actor = legacyState.character
+    delete legacyState.character
+    const legacyMemory = legacyState.memory as Record<string, unknown>
+    legacyMemory.sceneLedger = [
+      {
+        id: 'ledger-1',
+        sceneId: 'scene-0',
+        userText: 'Stay focused on the altar.',
+        actorText: 'Understood.',
+        createdAt: 1,
+      },
+    ]
+    await api.pluginStorage.setItem(scopeKey, legacyState)
+
+    store = { storage: api.pluginStorage, stateStorageKey: scopeKey }
+
+    await openDashboard(api, store)
+    let root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    const backfillBtn = root.querySelector('[data-cd-action="backfill-current-chat"]') as HTMLElement
+    expect(backfillBtn).not.toBeNull()
+    backfillBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const memoryPage = root.querySelector('#cd-page-memory-cache') as HTMLElement
+    expect(memoryPage.textContent).toContain('The altar clue still matters.')
+
+    const persisted = await api.pluginStorage.getItem<Record<string, unknown>>(scopeKey)
+    expect(persisted?.character).toBeDefined()
+    expect(persisted?.actor).toBeUndefined()
+  })
+
   test('regenerate-current-chat replaces existing scoped memory with freshly extracted memory', async () => {
     const host = api as unknown as Record<string, unknown>
     host.getCharacter = async () => ({ chaId: 'cha-1', name: 'Hero' })

@@ -6308,6 +6308,7 @@ ${lines.join("\n").trimEnd()}`;
       return createEmptyState();
     }
     const state = structuredClone(raw);
+    normalizeActorResidue(state);
     patchLegacyMemory(state);
     return state;
   }
@@ -8841,6 +8842,7 @@ ${doc.description}`;
           (mutator) => store.writeFirst(mutator),
           store.stateStorageKey
         );
+        dashboardStore.readCanonical = async () => store.load();
         dashboardStore.forceExtract = async () => {
           await extractionWorker.flush();
         };

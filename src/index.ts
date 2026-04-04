@@ -587,6 +587,7 @@ export async function registerContinuityDirectorPlugin(api: RisuaiApi): Promise<
         (mutator) => store.writeFirst(mutator),
         store.stateStorageKey,
       )
+      dashboardStore.readCanonical = async () => store.load()
       dashboardStore.forceExtract = async () => {
         await extractionWorker.flush()
       }
