@@ -974,6 +974,12 @@ class DashboardInstance {
       ) {
         this.handleFieldChange(el)
       }
+      if (
+        el instanceof HTMLTextAreaElement &&
+        el.hasAttribute('data-cd-field')
+      ) {
+        this.handleFieldChange(el)
+      }
     })
   }
 
@@ -1164,6 +1170,8 @@ class DashboardInstance {
       }
     } else if (el instanceof HTMLSelectElement) {
       value = el.value
+    } else if (el instanceof HTMLTextAreaElement) {
+      value = el.value
     } else {
       return
     }
@@ -1174,7 +1182,7 @@ class DashboardInstance {
       this.markDirty()
     }
 
-    // Provider change → apply base URL defaults
+    // Provider change → apply base URL defaults + re-render auth fields
     if (key === 'directorProvider') {
       const providerDefaults = resolveProviderDefaults(
         value as DirectorSettings['directorProvider'],
@@ -1187,14 +1195,7 @@ class DashboardInstance {
         ]),
       )
       this.markDirty()
-
-      const baseUrlInput = this.root?.querySelector(
-        '[data-cd-field="directorBaseUrl"]',
-      ) as HTMLInputElement | null
-      if (baseUrlInput) {
-        baseUrlInput.value = providerDefaults.baseUrl
-      }
-      this.updateModelSelectDom()
+      this.fullReRender()
     }
 
     if (key === 'embeddingProvider') {
@@ -1203,13 +1204,7 @@ class DashboardInstance {
       )
       this.draft.settings.embeddingBaseUrl = providerDefaults.baseUrl
       this.markDirty()
-
-      const baseUrlInput = this.root?.querySelector(
-        '[data-cd-field="embeddingBaseUrl"]',
-      ) as HTMLInputElement | null
-      if (baseUrlInput) {
-        baseUrlInput.value = providerDefaults.baseUrl
-      }
+      this.fullReRender()
     }
   }
 

@@ -201,21 +201,30 @@ describe('openDashboard', () => {
     const modelBtn = root.querySelector('[data-cd-target="model-settings"]') as HTMLElement
     modelBtn.click()
 
-    const updatedRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
-    const providerSelect = updatedRoot.querySelector(
+    let current = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const providerSelect = current.querySelector(
       '[data-cd-field="embeddingProvider"]',
     ) as HTMLSelectElement
-    const baseUrlInput = updatedRoot.querySelector(
-      '[data-cd-field="embeddingBaseUrl"]',
-    ) as HTMLInputElement
 
     providerSelect.value = 'voyageai'
     providerSelect.dispatchEvent(new Event('change', { bubbles: true }))
-    expect(baseUrlInput.value).toBe('https://api.voyageai.com/v1')
+    // Re-query after fullReRender
+    current = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const baseUrlAfterVoyage = current.querySelector(
+      '[data-cd-field="embeddingBaseUrl"]',
+    ) as HTMLInputElement
+    expect(baseUrlAfterVoyage.value).toBe('https://api.voyageai.com/v1')
 
-    providerSelect.value = 'custom'
-    providerSelect.dispatchEvent(new Event('change', { bubbles: true }))
-    expect(baseUrlInput.value).toBe('')
+    const providerSelect2 = current.querySelector(
+      '[data-cd-field="embeddingProvider"]',
+    ) as HTMLSelectElement
+    providerSelect2.value = 'custom'
+    providerSelect2.dispatchEvent(new Event('change', { bubbles: true }))
+    current = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const baseUrlAfterCustom = current.querySelector(
+      '[data-cd-field="embeddingBaseUrl"]',
+    ) as HTMLInputElement
+    expect(baseUrlAfterCustom.value).toBe('')
   })
 
   test('opening the dashboard with a copilot provider loads curated model options without an API key', async () => {

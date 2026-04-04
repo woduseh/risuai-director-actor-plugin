@@ -3,7 +3,7 @@ import type { ProfileManifest, MemoryOpsStatus, EmbeddingCacheStatus } from './d
 import type { MemoryWorkbenchInput } from './memoryWorkbenchDom.js'
 import { buildMemoryWorkbench } from './memoryWorkbenchDom.js'
 import { DASHBOARD_ROOT_CLASS } from './dashboardCss.js'
-import { EMBEDDING_PROVIDER_CATALOG } from './dashboardModel.js'
+import { EMBEDDING_PROVIDER_CATALOG, directorAuthFields, embeddingAuthFields } from './dashboardModel.js'
 import { resolveSelectedPromptPreset } from './dashboardState.js'
 import { BUILTIN_PROMPT_PRESET_ID } from '../director/prompt.js'
 import {
@@ -302,6 +302,42 @@ function buildModelSettingsPage(input: DashboardMarkupInput): string {
     )
     .join('')
 
+  const directorAuthFieldEls = directorAuthFields(settings.directorProvider)
+    .map((desc) => {
+      const rawValue = String(settings[desc.field] ?? '')
+      if (desc.inputType === 'textarea') {
+        return `
+            <label class="cd-label">
+              <span class="cd-label-text">${t(desc.labelKey)}</span>
+              <textarea class="cd-input" data-cd-field="${desc.field}" rows="4">${escapeXml(rawValue)}</textarea>
+            </label>`
+      }
+      return `
+            <label class="cd-label">
+              <span class="cd-label-text">${t(desc.labelKey)}</span>
+              <input type="${desc.inputType}" class="cd-input" data-cd-field="${desc.field}" value="${escapeXml(rawValue)}" />
+            </label>`
+    })
+    .join('')
+
+  const embeddingAuthFieldEls = embeddingAuthFields(settings.embeddingProvider)
+    .map((desc) => {
+      const rawValue = String(settings[desc.field] ?? '')
+      if (desc.inputType === 'textarea') {
+        return `
+            <label class="cd-label">
+              <span class="cd-label-text">${t(desc.labelKey)}</span>
+              <textarea class="cd-input" data-cd-field="${desc.field}" rows="4">${escapeXml(rawValue)}</textarea>
+            </label>`
+      }
+      return `
+            <label class="cd-label">
+              <span class="cd-label-text">${t(desc.labelKey)}</span>
+              <input type="${desc.inputType}" class="cd-input" data-cd-field="${desc.field}" value="${escapeXml(rawValue)}" />
+            </label>`
+    })
+    .join('')
+
   const embeddingSection = `
         <section class="cd-card">
           <div class="cd-card-header">
@@ -314,15 +350,7 @@ function buildModelSettingsPage(input: DashboardMarkupInput): string {
             <label class="cd-label">
               <span class="cd-label-text">${t('label.embeddingProvider')}</span>
               <select class="cd-select" data-cd-field="embeddingProvider">${embeddingProviderOptionEls}</select>
-            </label>
-            <label class="cd-label">
-              <span class="cd-label-text">${t('label.embeddingBaseUrl')}</span>
-              <input type="text" class="cd-input" data-cd-field="embeddingBaseUrl" value="${escapeXml(settings.embeddingBaseUrl)}" />
-            </label>
-            <label class="cd-label">
-              <span class="cd-label-text">${t('label.embeddingApiKey')}</span>
-              <input type="password" class="cd-input" data-cd-field="embeddingApiKey" value="${escapeXml(settings.embeddingApiKey)}" />
-            </label>
+            </label>${embeddingAuthFieldEls}
             <label class="cd-label">
               <span class="cd-label-text">${t('label.embeddingModel')}</span>
               <input type="text" class="cd-input" data-cd-field="embeddingModel" value="${escapeXml(settings.embeddingModel)}" />
@@ -355,16 +383,7 @@ function buildModelSettingsPage(input: DashboardMarkupInput): string {
                 <option value="custom"${settings.directorProvider === 'custom' ? ' selected' : ''}>${t('option.custom')}</option>
               </select>
             </label>
-            <div class="cd-split">
-              <label class="cd-label">
-                <span class="cd-label-text">${t('label.baseUrl')}</span>
-                <input type="text" class="cd-input" data-cd-field="directorBaseUrl" value="${escapeXml(settings.directorBaseUrl)}" />
-              </label>
-              <label class="cd-label">
-                <span class="cd-label-text">${t('label.apiKey')}</span>
-                <input type="password" class="cd-input" data-cd-field="directorApiKey" value="${escapeXml(settings.directorApiKey)}" />
-              </label>
-            </div>
+            <div class="cd-split" data-cd-role="director-auth-fields">${directorAuthFieldEls}</div>
             <label class="cd-label">
               <span class="cd-label-text">${t('label.model')}</span>
               <select class="cd-select" data-cd-field="directorModel">${modelOptionEls}</select>

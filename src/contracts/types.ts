@@ -131,6 +131,10 @@ export interface DirectorSettings {
   directorProvider: DirectorProvider
   directorBaseUrl: string
   directorApiKey: string
+  directorCopilotToken: string
+  directorVertexJsonKey: string
+  directorVertexProject: string
+  directorVertexLocation: string
   directorModel: string
   directorMode: 'otherAx' | 'model'
   briefTokenCap: number
@@ -144,6 +148,9 @@ export interface DirectorSettings {
   embeddingProvider: EmbeddingProvider
   embeddingBaseUrl: string
   embeddingApiKey: string
+  embeddingVertexJsonKey: string
+  embeddingVertexProject: string
+  embeddingVertexLocation: string
   embeddingModel: string
   embeddingDimensions: number
   promptPresetId: string
@@ -388,6 +395,10 @@ export const DEFAULT_DIRECTOR_SETTINGS: DirectorSettings = {
   directorProvider: 'openai',
   directorBaseUrl: 'https://api.openai.com/v1',
   directorApiKey: '',
+  directorCopilotToken: '',
+  directorVertexJsonKey: '',
+  directorVertexProject: '',
+  directorVertexLocation: '',
   directorModel: 'gpt-4.1-mini',
   directorMode: 'otherAx',
   briefTokenCap: 320,
@@ -401,6 +412,9 @@ export const DEFAULT_DIRECTOR_SETTINGS: DirectorSettings = {
   embeddingProvider: 'openai',
   embeddingBaseUrl: 'https://api.openai.com/v1',
   embeddingApiKey: '',
+  embeddingVertexJsonKey: '',
+  embeddingVertexProject: '',
+  embeddingVertexLocation: '',
   embeddingModel: 'text-embedding-3-small',
   embeddingDimensions: 1536,
   promptPresetId: 'builtin-default',

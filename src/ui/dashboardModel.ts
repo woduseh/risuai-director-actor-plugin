@@ -4,6 +4,7 @@ import type {
   DirectorSettings,
   EmbeddingProvider,
 } from '../contracts/types.js'
+import type { TranslationKey } from './i18n.js'
 
 /* ------------------------------------------------------------------ */
 /*  Provider catalog                                                  */
@@ -163,6 +164,73 @@ export function resolveEmbeddingDefaults(
     id: providerId,
     baseUrl: '',
     authMode: 'api-key',
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Provider auth field descriptors                                   */
+/* ------------------------------------------------------------------ */
+
+export interface ProviderAuthFieldDescriptor {
+  field: keyof DirectorSettings
+  labelKey: TranslationKey
+  inputType: 'text' | 'password' | 'textarea'
+}
+
+const STANDARD_DIRECTOR_AUTH: readonly ProviderAuthFieldDescriptor[] = [
+  { field: 'directorBaseUrl', labelKey: 'label.baseUrl', inputType: 'text' },
+  { field: 'directorApiKey', labelKey: 'label.apiKey', inputType: 'password' },
+]
+
+const COPILOT_DIRECTOR_AUTH: readonly ProviderAuthFieldDescriptor[] = [
+  { field: 'directorCopilotToken', labelKey: 'label.copilotToken', inputType: 'password' },
+]
+
+const VERTEX_DIRECTOR_AUTH: readonly ProviderAuthFieldDescriptor[] = [
+  { field: 'directorVertexJsonKey', labelKey: 'label.vertexJsonKey', inputType: 'textarea' },
+  { field: 'directorVertexProject', labelKey: 'label.vertexProject', inputType: 'text' },
+  { field: 'directorVertexLocation', labelKey: 'label.vertexLocation', inputType: 'text' },
+]
+
+/**
+ * Return the auth-related field descriptors for a given director provider.
+ * Used by the dashboard DOM to conditionally render the correct inputs.
+ */
+export function directorAuthFields(
+  provider: DirectorProvider
+): readonly ProviderAuthFieldDescriptor[] {
+  switch (provider) {
+    case 'copilot':
+      return COPILOT_DIRECTOR_AUTH
+    case 'vertex':
+      return VERTEX_DIRECTOR_AUTH
+    default:
+      return STANDARD_DIRECTOR_AUTH
+  }
+}
+
+const STANDARD_EMBEDDING_AUTH: readonly ProviderAuthFieldDescriptor[] = [
+  { field: 'embeddingBaseUrl', labelKey: 'label.embeddingBaseUrl', inputType: 'text' },
+  { field: 'embeddingApiKey', labelKey: 'label.embeddingApiKey', inputType: 'password' },
+]
+
+const VERTEX_EMBEDDING_AUTH: readonly ProviderAuthFieldDescriptor[] = [
+  { field: 'embeddingVertexJsonKey', labelKey: 'label.embeddingVertexJsonKey', inputType: 'textarea' },
+  { field: 'embeddingVertexProject', labelKey: 'label.embeddingVertexProject', inputType: 'text' },
+  { field: 'embeddingVertexLocation', labelKey: 'label.embeddingVertexLocation', inputType: 'text' },
+]
+
+/**
+ * Return the auth-related field descriptors for a given embedding provider.
+ */
+export function embeddingAuthFields(
+  provider: EmbeddingProvider
+): readonly ProviderAuthFieldDescriptor[] {
+  switch (provider) {
+    case 'vertex':
+      return VERTEX_EMBEDDING_AUTH
+    default:
+      return STANDARD_EMBEDDING_AUTH
   }
 }
 
