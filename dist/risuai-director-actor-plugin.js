@@ -1,7 +1,7 @@
 //@name risuai-director-actor-plugin
 //@display-name RisuAI Director Actor
 //@api 3.0
-//@version 0.4.3
+//@version 0.5.0
 //@description Director-Actor collaborative long-memory plugin for RisuAI Plugin V3
 
 "use strict";
@@ -2956,6 +2956,7 @@ ${lines.join("\n").trimEnd()}`;
     "btn.backfillCurrentChat": "Extract Current Chat",
     "btn.regenerateCurrentChat": "Regenerate from Current Chat",
     "btn.deleteSelected": "Delete Selected",
+    "btn.select": "Select",
     "btn.edit": "Edit",
     "btn.export": "Export",
     "btn.import": "Import",
@@ -3054,6 +3055,18 @@ ${lines.join("\n").trimEnd()}`;
     "card.worldFacts.title": "World Facts",
     "card.entities.title": "Entities",
     "card.relations.title": "Relations",
+    // Scope badge
+    "memory.scopeLabel": "Scope: {{scope}}",
+    "memory.scopeGlobal": "Global",
+    "memory.scopeScoped": "Scoped",
+    // Quick navigation
+    "memory.quickNav.summaries": "Summaries",
+    "memory.quickNav.continuityFacts": "Continuity Facts",
+    "memory.quickNav.worldFacts": "World Facts",
+    "memory.quickNav.entities": "Entities",
+    "memory.quickNav.relations": "Relations",
+    // Cross-link
+    "memory.modelSettingsLink": "Embeddings & Model Settings",
     // Card: Memory Operations
     "card.memoryOps.title": "Memory Operations",
     "card.memoryOps.copy": "Live status of extraction and consolidation workers, with operator actions.",
@@ -3185,6 +3198,7 @@ ${lines.join("\n").trimEnd()}`;
     "btn.backfillCurrentChat": "\uD604\uC7AC \uCC44\uD305 \uCD94\uCD9C",
     "btn.regenerateCurrentChat": "\uD604\uC7AC \uCC44\uD305 \uAE30\uC900 \uC7AC\uC0DD\uC131",
     "btn.deleteSelected": "\uC120\uD0DD \uC0AD\uC81C",
+    "btn.select": "\uC120\uD0DD",
     "btn.edit": "\uD3B8\uC9D1",
     "btn.export": "\uB0B4\uBCF4\uB0B4\uAE30",
     "btn.import": "\uAC00\uC838\uC624\uAE30",
@@ -3283,6 +3297,18 @@ ${lines.join("\n").trimEnd()}`;
     "card.worldFacts.title": "\uC138\uACC4 \uC0AC\uC2E4",
     "card.entities.title": "\uC5D4\uD2F0\uD2F0",
     "card.relations.title": "\uAD00\uACC4",
+    // Scope badge
+    "memory.scopeLabel": "\uBC94\uC704: {{scope}}",
+    "memory.scopeGlobal": "\uC804\uC5ED",
+    "memory.scopeScoped": "\uBC94\uC704 \uC9C0\uC815\uB428",
+    // Quick navigation
+    "memory.quickNav.summaries": "\uC694\uC57D",
+    "memory.quickNav.continuityFacts": "\uC5F0\uC18D\uC131 \uC0AC\uC2E4",
+    "memory.quickNav.worldFacts": "\uC138\uACC4 \uC0AC\uC2E4",
+    "memory.quickNav.entities": "\uC5D4\uD2F0\uD2F0",
+    "memory.quickNav.relations": "\uAD00\uACC4",
+    // Cross-link
+    "memory.modelSettingsLink": "\uC784\uBCA0\uB529 & \uBAA8\uB378 \uC124\uC815",
     // Card: Memory Operations
     "card.memoryOps.title": "\uBA54\uBAA8\uB9AC \uC791\uC5C5",
     "card.memoryOps.copy": "\uCD94\uCD9C \uBC0F \uD1B5\uD569 \uC6CC\uCEE4\uC758 \uC2E4\uC2DC\uAC04 \uC0C1\uD0DC\uC640 \uC6B4\uC601\uC790 \uC791\uC5C5.",
@@ -3437,6 +3463,7 @@ ${lines.join("\n").trimEnd()}`;
   var DASHBOARD_SETTINGS_KEY = "dashboard-settings-v1";
   var DASHBOARD_PROFILE_MANIFEST_KEY = "dashboard-profile-manifest-v1";
   var DASHBOARD_LOCALE_KEY = "dashboard-locale-v1";
+  var DASHBOARD_LAST_TAB_KEY = "dashboard-last-tab-v1";
   var DASHBOARD_SCHEMA_VERSION = 1;
   function normalizePersistedSettings(raw) {
     return {
@@ -4543,6 +4570,8 @@ ${lines.join("\n").trimEnd()}`;
   margin: 0;
   padding: 0;
   list-style: none;
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 .da-memory-item {
@@ -4572,6 +4601,13 @@ ${lines.join("\n").trimEnd()}`;
 .da-add-row .da-input--add {
   flex: 1;
   min-height: 36px;
+}
+
+.da-quick-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
 }
 
 @media (max-width: 960px) {
@@ -4884,6 +4920,36 @@ ${lines.join("\n").trimEnd()}`;
     transform: translate(-50%, 0);
   }
 }
+
+/* \u2500\u2500 Toast pointer-events (click-through) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.da-toast {
+  pointer-events: none;
+}
+
+/* \u2500\u2500 Focus-visible for memory selection checkboxes \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+[data-da-role="memory-select"]:focus-visible {
+  outline: 2px solid var(--da-accent);
+  outline-offset: 2px;
+}
+
+/* \u2500\u2500 Reduced motion \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+@media (prefers-reduced-motion: reduce) {
+  .da-btn--armed {
+    animation: none;
+  }
+
+  .da-toast {
+    animation: none;
+  }
+
+  .da-toggle-track,
+  .da-toggle-dot {
+    transition: none;
+  }
+}
 `
     );
   }
@@ -5123,7 +5189,7 @@ ${lines.join("\n").trimEnd()}`;
       <div class="da-sidebar-footer da-footer">
         <button class="da-btn" data-da-action="switch-lang" data-da-lang="${nextLocale}">${nextLabel}</button>
         <button class="da-btn da-btn--ghost" data-da-action="export-settings">${t("btn.exportSettings")}</button>
-        <button class="da-btn da-btn--danger da-close-btn" data-da-action="close-dashboard">${t("btn.close")}</button>
+        <button class="da-btn da-btn--danger da-close-btn" data-da-action="close-dashboard" aria-label="${t("btn.close")}">${t("btn.close")}</button>
       </div>
     </aside>`;
   }
@@ -5171,7 +5237,7 @@ ${lines.join("\n").trimEnd()}`;
               </select>
             </label>
           </div>
-          <span class="da-connection-status" data-da-status="${connectionStatus.kind}">${connectionStatus.message}</span>
+          <span class="da-connection-status" data-da-status="${connectionStatus.kind}" role="status" aria-live="polite">${connectionStatus.message}</span>
         </section>
         <section class="da-card">
           <div class="da-card-header">
@@ -5494,19 +5560,34 @@ ${lines.join("\n").trimEnd()}`;
     const backfillHtml = `<div class="da-inline"><button class="da-btn da-btn--primary" data-da-action="backfill-current-chat">${t("btn.backfillCurrentChat")}</button></div>`;
     const regenerateHtml = `<div class="da-inline"><button class="da-btn" data-da-action="regenerate-current-chat">${t("btn.regenerateCurrentChat")}</button></div>`;
     const bulkDeleteHtml = `<div class="da-inline"><button class="da-btn da-btn--danger" data-da-action="bulk-delete-memory"${selectedCount === 0 ? " disabled" : ""}>${t("btn.deleteSelected")}</button></div>`;
-    const filterHtml = `<input type="text" class="da-input" data-da-role="memory-filter" placeholder="${t("memory.filterPlaceholder")}" />`;
-    const addSummaryHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-summary-text" placeholder="${t("memory.addSummaryPlaceholder")}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-summary">${t("btn.add")}</button></div>`;
-    const addFactHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-fact-text" placeholder="${t("memory.addFactPlaceholder")}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-continuity-fact">${t("btn.add")}</button></div>`;
-    const addWorldFactHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-world-fact-text" placeholder="${t("memory.addWorldFactPlaceholder")}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-world-fact">${t("btn.add")}</button></div>`;
-    const addEntityHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-entity-name" placeholder="${t("memory.addEntityNamePlaceholder")}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-entity">${t("btn.add")}</button></div>`;
-    const addRelationHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-relation-source" placeholder="${t("memory.addRelationSourcePlaceholder")}" /><input type="text" class="da-input da-input--add" data-da-role="add-relation-label" placeholder="${t("memory.addRelationLabelPlaceholder")}" /><input type="text" class="da-input da-input--add" data-da-role="add-relation-target" placeholder="${t("memory.addRelationTargetPlaceholder")}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-relation">${t("btn.add")}</button></div>`;
+    const filterValue = input.memoryFilterQuery ? ` value="${escapeXml(input.memoryFilterQuery)}"` : "";
+    const filterHtml = `<input type="text" class="da-input" data-da-role="memory-filter" placeholder="${t("memory.filterPlaceholder")}" aria-label="${t("memory.filterPlaceholder")}"${filterValue} />`;
+    const scopeText = input.scopeLabel ?? t("memory.scopeGlobal");
+    const scopeBadgeHtml = `<span class="da-badge" data-da-role="scope-badge" data-kind="neutral">${escapeXml(t("memory.scopeLabel", { scope: scopeText }))}</span>`;
+    const quickNavItems = [
+      ["summaries", t("memory.quickNav.summaries")],
+      ["continuity-facts", t("memory.quickNav.continuityFacts")],
+      ["world-facts", t("memory.quickNav.worldFacts")],
+      ["entities", t("memory.quickNav.entities")],
+      ["relations", t("memory.quickNav.relations")]
+    ];
+    const quickNavHtml = `<nav class="da-quick-nav" data-da-role="memory-quick-nav">${quickNavItems.map(([target, label]) => `<button class="da-btn da-btn--sm" data-da-nav-target="${target}">${escapeXml(label)}</button>`).join("")}</nav>`;
+    const crossLinkHtml = `<button class="da-btn da-btn--ghost" data-da-role="model-settings-link" data-da-target="model-settings">${t("memory.modelSettingsLink")}</button>`;
+    const addSummaryHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-summary-text" placeholder="${t("memory.addSummaryPlaceholder")}" aria-label="${t("memory.addSummaryPlaceholder")}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-summary">${t("btn.add")}</button></div>`;
+    const addFactHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-fact-text" placeholder="${t("memory.addFactPlaceholder")}" aria-label="${t("memory.addFactPlaceholder")}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-continuity-fact">${t("btn.add")}</button></div>`;
+    const addWorldFactHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-world-fact-text" placeholder="${t("memory.addWorldFactPlaceholder")}" aria-label="${t("memory.addWorldFactPlaceholder")}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-world-fact">${t("btn.add")}</button></div>`;
+    const addEntityHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-entity-name" placeholder="${t("memory.addEntityNamePlaceholder")}" aria-label="${t("memory.addEntityNamePlaceholder")}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-entity">${t("btn.add")}</button></div>`;
+    const addRelationHtml = `<div class="da-add-row"><input type="text" class="da-input da-input--add" data-da-role="add-relation-source" placeholder="${t("memory.addRelationSourcePlaceholder")}" aria-label="${t("memory.addRelationSourcePlaceholder")}" /><input type="text" class="da-input da-input--add" data-da-role="add-relation-label" placeholder="${t("memory.addRelationLabelPlaceholder")}" aria-label="${t("memory.addRelationLabelPlaceholder")}" /><input type="text" class="da-input da-input--add" data-da-role="add-relation-target" placeholder="${t("memory.addRelationTargetPlaceholder")}" aria-label="${t("memory.addRelationTargetPlaceholder")}" /><button class="da-btn da-btn--primary da-btn--sm" data-da-action="add-relation">${t("btn.add")}</button></div>`;
     function renderMemoryItem(kind, id, displayText, deleteAction, editRole, editValue, extraEditFields = "") {
       const itemKey = `${kind}:${id}`;
       const checked = selectedKeys.has(itemKey) ? " checked" : "";
       const isEditing = editingMemory?.kind === kind && editingMemory.id === id;
+      const selectLabel = `${t("btn.select")} ${displayText}`;
+      const editLabel = `${t("btn.edit")} ${displayText}`;
+      const deleteLabel = `${t("btn.delete")} ${displayText}`;
       if (isEditing) {
         return `<li class="da-memory-item">
-        <input type="checkbox" data-da-role="memory-select" data-da-item-key="${escapeXml(itemKey)}"${checked} />
+        <input type="checkbox" data-da-role="memory-select" data-da-item-key="${escapeXml(itemKey)}"${checked} aria-label="${escapeXml(selectLabel)}" />
         <div class="da-form-grid" style="flex:1">
           <input type="text" class="da-input" data-da-role="${editRole}" data-da-item-id="${escapeXml(id)}" value="${escapeXml(editValue)}" />
           ${extraEditFields}
@@ -5516,10 +5597,10 @@ ${lines.join("\n").trimEnd()}`;
       </li>`;
       }
       return `<li class="da-memory-item">
-      <input type="checkbox" data-da-role="memory-select" data-da-item-key="${escapeXml(itemKey)}"${checked} />
+      <input type="checkbox" data-da-role="memory-select" data-da-item-key="${escapeXml(itemKey)}"${checked} aria-label="${escapeXml(selectLabel)}" />
       <span>${escapeXml(displayText)}</span>
-      <button class="da-btn da-btn--sm" data-da-action="edit-memory-item" data-da-item-key="${escapeXml(itemKey)}">${t("btn.edit")}</button>
-      <button class="da-btn da-btn--danger da-btn--sm" data-da-action="${deleteAction}" data-da-item-id="${escapeXml(id)}">${t("btn.delete")}</button>
+      <button class="da-btn da-btn--sm" data-da-action="edit-memory-item" data-da-item-key="${escapeXml(itemKey)}" aria-label="${escapeXml(editLabel)}">${t("btn.edit")}</button>
+      <button class="da-btn da-btn--danger da-btn--sm" data-da-action="${deleteAction}" data-da-item-id="${escapeXml(id)}" aria-label="${escapeXml(deleteLabel)}">${t("btn.delete")}</button>
     </li>`;
     }
     const summaryItems = summaries.map(
@@ -5579,10 +5660,11 @@ ${lines.join("\n").trimEnd()}`;
     const emptyHintHtml = isEmpty ? `<p class="da-empty" data-da-role="memory-empty">${t("memory.emptyHint")}</p>` : "";
     const memoryOpsCardHtml = input.memoryOpsStatus ? buildMemoryOpsCard(input.memoryOpsStatus) : "";
     return `
-      ${backfillHtml}${regenerateHtml}${bulkDeleteHtml}${filterHtml}${emptyHintHtml}
+      ${scopeBadgeHtml}${quickNavHtml}
+      ${backfillHtml}${regenerateHtml}${bulkDeleteHtml}${crossLinkHtml}${filterHtml}${emptyHintHtml}
       ${memoryOpsCardHtml}
       <div class="da-grid">
-        <section class="da-card">
+        <section class="da-card" id="da-memory-section-summaries">
           <div class="da-card-header">
             <div>
               <h3 class="da-card-title">${t("card.memorySummaries.title")}</h3>
@@ -5591,7 +5673,7 @@ ${lines.join("\n").trimEnd()}`;
           <ul class="da-memory-list">${summaryItems}</ul>` : ""}
           ${addSummaryHtml}
         </section>
-        <section class="da-card">
+        <section class="da-card" id="da-memory-section-continuity-facts">
           <div class="da-card-header">
             <div>
               <h3 class="da-card-title">${t("card.continuityFacts.title")}</h3>
@@ -5600,7 +5682,7 @@ ${lines.join("\n").trimEnd()}`;
           <ul class="da-memory-list">${factItems}</ul>` : ""}
           ${addFactHtml}
         </section>
-        <section class="da-card">
+        <section class="da-card" id="da-memory-section-world-facts">
           <div class="da-card-header">
             <div>
               <h3 class="da-card-title">${t("card.worldFacts.title")}</h3>
@@ -5609,7 +5691,7 @@ ${lines.join("\n").trimEnd()}`;
           <ul class="da-memory-list">${worldFactItems}</ul>` : ""}
           ${addWorldFactHtml}
         </section>
-        <section class="da-card">
+        <section class="da-card" id="da-memory-section-entities">
           <div class="da-card-header">
             <div>
               <h3 class="da-card-title">${t("card.entities.title")}</h3>
@@ -5618,7 +5700,7 @@ ${lines.join("\n").trimEnd()}`;
           <ul class="da-memory-list">${entityItems}</ul>` : ""}
           ${addEntityHtml}
         </section>
-        <section class="da-card">
+        <section class="da-card" id="da-memory-section-relations">
           <div class="da-card-header">
             <div>
               <h3 class="da-card-title">${t("card.relations.title")}</h3>
@@ -5667,7 +5749,7 @@ ${lines.join("\n").trimEnd()}`;
       const inner = builder ? builder(input) : "";
       return `
     <div class="da-page${hidden}" id="da-page-${tab.id}">
-      <h2 class="da-page-title">${tabLabel(tab.id)}</h2>${inner}
+      ${buildPageTitle(tab.id)}${inner}
     </div>`;
     }).join("");
     return `
@@ -5684,6 +5766,9 @@ ${lines.join("\n").trimEnd()}`;
         </div>
       </section>${pages}
     </main>`;
+  }
+  function buildPageTitle(tabId) {
+    return `<h2 class="da-page-title">${tabLabel(tabId)}</h2>`;
   }
   function buildDashboardMarkup(input) {
     return `<div class="${DASHBOARD_ROOT_CLASS} da-dashboard">${buildSidebar(input.activeTab)}${buildContent(input)}
@@ -5945,6 +6030,7 @@ ${lines.join("\n").trimEnd()}`;
     selectedMemoryKeys = /* @__PURE__ */ new Set();
     editingMemory = null;
     memoryOpsStatus;
+    memoryFilterQuery = "";
     /**
      * Action names currently in flight (used by async busy guards).
      * Key = canonical busy key, value = UI action to disable (may differ
@@ -5958,13 +6044,14 @@ ${lines.join("\n").trimEnd()}`;
      * rerender clears the map.
      */
     armedActions = /* @__PURE__ */ new Map();
-    constructor(api, store, doc, draft, profiles, modelOptions, canonicalState, memoryOpsStatus) {
+    constructor(api, store, doc, draft, profiles, modelOptions, canonicalState, memoryOpsStatus, initialTab) {
       this.api = api;
       this.store = store;
       this.doc = doc;
       this.draft = draft;
       this.profiles = profiles;
-      this.activeTab = DASHBOARD_TABS[0]?.id ?? "general";
+      const validTabIds = DASHBOARD_TABS.map((t2) => t2.id);
+      this.activeTab = initialTab && validTabIds.includes(initialTab) ? initialTab : DASHBOARD_TABS[0]?.id ?? "general";
       this.modelOptions = modelOptions;
       this.connectionStatus = { kind: "idle", message: t("connection.notTested") };
       this.canonicalState = canonicalState;
@@ -6003,6 +6090,8 @@ ${lines.join("\n").trimEnd()}`;
     }
     // ── DOM ───────────────────────────────────────────────────────────────
     buildMarkupInput() {
+      const scopeKey = this.store.stateStorageKey ?? DIRECTOR_STATE_STORAGE_KEY;
+      const scopeLabel = scopeKey === DIRECTOR_STATE_STORAGE_KEY ? t("memory.scopeGlobal") : t("memory.scopeScoped");
       return {
         settings: this.draft.settings,
         pluginState: this.canonicalState,
@@ -6012,7 +6101,9 @@ ${lines.join("\n").trimEnd()}`;
         connectionStatus: this.connectionStatus,
         selectedMemoryKeys: Array.from(this.selectedMemoryKeys),
         editingMemory: this.editingMemory,
-        memoryOpsStatus: this.memoryOpsStatus
+        memoryOpsStatus: this.memoryOpsStatus,
+        memoryFilterQuery: this.memoryFilterQuery,
+        scopeLabel
       };
     }
     renderRoot() {
@@ -6028,6 +6119,7 @@ ${lines.join("\n").trimEnd()}`;
         const closeBtn = this.doc.createElement("button");
         closeBtn.className = "da-btn da-close-btn";
         closeBtn.setAttribute("data-da-action", "close");
+        closeBtn.setAttribute("aria-label", t("btn.close"));
         closeBtn.textContent = t("btn.closeIcon");
         sidebar.appendChild(closeBtn);
       }
@@ -6076,6 +6168,7 @@ ${lines.join("\n").trimEnd()}`;
         const closeBtn = this.doc.createElement("button");
         closeBtn.className = "da-btn da-close-btn";
         closeBtn.setAttribute("data-da-action", "close");
+        closeBtn.setAttribute("aria-label", t("btn.close"));
         closeBtn.textContent = t("btn.closeIcon");
         sidebar.appendChild(closeBtn);
       }
@@ -6090,6 +6183,38 @@ ${lines.join("\n").trimEnd()}`;
       this.root = wrapper;
       this.bindEvents();
       this.applyAllBusyStates();
+      if (this.memoryFilterQuery) {
+        this.handleMemoryFilter(this.memoryFilterQuery);
+      }
+    }
+    /**
+     * Replace only the memory-cache page content while keeping the root,
+     * sidebar, footer and event listeners intact.  Falls back to
+     * `fullReRender()` when the page container is missing.
+     *
+     * Preserves keyboard focus and scroll position across the HTML swap.
+     */
+    memoryPageReRender() {
+      if (!this.root) return;
+      const page = this.root.querySelector("#da-page-memory-cache");
+      if (!page) {
+        this.fullReRender();
+        return;
+      }
+      this.clearArmedState();
+      const focusSelector = this.captureFocusSelector();
+      const content = this.root.querySelector(".da-content");
+      const scrollTop = content ? content.scrollTop : 0;
+      const newHtml = `${buildPageTitle("memory-cache")}${buildMemoryCachePage(this.buildMarkupInput())}`;
+      page.innerHTML = newHtml;
+      this.applyAllBusyStates();
+      if (this.memoryFilterQuery) {
+        this.handleMemoryFilter(this.memoryFilterQuery);
+      }
+      if (content) {
+        content.scrollTop = scrollTop;
+      }
+      this.restoreFocus(focusSelector);
     }
     updateConnectionStatusDom() {
       if (!this.root) return;
@@ -6097,6 +6222,39 @@ ${lines.join("\n").trimEnd()}`;
       if (!el) return;
       el.setAttribute("data-da-status", this.connectionStatus.kind);
       el.textContent = this.connectionStatus.message;
+    }
+    /**
+     * Build a CSS selector that can relocate the currently focused element
+     * after a DOM swap.  Returns null when focus is outside the dashboard.
+     */
+    captureFocusSelector() {
+      const active = this.doc.activeElement;
+      if (!active || !this.root?.contains(active)) return null;
+      const role = active.getAttribute("data-da-role");
+      if (role) return `[data-da-role="${role}"]`;
+      const action = active.getAttribute("data-da-action");
+      const itemId = active.getAttribute("data-da-item-id");
+      const itemKey = active.getAttribute("data-da-item-key");
+      if (action && itemKey) return `[data-da-action="${action}"][data-da-item-key="${itemKey}"]`;
+      if (action && itemId) return `[data-da-action="${action}"][data-da-item-id="${itemId}"]`;
+      if (action) return `[data-da-action="${action}"]`;
+      return null;
+    }
+    /**
+     * Restore focus to the element matching `selector`.  Falls back to
+     * the memory filter input when the original target no longer exists.
+     */
+    restoreFocus(selector) {
+      if (!selector || !this.root) return;
+      const target = this.root.querySelector(selector);
+      if (target) {
+        target.focus({ preventScroll: true });
+        return;
+      }
+      const fallback = this.root.querySelector('[data-da-role="memory-filter"]');
+      if (fallback) {
+        fallback.focus({ preventScroll: true });
+      }
     }
     updateModelSelectDom() {
       if (!this.root) return;
@@ -6262,6 +6420,7 @@ ${lines.join("\n").trimEnd()}`;
       this.lifecycle.listen(this.root, "click", (e) => {
         const target = e.target;
         this.handleTabClick(target);
+        this.handleQuickNavClick(target);
         void this.handleActionClick(target);
         this.handleProfileSelect(target);
       });
@@ -6299,6 +6458,7 @@ ${lines.join("\n").trimEnd()}`;
       if (!tabId) return;
       this.clearArmedState();
       this.activeTab = tabId;
+      void this.api.safeLocalStorage.setItem(DASHBOARD_LAST_TAB_KEY, tabId);
       if (this.root) {
         for (const b of Array.from(this.root.querySelectorAll(".da-sidebar-btn"))) {
           b.classList.toggle(
@@ -6312,6 +6472,16 @@ ${lines.join("\n").trimEnd()}`;
           const pageId = page.id.replace("da-page-", "");
           page.classList.toggle("da-hidden", pageId !== tabId);
         }
+      }
+    }
+    handleQuickNavClick(target) {
+      const btn = target.closest("[data-da-nav-target]");
+      if (!btn || !this.root) return;
+      const sectionId = btn.getAttribute("data-da-nav-target");
+      if (!sectionId) return;
+      const section = this.root.querySelector(`#da-memory-section-${sectionId}`);
+      if (section) {
+        section.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     }
     async handleActionClick(target) {
@@ -6792,6 +6962,7 @@ ${lines.join("\n").trimEnd()}`;
       await resetCanonical();
       this.selectedMemoryKeys.clear();
       this.editingMemory = null;
+      this.memoryFilterQuery = "";
       await this.handleBackfillCurrentChat();
     }
     handleMemorySelectionChange(input) {
@@ -6818,11 +6989,11 @@ ${lines.join("\n").trimEnd()}`;
         kind,
         id
       };
-      this.fullReRender();
+      this.memoryPageReRender();
     }
     handleCancelMemoryEdit() {
       this.editingMemory = null;
-      this.fullReRender();
+      this.memoryPageReRender();
     }
     async handleSaveMemoryEdit(btn) {
       const itemKey = btn.getAttribute("data-da-item-key");
@@ -6901,7 +7072,7 @@ ${lines.join("\n").trimEnd()}`;
         this.canonicalState = state;
       }
       this.editingMemory = null;
-      this.fullReRender();
+      this.memoryPageReRender();
     }
     async handleBulkDeleteMemory() {
       if (this.selectedMemoryKeys.size === 0) return;
@@ -6951,10 +7122,11 @@ ${lines.join("\n").trimEnd()}`;
         this.canonicalState = state;
       }
       this.selectedMemoryKeys.clear();
-      this.fullReRender();
+      this.memoryPageReRender();
     }
     // ── Memory filter ──────────────────────────────────────────────────────
     handleMemoryFilter(query) {
+      this.memoryFilterQuery = query;
       if (!this.root) return;
       const needle = query.trim().toLowerCase();
       const items = this.root.querySelectorAll(".da-memory-item");
@@ -6992,14 +7164,14 @@ ${lines.join("\n").trimEnd()}`;
           return current;
         });
         this.canonicalState = structuredClone(nextState);
-        this.fullReRender();
+        this.memoryPageReRender();
         return;
       }
       const state = await readCanonicalState(this.store);
       applyDelete(state);
       await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state));
       this.canonicalState = state;
-      this.fullReRender();
+      this.memoryPageReRender();
     }
     // ── Memory add ──────────────────────────────────────────────────────
     async handleAddMemoryItem(kind) {
@@ -7039,14 +7211,14 @@ ${lines.join("\n").trimEnd()}`;
           return current;
         });
         this.canonicalState = structuredClone(nextState);
-        this.fullReRender();
+        this.memoryPageReRender();
         return;
       }
       const state = await readCanonicalState(this.store);
       applyAdd(state);
       await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state));
       this.canonicalState = state;
-      this.fullReRender();
+      this.memoryPageReRender();
     }
     // ── Relation add (multi-field) ─────────────────────────────────────────
     async handleAddRelation() {
@@ -7065,14 +7237,14 @@ ${lines.join("\n").trimEnd()}`;
           return current;
         });
         this.canonicalState = structuredClone(nextState);
-        this.fullReRender();
+        this.memoryPageReRender();
         return;
       }
       const state = await readCanonicalState(this.store);
       upsertRelation(state, { sourceId, label, targetId });
       await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state));
       this.canonicalState = state;
-      this.fullReRender();
+      this.memoryPageReRender();
     }
     // ── Memory operations actions ──────────────────────────────────────
     async handleForceExtract() {
@@ -7224,6 +7396,8 @@ ${lines.join("\n").trimEnd()}`;
     }
     const canonicalState = await readCanonicalState(store);
     const memoryOpsStatus = await buildMemoryOpsStatus(store, canonicalState);
+    const savedTab = await api.safeLocalStorage.getItem(DASHBOARD_LAST_TAB_KEY);
+    const initialTab = typeof savedTab === "string" ? savedTab : void 0;
     const instance = new DashboardInstance(
       api,
       store,
@@ -7232,7 +7406,8 @@ ${lines.join("\n").trimEnd()}`;
       profiles,
       modelOptions,
       canonicalState,
-      memoryOpsStatus
+      memoryOpsStatus,
+      initialTab
     );
     activeInstance = instance;
     await instance.mount();

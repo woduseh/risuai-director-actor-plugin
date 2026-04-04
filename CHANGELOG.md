@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.5.0] - 2026-04-04
+
+### Added
+
+- Memory-page scope badge, quick navigation controls, and a direct model-settings cross-link in the fullscreen dashboard
+- Last-open tab persistence across dashboard reopen
+- Bounded memory-page rerender path for memory CRUD/edit/bulk-delete flows that keeps the root shell, sidebar, and footer mounted
+
+### Changed
+
+- Memory filter text now survives dashboard rerenders and regenerate flows no longer replay stale filter state
+- Memory lists now use internal scrolling caps so large sections stop stretching the entire content area
+- Bounded memory-page rerender now preserves focus and scroll position during memory mutations
+
+### Fixed
+
+- Dashboard accessibility coverage now includes memory/filter/add controls, connection-status live semantics, reduced-motion handling, and memory checkbox focus styling
+- Toast notifications no longer intercept pointer input over underlying dashboard controls
+- Deferred dashboard follow-up now passes test, typecheck, and build verification with targeted regression coverage for tab persistence, quick-nav, cross-link navigation, bounded rerender, focus restoration, and scroll preservation
+
 ## [0.4.3] - 2026-04-04
 
 ### Added
