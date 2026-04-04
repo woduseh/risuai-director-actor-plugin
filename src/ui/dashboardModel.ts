@@ -171,8 +171,22 @@ export function resolveEmbeddingDefaults(
 /*  Provider auth field descriptors                                   */
 /* ------------------------------------------------------------------ */
 
+/** The subset of DirectorSettings keys used by provider auth field descriptors. */
+export type ProviderAuthSettingsKey =
+  | 'directorBaseUrl'
+  | 'directorApiKey'
+  | 'directorCopilotToken'
+  | 'directorVertexJsonKey'
+  | 'directorVertexProject'
+  | 'directorVertexLocation'
+  | 'embeddingBaseUrl'
+  | 'embeddingApiKey'
+  | 'embeddingVertexJsonKey'
+  | 'embeddingVertexProject'
+  | 'embeddingVertexLocation'
+
 export interface ProviderAuthFieldDescriptor {
-  field: keyof DirectorSettings
+  field: ProviderAuthSettingsKey
   labelKey: TranslationKey
   inputType: 'text' | 'password' | 'textarea'
   /** Optional i18n key for a short help-text hint rendered below the input. */

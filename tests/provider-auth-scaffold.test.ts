@@ -290,6 +290,30 @@ describe('provider auth – dashboard DOM rendering', () => {
     const markup = buildDashboardMarkup(defaultMarkupInput({ directorProvider: 'openai' }))
     expect(markup).not.toMatch(/cd-field-help/)
   })
+
+  test('escapes HTML in translated label text', () => {
+    const saved = CATALOGS.en['label.copilotToken']
+    CATALOGS.en['label.copilotToken'] = '<img onerror=alert(1)>'
+    try {
+      const markup = buildDashboardMarkup(defaultMarkupInput({ directorProvider: 'copilot' }))
+      expect(markup).toContain('&lt;img onerror=alert(1)&gt;')
+      expect(markup).not.toContain('<img onerror=alert(1)>')
+    } finally {
+      CATALOGS.en['label.copilotToken'] = saved
+    }
+  })
+
+  test('escapes HTML in translated help text', () => {
+    const saved = CATALOGS.en['help.copilotToken']
+    CATALOGS.en['help.copilotToken'] = '<script>alert("xss")</script>'
+    try {
+      const markup = buildDashboardMarkup(defaultMarkupInput({ directorProvider: 'copilot' }))
+      expect(markup).toContain('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;')
+      expect(markup).not.toContain('<script>alert("xss")</script>')
+    } finally {
+      CATALOGS.en['help.copilotToken'] = saved
+    }
+  })
 })
 
 // ===========================================================================

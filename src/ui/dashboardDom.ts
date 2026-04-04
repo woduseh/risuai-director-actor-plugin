@@ -297,20 +297,21 @@ function renderAuthFieldHtml(
   settings: DirectorSettings,
 ): string {
   const rawValue = String(settings[desc.field] ?? '')
+  const labelText = escapeXml(t(desc.labelKey))
   const helpEl = desc.helpKey
-    ? `\n              <small class="cd-field-help">${t(desc.helpKey)}</small>`
+    ? `\n              <small class="cd-field-help">${escapeXml(t(desc.helpKey))}</small>`
     : ''
 
   if (desc.inputType === 'textarea') {
     return `
             <label class="cd-label">
-              <span class="cd-label-text">${t(desc.labelKey)}</span>
+              <span class="cd-label-text">${labelText}</span>
               <textarea class="cd-input" data-cd-field="${desc.field}" rows="4">${escapeXml(rawValue)}</textarea>${helpEl}
             </label>`
   }
   return `
             <label class="cd-label">
-              <span class="cd-label-text">${t(desc.labelKey)}</span>
+              <span class="cd-label-text">${labelText}</span>
               <input type="${desc.inputType}" class="cd-input" data-cd-field="${desc.field}" value="${escapeXml(rawValue)}" />${helpEl}
             </label>`
 }
