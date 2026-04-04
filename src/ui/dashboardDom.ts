@@ -1,5 +1,5 @@
 import type { DirectorSettings, DirectorPluginState } from '../contracts/types.js'
-import type { ProfileManifest, MemoryOpsStatus } from './dashboardState.js'
+import type { ProfileManifest, MemoryOpsStatus, EmbeddingCacheStatus } from './dashboardState.js'
 import { DASHBOARD_ROOT_CLASS } from './dashboardCss.js'
 import { EMBEDDING_PROVIDER_CATALOG } from './dashboardModel.js'
 import { resolveSelectedPromptPreset } from './dashboardState.js'
@@ -395,6 +395,48 @@ function freshnessLabel(freshness: 'current' | 'stale' | 'unknown'): string {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Embedding cache status section (rendered inside memory ops card)
+// ---------------------------------------------------------------------------
+
+function embeddingStatusBadgeKind(cache: EmbeddingCacheStatus): string {
+  if (!cache.enabled) return 'neutral'
+  if (!cache.supported) return 'error'
+  if (cache.missingCount > 0 || cache.staleCount > 0) return 'error'
+  if (cache.readyCount > 0) return 'success'
+  return 'neutral'
+}
+
+function embeddingStatusLabel(cache: EmbeddingCacheStatus): string {
+  if (!cache.enabled) return t('embeddingStatus.disabled')
+  if (!cache.supported) return t('embeddingStatus.unsupported')
+  if (cache.readyCount > 0 && cache.staleCount === 0 && cache.missingCount === 0) {
+    return t('embeddingStatus.ready')
+  }
+  if (cache.staleCount > 0) return t('embeddingStatus.stale')
+  if (cache.missingCount > 0) return t('embeddingStatus.missing')
+  return t('embeddingStatus.disabled')
+}
+
+function buildEmbeddingStatusSection(cache: EmbeddingCacheStatus): string {
+  const badge = `<span class="da-badge da-badge--sm" data-kind="${embeddingStatusBadgeKind(cache)}">${embeddingStatusLabel(cache)}</span>`
+  const countsLabel = `${t('embeddingStatus.ready')}: ${cache.readyCount} · ${t('embeddingStatus.stale')}: ${cache.staleCount} · ${t('embeddingStatus.missing')}: ${cache.missingCount}`
+  const versionLabel = cache.currentVersion || '—'
+
+  return `
+          <div class="da-embedding-status" data-da-role="embedding-status">
+            <h4 class="da-card-title">${t('embeddingStatus.title')} ${badge}</h4>
+            <ul class="da-metric-list">
+              <li class="da-metric-item"><span>${t('embeddingStatus.counts')}</span><strong>${countsLabel}</strong></li>
+              <li class="da-metric-item"><span>${t('embeddingStatus.version')}</span><strong>${escapeXml(versionLabel)}</strong></li>
+            </ul>
+          </div>`
+}
+
+// ---------------------------------------------------------------------------
+// Memory operations status card
+// ---------------------------------------------------------------------------
+
 function buildMemoryOpsCard(status: MemoryOpsStatus): string {
   const { documentCounts: dc } = status
   const freshnessBadge = `<span class="da-badge" data-kind="${status.notebookFreshness === 'stale' ? 'error' : status.notebookFreshness === 'current' ? 'success' : 'neutral'}">${freshnessLabel(status.notebookFreshness)}</span>`
@@ -420,6 +462,8 @@ function buildMemoryOpsCard(status: MemoryOpsStatus): string {
     }).join('')}</ul>`
     : ''
 
+  const embeddingStatusHtml = buildEmbeddingStatusSection(status.embeddingCache)
+
   const diagHtml = buildDiagnosticsSection(status)
 
   return `
@@ -443,7 +487,9 @@ function buildMemoryOpsCard(status: MemoryOpsStatus): string {
             <button class="da-btn da-btn--sm" data-da-action="force-dream">${t('btn.forceDream')}</button>
             <button class="da-btn da-btn--sm" data-da-action="inspect-recalled">${t('btn.inspectRecalled')}</button>
             <button class="da-btn da-btn--sm" data-da-action="toggle-fallback-retrieval">${t('btn.toggleFallback')}</button>
+            <button class="da-btn da-btn--sm" data-da-action="refresh-embeddings">${t('btn.refreshEmbeddings')}</button>
           </div>
+          ${embeddingStatusHtml}
           ${recalledHtml}
           ${diagHtml}
         </section>`

@@ -166,6 +166,7 @@ describe('buildDashboardMarkup', () => {
         staleWarnings: [],
         recalledDocs: [],
         diagnostics: createDefaultDiagnosticsSnapshot(),
+        embeddingCache: { enabled: false, supported: true, readyCount: 0, staleCount: 0, missingCount: 0, currentVersion: '' },
       },
     })
 
@@ -174,6 +175,61 @@ describe('buildDashboardMarkup', () => {
     expect(markup).toContain('data-da-action="force-dream"')
     expect(markup).toContain('data-da-action="inspect-recalled"')
     expect(markup).toContain('data-da-action="toggle-fallback-retrieval"')
+    expect(markup).toContain('data-da-action="refresh-embeddings"')
+  })
+
+  test('renders embedding status section in memory ops card', () => {
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'memory-cache',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+      memoryOpsStatus: {
+        ...createDefaultMemoryOpsStatus(),
+        embeddingCache: {
+          enabled: true,
+          supported: true,
+          readyCount: 5,
+          staleCount: 2,
+          missingCount: 1,
+          currentVersion: 'emb-abc123',
+        },
+      },
+    })
+
+    expect(markup).toContain('data-da-role="embedding-status"')
+    expect(markup).toContain('emb-abc123')
+    // Should contain counts
+    expect(markup).toContain('5')
+    expect(markup).toContain('2')
+    expect(markup).toContain('1')
+  })
+
+  test('embedding status shows disabled badge when embeddings are off', () => {
+    const markup = buildDashboardMarkup({
+      settings: normalizePersistedSettings({}),
+      pluginState: createEmptyState(),
+      profiles: createDefaultProfileManifest(),
+      activeTab: 'memory-cache',
+      modelOptions: ['gpt-4.1-mini'],
+      connectionStatus: { kind: 'idle', message: '' },
+      memoryOpsStatus: {
+        ...createDefaultMemoryOpsStatus(),
+        embeddingCache: {
+          enabled: false,
+          supported: true,
+          readyCount: 0,
+          staleCount: 0,
+          missingCount: 0,
+          currentVersion: '',
+        },
+      },
+    })
+
+    expect(markup).toContain('data-da-role="embedding-status"')
+    expect(markup).toContain('Disabled')
   })
 
   test('renders stale-memory warnings when present in memory ops status', () => {
@@ -194,6 +250,7 @@ describe('buildDashboardMarkup', () => {
         staleWarnings: ['Memory "Character A" may be outdated'],
         recalledDocs: [],
         diagnostics: createDefaultDiagnosticsSnapshot(),
+        embeddingCache: { enabled: false, supported: true, readyCount: 0, staleCount: 0, missingCount: 0, currentVersion: '' },
       },
     })
 
@@ -219,6 +276,7 @@ describe('buildDashboardMarkup', () => {
         staleWarnings: [],
         recalledDocs: [],
         diagnostics: createDefaultDiagnosticsSnapshot(),
+        embeddingCache: { enabled: false, supported: true, readyCount: 0, staleCount: 0, missingCount: 0, currentVersion: '' },
       },
     })
 
@@ -243,6 +301,7 @@ describe('buildDashboardMarkup', () => {
         staleWarnings: [],
         recalledDocs: [],
         diagnostics: createDefaultDiagnosticsSnapshot(),
+        embeddingCache: { enabled: false, supported: true, readyCount: 0, staleCount: 0, missingCount: 0, currentVersion: '' },
       },
     })
 
@@ -517,3 +576,4 @@ describe('buildPageTitle', () => {
     expect(html).not.toContain('Memory')
   })
 })
+

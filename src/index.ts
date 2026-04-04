@@ -50,9 +50,48 @@ import {
 import { DiagnosticsManager } from './runtime/diagnostics.js'
 import { RefreshGuard } from './runtime/refreshGuard.js'
 import { openDashboard, createDashboardStore } from './ui/dashboardApp.js'
+import { createEmbeddingClient, isProviderSupported, type EmbeddingClient } from './memory/embeddingClient.js'
+import { computeVectorVersion } from './memory/vectorVersion.js'
+import { embedSingleDocument, embedDocuments, computeEmbeddingCacheStatus } from './memory/embeddingIntegration.js'
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+/**
+ * Build an embedding client from current settings, or null if embeddings
+ * are disabled or the provider is unsupported.
+ */
+function buildEmbeddingClient(
+  api: RisuaiApi,
+  settings: { embeddingsEnabled: boolean; embeddingProvider: string; embeddingBaseUrl: string; embeddingApiKey: string; embeddingModel: string; embeddingDimensions: number },
+): EmbeddingClient | null {
+  if (!settings.embeddingsEnabled) return null
+  if (!isProviderSupported(settings.embeddingProvider)) return null
+  if (!settings.embeddingApiKey || !settings.embeddingBaseUrl || !settings.embeddingModel) return null
+
+  return createEmbeddingClient(
+    {
+      provider: settings.embeddingProvider,
+      baseUrl: settings.embeddingBaseUrl,
+      apiKey: settings.embeddingApiKey,
+      model: settings.embeddingModel,
+      dimensions: settings.embeddingDimensions,
+    },
+    (url, opts) => api.nativeFetch(url, opts),
+  )
+}
+
+function getVectorVersion(
+  settings: { embeddingsEnabled: boolean; embeddingProvider: string; embeddingBaseUrl: string; embeddingModel: string; embeddingDimensions: number },
+): string {
+  if (!settings.embeddingsEnabled) return ''
+  return computeVectorVersion({
+    provider: settings.embeddingProvider,
+    baseUrl: settings.embeddingBaseUrl,
+    model: settings.embeddingModel,
+    dimensions: settings.embeddingDimensions,
+  })
 }
 
 // safeLocalStorage keys for extraction hot cache
@@ -228,6 +267,14 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
 
         for (const doc of docs) {
           await memdirStore.putDocument(doc)
+
+          // Embed newly persisted doc if embeddings are enabled
+          const settings = (await store.load()).settings
+          const client = buildEmbeddingClient(api, settings)
+          if (client) {
+            const version = getVectorVersion(settings)
+            await embedSingleDocument(doc, memdirStore, client, version, (msg) => api.log(msg))
+          }
         }
       },
 
@@ -385,9 +432,34 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
       }
 
       const recallAbort = new AbortController()
+
+      // ── Compute query embedding for vector prefilter ─────────────
+      let queryVector: number[] | undefined
+      let vectorVersion: string | undefined
+      const settings = state.settings
+      const embeddingClient = buildEmbeddingClient(api, settings)
+      if (embeddingClient) {
+        vectorVersion = getVectorVersion(settings)
+        try {
+          const embResult = await embeddingClient.embed(recentText.slice(0, 2000))
+          if (embResult.ok) {
+            queryVector = embResult.vector
+          }
+        } catch (err) {
+          api.log(`Query embedding failed: ${err}`)
+        }
+      }
+
+      const recallInput = {
+        docs: memDocs,
+        recentText,
+        memoryMdContent,
+        ...(queryVector && vectorVersion ? { queryVector, vectorVersion } : {}),
+      }
+
       const recallPromise = findRelevantMemories(
         recallDeps,
-        { docs: memDocs, recentText, memoryMdContent },
+        recallInput as Parameters<typeof findRelevantMemories>[1],
         recallCache,
         { signal: recallAbort.signal },
       )
@@ -533,6 +605,18 @@ export async function registerDirectorActorPlugin(api: RisuaiApi): Promise<void>
       dashboardStore.loadDiagnostics = () => diagnostics.loadSnapshot()
       dashboardStore.checkRefreshGuard = () => refreshGuard.checkBlocked()
       dashboardStore.markMaintenance = (kind) => refreshGuard.markMaintenance(kind)
+      dashboardStore.refreshEmbeddings = async () => {
+        const currentState = await store.load()
+        const client = buildEmbeddingClient(api, currentState.settings)
+        if (!client) return 0
+        const version = getVectorVersion(currentState.settings)
+        return embedDocuments({
+          memdirStore,
+          embeddingClient: client,
+          vectorVersion: version,
+          log: (msg) => api.log(msg),
+        })
+      }
       await openDashboard(api, dashboardStore)
     }
   })

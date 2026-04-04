@@ -520,6 +520,15 @@ export interface RecalledDocEntry {
   freshness: 'current' | 'stale' | 'archived'
 }
 
+export interface EmbeddingCacheStatus {
+  enabled: boolean
+  supported: boolean
+  readyCount: number
+  staleCount: number
+  missingCount: number
+  currentVersion: string
+}
+
 export interface MemoryOpsStatus {
   lastExtractTs: number
   lastDreamTs: number
@@ -530,6 +539,7 @@ export interface MemoryOpsStatus {
   staleWarnings: string[]
   recalledDocs: RecalledDocEntry[]
   diagnostics: DiagnosticsSnapshot
+  embeddingCache: EmbeddingCacheStatus
 }
 
 export interface MemoryOpsPrefs {
@@ -553,6 +563,14 @@ export function createDefaultMemoryOpsStatus(): MemoryOpsStatus {
     staleWarnings: [],
     recalledDocs: [],
     diagnostics: createDefaultDiagnosticsSnapshot(),
+    embeddingCache: {
+      enabled: false,
+      supported: true,
+      readyCount: 0,
+      staleCount: 0,
+      missingCount: 0,
+      currentVersion: '',
+    },
   }
 }
 

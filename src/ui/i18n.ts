@@ -210,6 +210,20 @@ const EN_CATALOG = {
   'btn.forceDream': 'Run Dream Now',
   'btn.inspectRecalled': 'Inspect Recalled',
   'btn.toggleFallback': 'Toggle Fallback Retrieval',
+  'btn.refreshEmbeddings': 'Refresh Embeddings',
+
+  // Embedding status
+  'embeddingStatus.title': 'Embedding Status',
+  'embeddingStatus.ready': 'Ready',
+  'embeddingStatus.stale': 'Stale',
+  'embeddingStatus.missing': 'Missing',
+  'embeddingStatus.disabled': 'Disabled',
+  'embeddingStatus.unsupported': 'Unsupported Provider',
+  'embeddingStatus.version': 'Vector Version',
+  'embeddingStatus.counts': 'Embedding Counts',
+  'toast.refreshEmbeddingsStarted': 'Embedding refresh started',
+  'toast.refreshEmbeddingsComplete': 'Embeddings refreshed ({{count}} docs)',
+  'toast.refreshEmbeddingsFailed': 'Embedding refresh failed: {{error}}',
 
   // Diagnostics
   'diag.title': 'Runtime Diagnostics',
@@ -485,6 +499,20 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'btn.forceDream': '지금 통합 실행',
   'btn.inspectRecalled': '회상 문서 확인',
   'btn.toggleFallback': '대체 검색 토글',
+  'btn.refreshEmbeddings': '임베딩 새로고침',
+
+  // Embedding status
+  'embeddingStatus.title': '임베딩 상태',
+  'embeddingStatus.ready': '준비됨',
+  'embeddingStatus.stale': '오래됨',
+  'embeddingStatus.missing': '없음',
+  'embeddingStatus.disabled': '비활성화',
+  'embeddingStatus.unsupported': '지원되지 않는 프로바이더',
+  'embeddingStatus.version': '벡터 버전',
+  'embeddingStatus.counts': '임베딩 수',
+  'toast.refreshEmbeddingsStarted': '임베딩 새로고침이 시작되었습니다',
+  'toast.refreshEmbeddingsComplete': '임베딩이 새로고침되었습니다 ({{count}}개 문서)',
+  'toast.refreshEmbeddingsFailed': '임베딩 새로고침 실패: {{error}}',
 
   // Diagnostics
   'diag.title': '런타임 진단',

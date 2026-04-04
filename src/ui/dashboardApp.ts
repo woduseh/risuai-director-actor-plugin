@@ -97,6 +97,7 @@ export const GUARDED_ACTIONS: ReadonlySet<string> = new Set([
   'force-extract',
   'force-dream',
   'bulk-delete-memory',
+  'refresh-embeddings',
 ])
 
 // ---------------------------------------------------------------------------
@@ -143,6 +144,8 @@ export interface DashboardStore {
   checkRefreshGuard?: () => import('../runtime/refreshGuard.js').BlockStatus
   /** Optional callback to stamp a maintenance window in the refresh guard. */
   markMaintenance?: (kind: import('../runtime/refreshGuard.js').MaintenanceKind) => Promise<void>
+  /** Optional callback to refresh embeddings for documents in the active scope. */
+  refreshEmbeddings?: () => Promise<number>
 }
 
 /**
@@ -283,6 +286,14 @@ async function buildMemoryOpsStatus(
     staleWarnings: buildStaleWarnings(latestMemoryTs, dreamState.lastDreamTs),
     recalledDocs: [],
     diagnostics,
+    embeddingCache: {
+      enabled: false,
+      supported: true,
+      readyCount: 0,
+      staleCount: 0,
+      missingCount: 0,
+      currentVersion: '',
+    },
   }
 }
 
@@ -1022,6 +1033,9 @@ class DashboardInstance {
         break
       case 'toggle-fallback-retrieval':
         await this.handleToggleFallbackRetrieval()
+        break
+      case 'refresh-embeddings':
+        await this.withBusyGuard('refresh-embeddings', () => this.handleRefreshEmbeddings())
         break
     }
   }
@@ -1826,6 +1840,23 @@ class DashboardInstance {
     this.fullReRender()
   }
 
+  private async handleRefreshEmbeddings(): Promise<void> {
+    if (!this.store.refreshEmbeddings) {
+      this.showToast(t('toast.noCallback'), 'warning')
+      return
+    }
+    try {
+      this.showToast(t('toast.refreshEmbeddingsStarted'), 'info')
+      const count = await this.store.refreshEmbeddings()
+      this.showToast(t('toast.refreshEmbeddingsComplete', { count: String(count) }), 'success')
+      await this.refreshMemoryOpsStatus()
+      this.fullReRender()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      this.showToast(t('toast.refreshEmbeddingsFailed', { error: message }), 'error')
+    }
+  }
+
   private async refreshMemoryOpsStatus(): Promise<void> {
     const dreamState = await loadDreamState(this.store.storage)
     const prefs = await loadMemoryOpsPrefs(this.store.storage)
@@ -1849,6 +1880,7 @@ class DashboardInstance {
       staleWarnings: buildStaleWarnings(latestMemoryTs, dreamState.lastDreamTs),
       recalledDocs: this.memoryOpsStatus.recalledDocs,
       diagnostics,
+      embeddingCache: this.memoryOpsStatus.embeddingCache,
     }
   }
 

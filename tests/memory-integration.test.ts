@@ -261,3 +261,111 @@ describe('Memory lifecycle integration', () => {
     expect(canonSnap.memory.entities[0]!.name).toBe('Elf')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Integration: embedding on persist and refresh
+// ---------------------------------------------------------------------------
+
+describe('Embedding integration', () => {
+  test('embedDocuments embeds docs and attaches vector metadata', async () => {
+    const { embedDocuments, computeEmbeddingCacheStatus } = await import('../src/memory/embeddingIntegration.js')
+
+    const storage = new InMemoryAsyncStore()
+    const scopeKey = 'scope:embed:test'
+    const memdirStore = new MemdirStore(storage, scopeKey)
+
+    // Add docs without embeddings
+    await memdirStore.putDocument(makeMemdirDoc({
+      id: 'doc-1',
+      title: 'Hero',
+      description: 'A brave hero',
+    }))
+    await memdirStore.putDocument(makeMemdirDoc({
+      id: 'doc-2',
+      title: 'Villain',
+      description: 'An evil villain',
+    }))
+
+    const mockClient = {
+      embed: vi.fn(async () => ({ ok: true as const, vector: [0.1, 0.2, 0.3] })),
+      embedBatch: vi.fn(async (texts: string[]) =>
+        texts.map(() => ({ ok: true as const, vector: [0.1, 0.2, 0.3] })),
+      ),
+    }
+
+    const count = await embedDocuments({
+      memdirStore,
+      embeddingClient: mockClient,
+      vectorVersion: 'emb-test-v1',
+      log: () => {},
+    })
+
+    expect(count).toBe(2)
+
+    const docs = await memdirStore.listDocuments()
+    for (const doc of docs) {
+      expect(doc.embedding).toBeDefined()
+      expect(doc.embedding!.version).toBe('emb-test-v1')
+      expect(doc.embedding!.vector).toEqual([0.1, 0.2, 0.3])
+    }
+  })
+
+  test('embedDocuments skips docs already at current version', async () => {
+    const { embedDocuments } = await import('../src/memory/embeddingIntegration.js')
+
+    const storage = new InMemoryAsyncStore()
+    const scopeKey = 'scope:embed:skip'
+    const memdirStore = new MemdirStore(storage, scopeKey)
+
+    await memdirStore.putDocument({
+      ...makeMemdirDoc({ id: 'doc-1', title: 'Already embedded' }),
+      embedding: { vector: [0.5], version: 'emb-v1', embeddedAt: Date.now() },
+    })
+
+    const mockClient = {
+      embed: vi.fn(async () => ({ ok: true as const, vector: [0.9] })),
+      embedBatch: vi.fn(async () => []),
+    }
+
+    const count = await embedDocuments({
+      memdirStore,
+      embeddingClient: mockClient,
+      vectorVersion: 'emb-v1',
+      log: () => {},
+    })
+
+    expect(count).toBe(0)
+    expect(mockClient.embed).not.toHaveBeenCalled()
+  })
+
+  test('computeEmbeddingCacheStatus calculates ready/stale/missing counts', async () => {
+    const { computeEmbeddingCacheStatus } = await import('../src/memory/embeddingIntegration.js')
+
+    const docs: MemdirDocument[] = [
+      {
+        ...makeMemdirDoc({ id: 'd1' }),
+        embedding: { vector: [0.1], version: 'emb-v2', embeddedAt: 1 },
+      },
+      {
+        ...makeMemdirDoc({ id: 'd2' }),
+        embedding: { vector: [0.2], version: 'emb-v1', embeddedAt: 1 },
+      },
+      makeMemdirDoc({ id: 'd3' }),
+    ]
+
+    const status = computeEmbeddingCacheStatus(docs, 'emb-v2', true)
+    expect(status.readyCount).toBe(1)
+    expect(status.staleCount).toBe(1)
+    expect(status.missingCount).toBe(1)
+    expect(status.enabled).toBe(true)
+    expect(status.currentVersion).toBe('emb-v2')
+  })
+
+  test('computeEmbeddingCacheStatus returns disabled status when embeddings off', async () => {
+    const { computeEmbeddingCacheStatus } = await import('../src/memory/embeddingIntegration.js')
+
+    const status = computeEmbeddingCacheStatus([], '', false)
+    expect(status.enabled).toBe(false)
+    expect(status.readyCount).toBe(0)
+  })
+})

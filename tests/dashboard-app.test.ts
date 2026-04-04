@@ -1441,7 +1441,7 @@ describe('openDashboard', () => {
   test('GUARDED_ACTIONS set contains exactly the expected actions', async () => {
     const { GUARDED_ACTIONS } = await import('../src/ui/dashboardApp.js')
     expect(GUARDED_ACTIONS).toBeInstanceOf(Set)
-    expect(GUARDED_ACTIONS.size).toBe(10)
+    expect(GUARDED_ACTIONS.size).toBe(11)
     expect(GUARDED_ACTIONS.has('save')).toBe(true)
     expect(GUARDED_ACTIONS.has('discard')).toBe(true)
     expect(GUARDED_ACTIONS.has('test-connection')).toBe(true)
@@ -1452,6 +1452,7 @@ describe('openDashboard', () => {
     expect(GUARDED_ACTIONS.has('force-extract')).toBe(true)
     expect(GUARDED_ACTIONS.has('force-dream')).toBe(true)
     expect(GUARDED_ACTIONS.has('bulk-delete-memory')).toBe(true)
+    expect(GUARDED_ACTIONS.has('refresh-embeddings')).toBe(true)
   })
 
   test('bulk-delete button stays disabled after busy guard clears when no items selected', async () => {
