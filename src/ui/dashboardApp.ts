@@ -593,6 +593,8 @@ class DashboardInstance {
 
     const action = active.getAttribute('data-da-action')
     const itemId = active.getAttribute('data-da-item-id')
+    const itemKey = active.getAttribute('data-da-item-key')
+    if (action && itemKey) return `[data-da-action="${action}"][data-da-item-key="${itemKey}"]`
     if (action && itemId) return `[data-da-action="${action}"][data-da-item-id="${itemId}"]`
     if (action) return `[data-da-action="${action}"]`
 
@@ -608,14 +610,14 @@ class DashboardInstance {
 
     const target = this.root.querySelector(selector) as HTMLElement | null
     if (target) {
-      target.focus()
+      target.focus({ preventScroll: true })
       return
     }
 
     // Fallback: focus the memory filter input (always present on memory page)
     const fallback = this.root.querySelector('[data-da-role="memory-filter"]') as HTMLElement | null
     if (fallback) {
-      fallback.focus()
+      fallback.focus({ preventScroll: true })
     }
   }
 

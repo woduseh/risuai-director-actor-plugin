@@ -2722,6 +2722,85 @@ describe('bounded memory-page rerender', () => {
     expect(content.scrollTop).toBe(200)
   })
 
+  test('focus restoration uses preventScroll to avoid undoing scroll restore', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    const content = root.querySelector('.da-content') as HTMLElement
+    let scrollTopValue = 0
+    Object.defineProperty(content, 'scrollTop', {
+      get: () => scrollTopValue,
+      set: (v: number) => { scrollTopValue = v },
+      configurable: true,
+    })
+    content.scrollTop = 150
+
+    // Focus the filter input
+    const filterInput = root.querySelector('[data-da-role="memory-filter"]') as HTMLInputElement
+    filterInput.focus()
+
+    // Spy on focus calls on future elements with the same role
+    const focusCalls: Array<{ preventScroll?: boolean }> = []
+    const origFocus = HTMLElement.prototype.focus
+    HTMLElement.prototype.focus = function (opts?: FocusOptions) {
+      if (this.getAttribute('data-da-role') === 'memory-filter') {
+        focusCalls.push(opts ?? {})
+      }
+      origFocus.call(this, opts)
+    }
+
+    try {
+      // Trigger rerender
+      const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+      addInput.value = 'preventScroll test'
+      const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+      addBtn.click()
+      await new Promise((r) => setTimeout(r, 50))
+
+      // The restored focus call must use preventScroll: true
+      expect(focusCalls.length).toBeGreaterThan(0)
+      expect(focusCalls[focusCalls.length - 1]).toEqual(
+        expect.objectContaining({ preventScroll: true }),
+      )
+      // Scroll should still be at the value we set
+      expect(content.scrollTop).toBe(150)
+    } finally {
+      HTMLElement.prototype.focus = origFocus
+    }
+  })
+
+  test('captureFocusSelector includes data-da-item-key for action buttons', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    // Focus the edit button for sum-2 (not the first edit button in DOM order).
+    // Without data-da-item-key in the selector cascade, restoreFocus would
+    // fall back to the generic [data-da-action="edit-memory-item"] which
+    // matches sum-1's button first — proving the item-key is needed.
+    const editBtn2 = root.querySelector(
+      '[data-da-action="edit-memory-item"][data-da-item-key="summary:sum-2"]',
+    ) as HTMLElement
+    expect(editBtn2).not.toBeNull()
+    editBtn2.focus()
+    expect(document.activeElement).toBe(editBtn2)
+
+    // Trigger a rerender by adding a new summary
+    const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+    addInput.value = 'item-key selector test'
+    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => setTimeout(r, 50))
+
+    // Focus must land on sum-2's edit button, not sum-1's
+    const restoredEdit = root.querySelector(
+      '[data-da-action="edit-memory-item"][data-da-item-key="summary:sum-2"]',
+    ) as HTMLElement
+    expect(restoredEdit).not.toBeNull()
+    expect(document.activeElement).toBe(restoredEdit)
+  })
+
   test('add-relation routes through memory-page rerender', async () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
