@@ -25,7 +25,7 @@ export interface ChatBackfillResult {
   warnings: string[]
 }
 
-function normalizeHostRole(role: string): ChatRole {
+export function normalizeHostRole(role: string): ChatRole {
   const normalized = role.trim().toLowerCase()
   if (normalized === 'assistant' || normalized === 'char' || normalized === 'bot' || normalized === 'model') {
     return 'assistant'
@@ -39,7 +39,7 @@ function normalizeHostRole(role: string): ChatRole {
   return 'user'
 }
 
-function buildWindowMessages(
+export function buildWindowMessages(
   messages: ReadonlyArray<{ role: string; content: string }>,
   assistantIndex: number,
 ): OpenAIChat[] {
@@ -50,7 +50,7 @@ function buildWindowMessages(
   }))
 }
 
-function findLatestUserText(
+export function findLatestUserText(
   messages: ReadonlyArray<{ role: string; content: string }>,
   assistantIndex: number,
 ): string {
@@ -62,7 +62,7 @@ function findLatestUserText(
   return ''
 }
 
-function buildBackfillBrief(state: DirectorPluginState): SceneBrief {
+export function buildBackfillBrief(state: DirectorPluginState): SceneBrief {
   return {
     confidence: 0.5,
     pacing: state.director.pacingMode,

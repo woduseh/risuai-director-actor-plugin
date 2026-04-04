@@ -951,6 +951,34 @@ describe('openDashboard', () => {
     expect(toast!.textContent).toContain('dream-boom')
   })
 
+  test('followed-scope dashboard executes extract without noCallback warning', async () => {
+    let extractCalled = false
+    const followedStore: DashboardStore = {
+      storage: api.pluginStorage,
+      forceExtract: async () => { extractCalled = true },
+      rebuildForActiveScope: async () => followedStore,
+    }
+
+    await openDashboard(api, followedStore)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+
+    const memoryTabBtn = root.querySelector('[data-cd-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    const extractBtn = root.querySelector('[data-cd-action="force-extract"]') as HTMLElement
+    expect(extractBtn).not.toBeNull()
+    extractBtn.click()
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    expect(extractCalled).toBe(true)
+
+    // Verify no "noCallback" warning toast appeared
+    const toasts = document.querySelectorAll('.cd-toast')
+    for (const t of toasts) {
+      expect(t.textContent).not.toContain('runtime callback not configured')
+    }
+  })
+
   test('toggle-fallback-retrieval persists mode and re-renders', async () => {
     await openDashboard(api, store)
     const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement

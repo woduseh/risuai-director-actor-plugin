@@ -9,7 +9,13 @@ import type {
 import { createDirectorService } from './director/service.js'
 import { resolvePromptPreset } from './director/prompt.js'
 import { CanonicalStore } from './memory/canonicalStore.js'
-import { resolveScopeStorageKey } from './memory/scopeResolver.js'
+import { resolveScopeStorageKey, tryGetChat } from './memory/scopeResolver.js'
+import {
+  normalizeHostRole,
+  buildWindowMessages,
+  findLatestUserText,
+  buildBackfillBrief,
+} from './director/backfill.js'
 import { applyMemoryUpdate } from './memory/applyUpdate.js'
 import { retrieveMemory } from './memory/retrieval.js'
 import { TurnCache } from './memory/turnCache.js'
@@ -739,6 +745,114 @@ export async function registerContinuityDirectorPlugin(api: RisuaiApi): Promise<
       liveStore.stateStorageKey,
     )
     dashboardStore.readCanonical = async () => liveStore.load()
+    dashboardStore.forceExtract = async () => {
+      const chat = await tryGetChat(api)
+      if (!chat || chat.messages.length === 0) return
+
+      // Find the latest assistant turn in the current visible chat
+      let lastAssistantIdx = -1
+      for (let i = chat.messages.length - 1; i >= 0; i -= 1) {
+        if (normalizeHostRole(chat.messages[i]!.role) === 'assistant') {
+          lastAssistantIdx = i
+          break
+        }
+      }
+      if (lastAssistantIdx < 0) return
+
+      const state = await liveStore.load()
+      if (!state.settings.postReviewEnabled) return
+
+      const messages = buildWindowMessages(chat.messages, lastAssistantIdx)
+      const responseText = messages[messages.length - 1]?.content ?? ''
+      const brief = buildBackfillBrief(state)
+      const promptPreset = resolvePromptPreset(state.settings)
+      const service = createDirectorService(api, state.settings)
+
+      const result = await service.postResponse({
+        responseText,
+        brief,
+        messages,
+        directorState: state.director,
+        memory: state.memory,
+        assertiveness: state.settings.assertiveness,
+        promptPreset,
+      })
+
+      if (!result.ok) {
+        await liveDiagnostics.recordWorkerFailure('extraction', result.error)
+        throw new Error(result.error)
+      }
+
+      // Apply memory update to scoped canonical state
+      const applied = applyMemoryUpdate(state, result.update, {
+        turnId: `live-extract-${lastAssistantIdx}`,
+        userText: findLatestUserText(chat.messages, lastAssistantIdx),
+        responseText,
+        brief,
+      })
+      await liveStore.writeFirst((s) => {
+        const next = applyMemoryUpdate(s, result.update, {
+          turnId: `live-extract-${lastAssistantIdx}`,
+          userText: findLatestUserText(chat.messages, lastAssistantIdx),
+          responseText,
+          brief,
+        })
+        return {
+          ...next.state,
+          updatedAt: Date.now(),
+          metrics: {
+            ...next.state.metrics,
+            totalDirectorCalls: next.state.metrics.totalDirectorCalls + 1,
+            totalMemoryWrites: next.state.metrics.totalMemoryWrites + 1,
+            lastUpdatedAt: Date.now(),
+          },
+        }
+      })
+
+      // Persist extracted memdir documents for the live scope
+      const now = Date.now()
+      const docs: MemdirDocument[] = []
+      for (const fact of result.update.durableFacts) {
+        docs.push({
+          id: `ext-fact-${createId('f')}`,
+          type: 'plot',
+          title: fact.slice(0, 60),
+          description: fact,
+          scopeKey: liveMemdirScopeKey,
+          updatedAt: now,
+          source: 'extraction',
+          freshness: 'current',
+          tags: [],
+        })
+      }
+      for (const entityData of result.update.entityUpdates) {
+        const name = typeof entityData.name === 'string' ? entityData.name : 'unknown'
+        const facts = Array.isArray(entityData.facts) ? (entityData.facts as string[]).join('; ') : ''
+        docs.push({
+          id: `ext-entity-${createId('e')}`,
+          type: 'character',
+          title: name,
+          description: facts || name,
+          scopeKey: liveMemdirScopeKey,
+          updatedAt: now,
+          source: 'extraction',
+          freshness: 'current',
+          tags: [],
+        })
+      }
+
+      const settings = (await liveStore.load()).settings
+      const client = buildEmbeddingClient(api, settings)
+      const version = client ? getVectorVersion(settings) : ''
+      for (const doc of docs) {
+        const final = client
+          ? await tryEnrichWithEmbedding(doc, client, version, (msg) => api.log(msg))
+          : doc
+        await liveMemdirStore.putDocument(final)
+      }
+
+      await liveDiagnostics.recordWorkerSuccess('extraction', `applied=${true}`)
+    }
     dashboardStore.forceDream = async () => {
       const blockStatus = liveRefreshGuard.checkBlocked()
       if (blockStatus.blocked) {

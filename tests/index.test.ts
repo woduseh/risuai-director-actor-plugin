@@ -487,4 +487,42 @@ describe('composition root wiring', () => {
     // not have been updated since setItem threw
     expect(guardData!.shutdownTs).toBe(0)
   })
+
+  test('different-scope rebuild wires forceExtract into the dashboard store', async () => {
+    const api = createMockRisuaiApi()
+    const openSpy = vi.spyOn(dashboardApp, 'openDashboard').mockResolvedValue()
+
+    // resolveScopeStorageKey is called once at plugin registration (root scope)
+    // and once inside buildDashboardStoreForCurrentScope (live scope).
+    // We need the live scope call to return a different key.
+    const scopeResolver = await import('../src/memory/scopeResolver.js')
+    const resolveStub = vi.spyOn(scopeResolver, 'resolveScopeStorageKey')
+
+    // First call (plugin registration) returns the fallback key
+    resolveStub.mockResolvedValueOnce({
+      storageKey: DIRECTOR_STATE_STORAGE_KEY,
+      isFallback: true,
+    })
+
+    await registerContinuityDirectorPlugin(api)
+
+    // Second call (buildDashboardStoreForCurrentScope) returns a DIFFERENT key
+    resolveStub.mockResolvedValueOnce({
+      storageKey: 'scope-other-chat',
+      isFallback: false,
+    })
+
+    const settingEntry = api.__registerCalls.find((c) => c.kind === 'setting')
+    expect(settingEntry).toBeDefined()
+
+    await settingEntry!.callback()
+
+    expect(openSpy).toHaveBeenCalledTimes(1)
+    const dashboardStore = openSpy.mock.calls[0]?.[1]
+    expect(dashboardStore).toBeDefined()
+    expect(typeof dashboardStore?.rebuildForActiveScope).toBe('function')
+    expect(typeof dashboardStore?.forceExtract).toBe('function')
+
+    resolveStub.mockRestore()
+  })
 })
