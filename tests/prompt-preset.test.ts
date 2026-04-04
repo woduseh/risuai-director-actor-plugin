@@ -8,7 +8,7 @@ import type {
   DirectorContext,
   PostReviewContext,
 } from '../src/director/prompt.js'
-import { createEmptyState, type SceneBrief } from '../src/contracts/types.js'
+import { createEmptyState, DEFAULT_DIRECTOR_SETTINGS, type SceneBrief } from '../src/contracts/types.js'
 
 const VALID_BRIEF: SceneBrief = {
   confidence: 0.85,
@@ -34,7 +34,7 @@ function makeDirectorContext(overrides?: Partial<DirectorContext>): DirectorCont
     directorState: state.director,
     memory: state.memory,
     assertiveness: 'standard',
-    briefTokenCap: 320,
+    briefTokenCap: DEFAULT_DIRECTOR_SETTINGS.briefTokenCap,
     ...overrides,
   }
 }
@@ -60,6 +60,12 @@ function makePostReviewContext(
     ...overrides,
   }
 }
+
+describe('default settings', () => {
+  test('default briefTokenCap reflects the higher soft cap', () => {
+    expect(DEFAULT_DIRECTOR_SETTINGS.briefTokenCap).toBe(1024)
+  })
+})
 
 describe('director prompt presets', () => {
   test('explicit default preset preserves pre-request prompt output', () => {

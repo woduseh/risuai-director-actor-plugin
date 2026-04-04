@@ -401,7 +401,7 @@ export const DEFAULT_DIRECTOR_SETTINGS: DirectorSettings = {
   directorVertexLocation: '',
   directorModel: 'gpt-4.1-mini',
   directorMode: 'otherAx',
-  briefTokenCap: 320,
+  briefTokenCap: 1024,
   postReviewEnabled: true,
   embeddingsEnabled: false,
   injectionMode: 'auto',

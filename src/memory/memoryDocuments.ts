@@ -4,6 +4,9 @@ import type { MemdirStore } from './memdirStore.js'
 // Rough chars-per-token estimate for budget enforcement
 const CHARS_PER_TOKEN = 4
 
+/** Dedicated token budget for the MEMORY.md index, independent of the Director brief cap. */
+export const DIRECTOR_MEMORY_MD_TOKEN_BUDGET = 4096
+
 interface BuildMemoryMdOptions {
   tokenBudget: number
 }

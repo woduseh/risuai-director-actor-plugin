@@ -107,7 +107,7 @@ const EN_CATALOG = {
   'card.promptTuning.copy': 'Adjust Director strength, brief size, and post-review behavior.',
   'card.promptPresets.title': 'Prompt Presets',
   'card.promptPresets.copy': 'Select, clone, or edit the prompt templates used by the Director.',
-  'label.briefTokenCap': 'Brief Token Cap',
+  'label.briefTokenCap': 'Director Brief Token Cap',
   'label.postReview': 'Enable Post-review',
   'label.embeddings': 'Enable Embeddings',
   'label.promptPreset': 'Active Prompt Preset',
@@ -303,7 +303,7 @@ const EN_CATALOG = {
   'fallback.model': 'Model',
   'fallback.injection': 'Insertion',
   'fallback.postReview': 'Post-review',
-  'fallback.briefCap': 'Brief cap',
+  'fallback.briefCap': 'Director brief cap',
   'fallback.briefCapUnit': 'tokens',
 
   // Refresh guard
@@ -423,7 +423,7 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'card.promptTuning.copy': 'Director 개입 강도, 브리프 크기, 사후 리뷰 동작을 조절합니다.',
   'card.promptPresets.title': '프롬프트 프리셋',
   'card.promptPresets.copy': '프리셋을 선택·복제·편집하여 Director 프롬프트 템플릿을 관리합니다.',
-  'label.briefTokenCap': '브리프 토큰 상한',
+  'label.briefTokenCap': 'Director 브리프 토큰 상한',
   'label.postReview': '사후 리뷰 활성화',
   'label.embeddings': '임베딩 활성화',
   'label.promptPreset': '활성 프롬프트 프리셋',
@@ -617,7 +617,7 @@ const KO_CATALOG: Record<TranslationKey, string> = {
   'fallback.model': '모델',
   'fallback.injection': '삽입 방식',
   'fallback.postReview': '사후 리뷰',
-  'fallback.briefCap': '브리프 상한',
+  'fallback.briefCap': 'Director 브리프 상한',
   'fallback.briefCapUnit': '토큰',
 
   // Refresh guard

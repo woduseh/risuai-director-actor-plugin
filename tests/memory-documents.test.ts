@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { InMemoryAsyncStore } from './helpers/mockRisuai.js'
 import { MemdirStore } from '../src/memory/memdirStore.js'
-import { buildMemoryMd, migrateCanonicalToMemdir } from '../src/memory/memoryDocuments.js'
+import { buildMemoryMd, DIRECTOR_MEMORY_MD_TOKEN_BUDGET, migrateCanonicalToMemdir } from '../src/memory/memoryDocuments.js'
 import { createEmptyState } from '../src/contracts/types.js'
 import type { DirectorPluginState, MemdirDocument } from '../src/contracts/types.js'
 
@@ -80,6 +80,30 @@ describe('buildMemoryMd', () => {
     ]
     const md = buildMemoryMd(docs, { tokenBudget: 500 })
     expect(md).toContain('stale')
+  })
+})
+
+describe('DIRECTOR_MEMORY_MD_TOKEN_BUDGET', () => {
+  it('is a separate constant from briefTokenCap with value 4096', () => {
+    expect(DIRECTOR_MEMORY_MD_TOKEN_BUDGET).toBe(4096)
+  })
+
+  it('buildMemoryMd uses memory budget independently of briefTokenCap', () => {
+    const docs: MemdirDocument[] = Array.from({ length: 50 }, (_, i) => ({
+      id: `doc-${i}`,
+      type: 'world' as const,
+      title: `World Fact ${i} ${'x'.repeat(100)}`,
+      description: `Description ${i} ${'detail '.repeat(50)}`,
+      scopeKey: 'scope:x:y',
+      updatedAt: Date.now() - i * 1000,
+      source: 'extraction' as const,
+      freshness: 'current' as const,
+      tags: [],
+    }))
+    const tinyBriefCap = 128
+    const memoryMd = buildMemoryMd(docs, { tokenBudget: DIRECTOR_MEMORY_MD_TOKEN_BUDGET })
+    // Memory output at 4096-token budget must be much larger than a tiny brief cap would allow
+    expect(memoryMd.length).toBeGreaterThan(tinyBriefCap * 4)
   })
 })
 

@@ -19,7 +19,7 @@ import {
   type ExtractionResult,
 } from './memory/extractMemories.js'
 import { MemdirStore } from './memory/memdirStore.js'
-import { buildMemoryMd } from './memory/memoryDocuments.js'
+import { buildMemoryMd, DIRECTOR_MEMORY_MD_TOKEN_BUDGET } from './memory/memoryDocuments.js'
 import {
   findRelevantMemories,
   formatRecalledDocsBlock,
@@ -457,7 +457,7 @@ export async function registerContinuityDirectorPlugin(api: RisuaiApi): Promise<
       const memDocs = await memdirStore.listDocuments()
       const storedMd = await memdirStore.getMemoryMd()
       const memoryMdContent =
-        storedMd ?? buildMemoryMd(memDocs, { tokenBudget: state.settings.briefTokenCap })
+        storedMd ?? buildMemoryMd(memDocs, { tokenBudget: DIRECTOR_MEMORY_MD_TOKEN_BUDGET })
 
       const recallDeps: RecallDeps = {
         runRecallModel: (manifest, text) =>
