@@ -6409,7 +6409,7 @@ ${lines.join("\n").trimEnd()}`;
     }
     // ── Workbench data loading ───────────────────────────────────────────
     /**
-     * Load memdir workbench data from store callbacks.
+     * Load memory workbench data from store callbacks.
      * Non-fatal: errors are captured as inline workbench error state.
      */
     async loadWorkbenchData() {
@@ -6428,7 +6428,7 @@ ${lines.join("\n").trimEnd()}`;
           error: null
         };
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error loading memdir";
+        const message = err instanceof Error ? err.message : "Unknown error loading memory workbench";
         this.workbenchInput = {
           ...this.workbenchInput,
           loading: false,

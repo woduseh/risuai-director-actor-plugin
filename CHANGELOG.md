@@ -106,15 +106,15 @@
 
 ### Added
 
-- Claude-inspired multi-layer memory lifecycle: extract → recall → session notebook → dream consolidation
+- Claude-inspired multi-layer memory lifecycle: extract → recall → session notebook → consolidation
 - Lazy per-scope memdir migration gate with idempotent, non-destructive canonical-to-memdir migration
 - Per-scope migration marker (`continuity-director-memdir:migrated:{scopeKey}`) with schema version tracking
 - `MemdirMigrationMarker` type and `getMigrationMarker()` API on `CanonicalStore`
 - `CanonicalStore` accepts optional `memdirStore` to trigger automatic migration on first load
 - Dual-read backward compatibility: canonical blob remains readable during and after memdir migration
 - Safe partial-migration fallback: canonical reads are always available even if memdir state is incomplete
-- Integration test covering full extract → recall → session-memory → dream lifecycle without shared-state conflicts
-- Memory Operations card on the dashboard memory page showing last extraction time, last consolidation time, notebook freshness badge, and document counts by type
+- Integration test covering full extract → recall → session-memory → consolidation lifecycle without shared-state conflicts
+- Memory Operations card on the dashboard memory page showing last extraction time, last consolidation time, notebook status badge, and document counts by type
 - Operator actions: Run Extract Now, Run Consolidation Now, View Recalled Docs, Toggle Fallback Retrieval
 - Stale-memory warnings and locked-memory indicators on the memory ops card
 - Optional `DashboardStore` callbacks (`forceExtract`, `forceDream`, `getRecalledDocs`, `isMemoryLocked`) for composition-root integration

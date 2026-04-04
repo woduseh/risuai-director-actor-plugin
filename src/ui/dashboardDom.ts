@@ -58,7 +58,7 @@ export interface DashboardMarkupInput {
   memoryFilterQuery?: string
   /** Scope label for the active scoped storage key. */
   scopeLabel?: string
-  /** Read-only memdir workbench input. */
+  /** Read-only memory workbench input. */
   workbenchInput?: MemoryWorkbenchInput
 }
 

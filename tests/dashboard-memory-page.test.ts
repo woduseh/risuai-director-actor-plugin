@@ -1731,7 +1731,7 @@ describe('destructive-action arming', () => {
     expect(delBtn.textContent).toBe('Delete this item?')
   })
 
-  test('second clickon an armed memory delete button executes the deletion', async () => {
+  test('second click on an armed memory delete button executes the deletion', async () => {
     let currentState = stateWithMemory()
     store = {
       storage: api.pluginStorage,

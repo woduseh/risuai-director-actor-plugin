@@ -203,7 +203,7 @@ function buildNotebookSnapshot(snap: WorkbenchNotebookSnapshot): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Build the read-only Memory Workbench HTML for the memdir inspector.
+ * Build the read-only Memory Workbench HTML for the memory document inspector.
  * This is a pure function — no side effects, no DOM mutation.
  */
 export function buildMemoryWorkbench(input: MemoryWorkbenchInput): string {

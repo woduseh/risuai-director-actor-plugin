@@ -150,7 +150,7 @@ export interface DashboardStore {
   refreshEmbeddings?: () => Promise<number>
   /** Optional callback to compute the current embedding cache status. */
   getEmbeddingCacheStatus?: () => Promise<import('./dashboardState.js').EmbeddingCacheStatus>
-  /** Optional callback to list memdir documents for the workbench inspector. */
+  /** Optional callback to list memory documents for the workbench inspector. */
   getWorkbenchDocuments?: () => Promise<import('./memoryWorkbenchDom.js').WorkbenchDocEntry[]>
   /** Optional callback to get the rendered MEMORY.md for the current scope. */
   getMemoryMdPreview?: () => Promise<string | null>
@@ -415,7 +415,7 @@ class DashboardInstance {
   // ── Workbench data loading ───────────────────────────────────────────
 
   /**
-   * Load memdir workbench data from store callbacks.
+   * Load memory workbench data from store callbacks.
    * Non-fatal: errors are captured as inline workbench error state.
    */
   private async loadWorkbenchData(): Promise<void> {
@@ -442,7 +442,7 @@ class DashboardInstance {
         error: null,
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error loading memdir'
+      const message = err instanceof Error ? err.message : 'Unknown error loading memory workbench'
       this.workbenchInput = {
         ...this.workbenchInput,
         loading: false,

@@ -70,7 +70,7 @@ The dashboard Memory Operations card provides operator controls:
 - `src/runtime/plugin.ts` — hook orchestration
 - `src/director/` — prompt assembly, model calls, validation
 - `src/adapter/` — prompt topology classification and injection
-- `src/memory/` — canonical store, memdir store, extraction worker, recall, session notebook, auto-dream consolidation, migration
+- `src/memory/` — canonical store, memdir store, extraction worker, recall, session notebook, auto-consolidation, migration
 - `src/ui/` — fullscreen dashboard registration, state, model adapters, and rendering
 - `dist/risuai-continuity-director-plugin.js` — bundled Plugin V3 output
 
