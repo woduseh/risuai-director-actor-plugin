@@ -2,6 +2,8 @@
 // Constants
 // ---------------------------------------------------------------------------
 
+import type { RisuaiApi } from '../contracts/risuai.js'
+
 export const GITHUB_TOKEN_EXCHANGE_URL =
   'https://api.github.com/copilot_internal/v2/token'
 
@@ -32,6 +34,8 @@ const INFERENCE_HEADERS_BASE: Record<string, string> = {
   ...COMMON_HEADERS,
 }
 
+// Copilot Anthropic requests require an explicit output cap. The Director only
+// asks for compact JSON payloads, so 4096 is ample headroom.
 const ANTHROPIC_MAX_TOKENS = 4096
 
 // ---------------------------------------------------------------------------
@@ -61,6 +65,7 @@ export interface CopilotClient {
 // Endpoint routing
 // ---------------------------------------------------------------------------
 
+// Keep this explicit until Copilot documents broader Responses API routing.
 const RESPONSES_API_PATTERN = /^gpt-5\.4/
 const ANTHROPIC_PATTERN = /^claude-/
 
@@ -148,20 +153,62 @@ function parseAnthropicMessages(json: Record<string, unknown>): string {
 // ---------------------------------------------------------------------------
 
 interface TokenCache {
+  inputToken: string
   token: string
+  apiBase: string
   expiresAt: number
 }
 
 interface ExchangeResponse {
   token?: string
   expires_at?: number
+  endpoints?: {
+    api?: string
+  }
+}
+
+const sharedCopilotClients = new WeakMap<RisuaiApi, CopilotClient>()
+
+export function getSharedCopilotClient(api: RisuaiApi): CopilotClient {
+  const existing = sharedCopilotClients.get(api)
+  if (existing) {
+    return existing
+  }
+  const client = createCopilotClient((url, init) => api.nativeFetch(url, init))
+  sharedCopilotClients.set(api, client)
+  return client
 }
 
 export function createCopilotClient(fetchFn: FetchFn): CopilotClient {
-  let cached: TokenCache | null = null
-  let inflight: Promise<string> | null = null
+  const cacheByInputToken = new Map<string, TokenCache>()
+  const inflightByInputToken = new Map<string, Promise<TokenCache>>()
 
-  async function exchangeToken(inputToken: string): Promise<string> {
+  function normalizeApiBase(apiBase?: string): string {
+    if (typeof apiBase !== 'string' || apiBase.trim().length === 0) {
+      return COPILOT_API_BASE
+    }
+    return apiBase.trim().replace(/\/+$/, '')
+  }
+
+  async function throwHttpError(
+    prefix: string,
+    response: Response,
+  ): Promise<never> {
+    let detail = ''
+    try {
+      const text = (await response.text()).trim()
+      if (text) {
+        detail = text.length > 200 ? `${text.slice(0, 200)}...` : text
+      }
+    } catch {
+      // Ignore body read failures; the status line is still actionable.
+    }
+    throw new Error(
+      `${prefix} (HTTP ${String(response.status)})${detail ? `: ${detail}` : ''}`,
+    )
+  }
+
+  async function exchangeToken(inputToken: string): Promise<TokenCache> {
     const response = await fetchFn(GITHUB_TOKEN_EXCHANGE_URL, {
       method: 'GET',
       headers: {
@@ -171,17 +218,16 @@ export function createCopilotClient(fetchFn: FetchFn): CopilotClient {
     })
 
     if (response.status === 401 || response.status === 403) {
-      cached = {
+      return {
+        inputToken,
         token: inputToken,
+        apiBase: COPILOT_API_BASE,
         expiresAt: Date.now() + DIRECT_TOKEN_TTL_MS,
       }
-      return inputToken
     }
 
     if (!response.ok) {
-      throw new Error(
-        `Copilot token exchange failed (HTTP ${String(response.status)})`,
-      )
+      return throwHttpError('Copilot token exchange failed', response)
     }
 
     const data = (await response.json()) as ExchangeResponse
@@ -194,45 +240,63 @@ export function createCopilotClient(fetchFn: FetchFn): CopilotClient {
       )
     }
 
-    cached = {
+    return {
+      inputToken,
       token: data.token,
+      apiBase: normalizeApiBase(data.endpoints?.api),
       expiresAt: data.expires_at * 1000 - TOKEN_EXPIRY_SAFETY_MARGIN_MS,
     }
-    return data.token
+  }
+
+  async function getApiAccess(inputToken: string): Promise<TokenCache> {
+    const cached = cacheByInputToken.get(inputToken)
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached
+    }
+
+    const inflight = inflightByInputToken.get(inputToken)
+    if (inflight) {
+      return inflight
+    }
+
+    const next = exchangeToken(inputToken).finally(() => {
+      inflightByInputToken.delete(inputToken)
+    })
+    inflightByInputToken.set(inputToken, next)
+
+    const resolved = await next
+    cacheByInputToken.set(inputToken, resolved)
+    return resolved
   }
 
   async function getApiToken(inputToken: string): Promise<string> {
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.token
-    }
-
-    if (inflight) return inflight
-
-    inflight = exchangeToken(inputToken).finally(() => {
-      inflight = null
-    })
-    return inflight
+    return (await getApiAccess(inputToken)).token
   }
 
-  function inferenceHeaders(apiToken: string): Record<string, string> {
-    return {
+  function inferenceHeaders(
+    apiToken: string,
+    format?: CopilotApiFormat,
+  ): Record<string, string> {
+    const headers: Record<string, string> = {
       ...INFERENCE_HEADERS_BASE,
       Authorization: `Bearer ${apiToken}`,
     }
+    if (format === 'anthropic') {
+      headers['anthropic-version'] = '2023-06-01'
+    }
+    return headers
   }
 
   async function listModels(inputToken: string): Promise<string[]> {
-    const apiToken = await getApiToken(inputToken)
+    const access = await getApiAccess(inputToken)
 
-    const response = await fetchFn(`${COPILOT_API_BASE}/models`, {
+    const response = await fetchFn(`${access.apiBase}/models`, {
       method: 'GET',
-      headers: inferenceHeaders(apiToken),
+      headers: inferenceHeaders(access.token),
     })
 
     if (!response.ok) {
-      throw new Error(
-        `Copilot model listing failed (HTTP ${String(response.status)})`,
-      )
+      return throwHttpError('Copilot model listing failed', response)
     }
 
     const json = (await response.json()) as {
@@ -247,7 +311,7 @@ export function createCopilotClient(fetchFn: FetchFn): CopilotClient {
     model: string,
     messages: Array<{ role: string; content: string }>,
   ): Promise<string> {
-    const apiToken = await getApiToken(inputToken)
+    const access = await getApiAccess(inputToken)
     const { path, format } = resolveCopilotEndpoint(model)
 
     let body: string
@@ -283,16 +347,14 @@ export function createCopilotClient(fetchFn: FetchFn): CopilotClient {
       })
     }
 
-    const response = await fetchFn(`${COPILOT_API_BASE}${path}`, {
+    const response = await fetchFn(`${access.apiBase}${path}`, {
       method: 'POST',
-      headers: inferenceHeaders(apiToken),
+      headers: inferenceHeaders(access.token, format),
       body,
     })
 
     if (!response.ok) {
-      throw new Error(
-        `Copilot inference failed (HTTP ${String(response.status)})`,
-      )
+      return throwHttpError('Copilot inference failed', response)
     }
 
     const json = (await response.json()) as Record<string, unknown>

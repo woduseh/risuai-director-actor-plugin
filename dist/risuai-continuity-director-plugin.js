@@ -558,9 +558,38 @@
     }
     return parts.join("");
   }
+  var sharedCopilotClients = /* @__PURE__ */ new WeakMap();
+  function getSharedCopilotClient(api) {
+    const existing = sharedCopilotClients.get(api);
+    if (existing) {
+      return existing;
+    }
+    const client = createCopilotClient((url, init) => api.nativeFetch(url, init));
+    sharedCopilotClients.set(api, client);
+    return client;
+  }
   function createCopilotClient(fetchFn) {
-    let cached = null;
-    let inflight = null;
+    const cacheByInputToken = /* @__PURE__ */ new Map();
+    const inflightByInputToken = /* @__PURE__ */ new Map();
+    function normalizeApiBase(apiBase) {
+      if (typeof apiBase !== "string" || apiBase.trim().length === 0) {
+        return COPILOT_API_BASE;
+      }
+      return apiBase.trim().replace(/\/+$/, "");
+    }
+    async function throwHttpError(prefix, response) {
+      let detail = "";
+      try {
+        const text = (await response.text()).trim();
+        if (text) {
+          detail = text.length > 200 ? `${text.slice(0, 200)}...` : text;
+        }
+      } catch {
+      }
+      throw new Error(
+        `${prefix} (HTTP ${String(response.status)})${detail ? `: ${detail}` : ""}`
+      );
+    }
     async function exchangeToken(inputToken) {
       const response = await fetchFn(GITHUB_TOKEN_EXCHANGE_URL, {
         method: "GET",
@@ -570,16 +599,15 @@
         }
       });
       if (response.status === 401 || response.status === 403) {
-        cached = {
+        return {
+          inputToken,
           token: inputToken,
+          apiBase: COPILOT_API_BASE,
           expiresAt: Date.now() + DIRECT_TOKEN_TTL_MS
         };
-        return inputToken;
       }
       if (!response.ok) {
-        throw new Error(
-          `Copilot token exchange failed (HTTP ${String(response.status)})`
-        );
+        return throwHttpError("Copilot token exchange failed", response);
       }
       const data = await response.json();
       if (typeof data.token !== "string" || typeof data.expires_at !== "number") {
@@ -587,45 +615,58 @@
           "Copilot token exchange returned unexpected response"
         );
       }
-      cached = {
+      return {
+        inputToken,
         token: data.token,
+        apiBase: normalizeApiBase(data.endpoints?.api),
         expiresAt: data.expires_at * 1e3 - TOKEN_EXPIRY_SAFETY_MARGIN_MS
       };
-      return data.token;
+    }
+    async function getApiAccess(inputToken) {
+      const cached = cacheByInputToken.get(inputToken);
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached;
+      }
+      const inflight = inflightByInputToken.get(inputToken);
+      if (inflight) {
+        return inflight;
+      }
+      const next = exchangeToken(inputToken).finally(() => {
+        inflightByInputToken.delete(inputToken);
+      });
+      inflightByInputToken.set(inputToken, next);
+      const resolved = await next;
+      cacheByInputToken.set(inputToken, resolved);
+      return resolved;
     }
     async function getApiToken(inputToken) {
-      if (cached && cached.expiresAt > Date.now()) {
-        return cached.token;
-      }
-      if (inflight) return inflight;
-      inflight = exchangeToken(inputToken).finally(() => {
-        inflight = null;
-      });
-      return inflight;
+      return (await getApiAccess(inputToken)).token;
     }
-    function inferenceHeaders(apiToken) {
-      return {
+    function inferenceHeaders(apiToken, format) {
+      const headers = {
         ...INFERENCE_HEADERS_BASE,
         Authorization: `Bearer ${apiToken}`
       };
+      if (format === "anthropic") {
+        headers["anthropic-version"] = "2023-06-01";
+      }
+      return headers;
     }
     async function listModels(inputToken) {
-      const apiToken = await getApiToken(inputToken);
-      const response = await fetchFn(`${COPILOT_API_BASE}/models`, {
+      const access = await getApiAccess(inputToken);
+      const response = await fetchFn(`${access.apiBase}/models`, {
         method: "GET",
-        headers: inferenceHeaders(apiToken)
+        headers: inferenceHeaders(access.token)
       });
       if (!response.ok) {
-        throw new Error(
-          `Copilot model listing failed (HTTP ${String(response.status)})`
-        );
+        return throwHttpError("Copilot model listing failed", response);
       }
       const json = await response.json();
       const ids = (json.data ?? []).map((entry) => entry.id);
       return [...new Set(ids)].sort();
     }
     async function complete(inputToken, model, messages) {
-      const apiToken = await getApiToken(inputToken);
+      const access = await getApiAccess(inputToken);
       const { path, format } = resolveCopilotEndpoint(model);
       let body;
       if (format === "anthropic") {
@@ -653,15 +694,13 @@
           stream: false
         });
       }
-      const response = await fetchFn(`${COPILOT_API_BASE}${path}`, {
+      const response = await fetchFn(`${access.apiBase}${path}`, {
         method: "POST",
-        headers: inferenceHeaders(apiToken),
+        headers: inferenceHeaders(access.token, format),
         body
       });
       if (!response.ok) {
-        throw new Error(
-          `Copilot inference failed (HTTP ${String(response.status)})`
-        );
+        return throwHttpError("Copilot inference failed", response);
       }
       const json = await response.json();
       switch (format) {
@@ -678,7 +717,7 @@
 
   // src/director/service.ts
   function createDirectorService(api, settings) {
-    const copilotClient = settings.directorProvider === "copilot" ? createCopilotClient((url, init) => api.nativeFetch(url, init)) : null;
+    const copilotClient = settings.directorProvider === "copilot" ? getSharedCopilotClient(api) : null;
     async function callLlm(messages) {
       if (copilotClient) {
         try {
@@ -5684,9 +5723,7 @@ ${lines.join("\n").trimEnd()}`;
     if (provider === "copilot") {
       if (settings.directorCopilotToken) {
         try {
-          const client = createCopilotClient(
-            (url, init) => api.nativeFetch(url, init)
-          );
+          const client = getSharedCopilotClient(api);
           return await client.listModels(settings.directorCopilotToken);
         } catch {
         }
@@ -5728,9 +5765,7 @@ ${lines.join("\n").trimEnd()}`;
         if (!settings.directorCopilotToken) {
           return { ok: false, error: "Copilot token is not configured" };
         }
-        const client = createCopilotClient(
-          (url, init) => api.nativeFetch(url, init)
-        );
+        const client = getSharedCopilotClient(api);
         const models2 = await client.listModels(settings.directorCopilotToken);
         return { ok: true, models: models2 };
       }

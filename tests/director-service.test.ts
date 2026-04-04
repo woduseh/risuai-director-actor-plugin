@@ -16,7 +16,9 @@ import {
   type CanonicalMemory,
   type DirectorState,
 } from '../src/contracts/types.js'
-import { COPILOT_API_BASE } from '../src/provider/copilotClient.js'
+import {
+  GITHUB_TOKEN_EXCHANGE_URL,
+} from '../src/provider/copilotClient.js'
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -375,6 +377,31 @@ describe('DirectorService', () => {
       if (!result.ok) return
       expect(result.brief.confidence).toBe(0.85)
       expect(spy).not.toHaveBeenCalled()
+    })
+
+    test('reuses exchanged Copilot tokens across service instances', async () => {
+      const api = createMockRisuaiApi()
+      api.enqueueNativeFetchJson(COPILOT_EXCHANGE_RESPONSE)
+      api.enqueueNativeFetchJson({
+        choices: [{ message: { content: VALID_BRIEF_JSON } }],
+      })
+      api.enqueueNativeFetchJson({
+        choices: [{ message: { content: VALID_BRIEF_JSON } }],
+      })
+
+      const nativeFetchSpy = vi.spyOn(api, 'nativeFetch')
+      const firstService = createDirectorService(api, copilotSettings())
+      const secondService = createDirectorService(api, copilotSettings())
+
+      const firstResult = await firstService.preRequest(makeDirectorContext())
+      const secondResult = await secondService.preRequest(makeDirectorContext())
+
+      expect(firstResult.ok).toBe(true)
+      expect(secondResult.ok).toBe(true)
+      expect(nativeFetchSpy).toHaveBeenCalledTimes(3)
+      expect(nativeFetchSpy.mock.calls[0]![0]).toBe(GITHUB_TOKEN_EXCHANGE_URL)
+      expect(String(nativeFetchSpy.mock.calls[1]![0])).toContain('/chat/completions')
+      expect(String(nativeFetchSpy.mock.calls[2]![0])).toContain('/chat/completions')
     })
 
     test('preserves host runLLMModel path for non-Copilot providers', async () => {

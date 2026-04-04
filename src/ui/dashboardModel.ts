@@ -5,7 +5,7 @@ import type {
   EmbeddingProvider,
 } from '../contracts/types.js'
 import type { TranslationKey } from './i18n.js'
-import { createCopilotClient } from '../provider/copilotClient.js'
+import { getSharedCopilotClient } from '../provider/copilotClient.js'
 
 /* ------------------------------------------------------------------ */
 /*  Provider catalog                                                  */
@@ -265,9 +265,10 @@ interface OpenAIModelsResponseEntry {
  *
  * - **openai / custom**: hits the `/models` endpoint via `nativeFetch`
  *   and returns a sorted, deduplicated list of model IDs.
- * - **anthropic / google / copilot / vertex**: returns the curated
- *   fallback list because these providers do not expose a simple
- *   `/models` endpoint.
+ * - **copilot**: tries authenticated `/models` listing when a token is
+ *   configured, then falls back to the curated list on failure.
+ * - **anthropic / google / vertex**: returns the curated fallback list
+ *   because these providers do not expose a simple `/models` endpoint.
  */
 export async function loadProviderModels(
   api: RisuaiApi,
@@ -277,16 +278,14 @@ export async function loadProviderModels(
   const catalogEntry = DIRECTOR_PROVIDER_CATALOG.find((e) => e.id === provider)
 
   // Copilot: try dynamic model listing when a token is configured
-  if (provider === 'copilot') {
-    if (settings.directorCopilotToken) {
-      try {
-        const client = createCopilotClient(
-          (url, init) => api.nativeFetch(url, init),
-        )
-        return await client.listModels(settings.directorCopilotToken)
-      } catch {
-        // Fall through to curated list
-      }
+    if (provider === 'copilot') {
+      if (settings.directorCopilotToken) {
+        try {
+          const client = getSharedCopilotClient(api)
+          return await client.listModels(settings.directorCopilotToken)
+        } catch {
+          // Fall through to curated list
+        }
     }
     return [...(catalogEntry?.curatedModels ?? [])]
   }
@@ -354,9 +353,7 @@ export async function testDirectorConnection(
       if (!settings.directorCopilotToken) {
         return { ok: false, error: 'Copilot token is not configured' }
       }
-      const client = createCopilotClient(
-        (url, init) => api.nativeFetch(url, init),
-      )
+      const client = getSharedCopilotClient(api)
       const models = await client.listModels(settings.directorCopilotToken)
       return { ok: true, models }
     }

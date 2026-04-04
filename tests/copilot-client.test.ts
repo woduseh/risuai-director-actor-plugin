@@ -137,6 +137,22 @@ describe('CopilotClient', () => {
       expect(mock.calls).toHaveLength(1)
     })
 
+    test('caches exchanged tokens separately per input token', async () => {
+      const mock = createMockFetch()
+      mock.enqueueJson(makeExchangeResponse({ token: 'tid=first-token' }))
+      mock.enqueueJson(makeExchangeResponse({ token: 'tid=second-token' }))
+
+      const client = createCopilotClient(mock.fn)
+      const first = await client.getApiToken('ghp_first')
+      const second = await client.getApiToken('ghp_second')
+      const firstAgain = await client.getApiToken('ghp_first')
+
+      expect(first).toBe('tid=first-token')
+      expect(second).toBe('tid=second-token')
+      expect(firstAgain).toBe('tid=first-token')
+      expect(mock.calls).toHaveLength(2)
+    })
+
     test('re-exchanges when cached token has expired', async () => {
       const mock = createMockFetch()
       // First exchange returns already-expired token
@@ -196,13 +212,13 @@ describe('CopilotClient', () => {
       expect(mock.calls).toHaveLength(1)
     })
 
-    test('throws on non-auth exchange HTTP errors', async () => {
+    test('includes response details on non-auth exchange HTTP errors', async () => {
       const mock = createMockFetch()
       mock.enqueueJson({ message: 'Server error' }, 500)
 
       const client = createCopilotClient(mock.fn)
       await expect(client.getApiToken('ghp_test')).rejects.toThrow(
-        /token exchange failed/i,
+        /Server error/i,
       )
     })
   })
@@ -236,14 +252,14 @@ describe('CopilotClient', () => {
       )
     })
 
-    test('throws on HTTP error from /models endpoint', async () => {
+    test('includes response details on HTTP error from /models endpoint', async () => {
       const mock = createMockFetch()
       mock.enqueueJson(makeExchangeResponse())
       mock.enqueueJson({ error: 'forbidden' }, 403)
 
       const client = createCopilotClient(mock.fn)
       await expect(client.listModels('ghp_test')).rejects.toThrow(
-        /model listing failed/i,
+        /forbidden/i,
       )
     })
   })
@@ -322,9 +338,12 @@ describe('CopilotClient', () => {
       expect(text).toBe('Direct text shorthand')
     })
 
-    test('sends /v1/messages for Claude with system extraction', async () => {
+    test('uses exchanged dynamic API base for Claude requests and includes anthropic headers', async () => {
       const mock = createMockFetch()
-      mock.enqueueJson(makeExchangeResponse())
+      mock.enqueueJson({
+        ...makeExchangeResponse(),
+        endpoints: { api: 'https://copilot-proxy.example.com/' },
+      })
       mock.enqueueJson({
         content: [{ type: 'text', text: 'Hello from Claude' }],
       })
@@ -338,12 +357,14 @@ describe('CopilotClient', () => {
       expect(text).toBe('Hello from Claude')
 
       const call = mock.calls[1]!
-      expect(call.url).toBe(`${COPILOT_API_BASE}/v1/messages`)
+      expect(call.url).toBe('https://copilot-proxy.example.com/v1/messages')
       const body = JSON.parse(call.init?.body as string)
       expect(body.model).toBe('claude-sonnet-4-6')
       expect(body.system).toBe('You are helpful.')
       expect(body.messages).toEqual([{ role: 'user', content: 'Hi' }])
       expect(body.max_tokens).toBeGreaterThan(0)
+      const headers = call.init?.headers as Record<string, string>
+      expect(headers['anthropic-version']).toBe('2023-06-01')
     })
 
     test('includes Copilot inference headers', async () => {
@@ -367,7 +388,7 @@ describe('CopilotClient', () => {
       expect(headers['X-Github-Api-Version']).toBe('2025-10-01')
     })
 
-    test('throws on non-ok inference response', async () => {
+    test('includes response details on non-ok inference response', async () => {
       const mock = createMockFetch()
       mock.enqueueJson(makeExchangeResponse())
       mock.enqueueJson({ error: { message: 'Rate limited' } }, 429)
@@ -378,7 +399,7 @@ describe('CopilotClient', () => {
         client.complete('ghp_test', 'gpt-4.1', [
           { role: 'user', content: 'Hi' },
         ]),
-      ).rejects.toThrow(/inference failed/i)
+      ).rejects.toThrow(/Rate limited/i)
     })
   })
 })

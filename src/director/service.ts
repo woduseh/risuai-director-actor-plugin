@@ -7,7 +7,10 @@ import type { RisuaiApi, RunLLMModelResult } from '../contracts/risuai.js'
 import type { DirectorContext, PostReviewContext } from './prompt.js'
 import { buildPreRequestPrompt, buildPostResponsePrompt } from './prompt.js'
 import { parseSceneBrief, parseMemoryUpdate, ModelPayloadError } from './validator.js'
-import { createCopilotClient, type CopilotClient } from '../provider/copilotClient.js'
+import {
+  getSharedCopilotClient,
+  type CopilotClient,
+} from '../provider/copilotClient.js'
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -53,7 +56,7 @@ export function createDirectorService(
 ): DirectorService {
   const copilotClient: CopilotClient | null =
     settings.directorProvider === 'copilot'
-      ? createCopilotClient((url, init) => api.nativeFetch(url, init))
+      ? getSharedCopilotClient(api)
       : null
 
   async function callLlm(
