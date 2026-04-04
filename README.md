@@ -24,7 +24,7 @@ The plugin implements a multi-layer memory system inspired by Claude Code's `CLA
 
 ### Memory Layers
 
-1. **Canonical Store** — Legacy scoped blob persisting `DirectorPluginState` per character/chat. Remains the backward-compatible source of truth for settings, director state, actor state, and metrics.
+1. **Canonical Store** — Legacy scoped blob persisting `DirectorPluginState` per character/chat. Remains the source of truth for settings, director state, character state, and metrics.
 2. **Virtual Memdir** — Individually addressable memory documents (`MemdirDocument`) stored in a virtual directory structure. Each scope has its own index manifest and individually addressable records.
 3. **Session Notebook** — Lightweight within-session continuity notebook (5 sections: current state, immediate goals, recent developments, unresolved threads, recent mistakes). Threshold-gated updates keep it fresh without churn.
 
