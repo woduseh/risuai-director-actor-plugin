@@ -209,6 +209,7 @@ describe('dashboardModel', () => {
 
   test('falls back to curated Copilot models when token is not set', async () => {
     const api = createMockRisuaiApi()
+    const curatedCopilotModels = resolveProviderDefaults('copilot').curatedModels
 
     const models = await loadProviderModels(
       api,
@@ -219,11 +220,12 @@ describe('dashboardModel', () => {
     )
 
     expect(models.length).toBeGreaterThan(0)
-    expect(models).toEqual(expect.arrayContaining(['gpt-4.1']))
+    expect(models).toEqual(curatedCopilotModels)
   })
 
   test('falls back to curated Copilot models when listing fails', async () => {
     const api = createMockRisuaiApi()
+    const curatedCopilotModels = resolveProviderDefaults('copilot').curatedModels
     // Token exchange fails
     api.enqueueNativeFetchJson({ message: 'error' }, { status: 500 })
 
@@ -236,7 +238,7 @@ describe('dashboardModel', () => {
     )
 
     expect(models.length).toBeGreaterThan(0)
-    expect(models).toEqual(expect.arrayContaining(['gpt-4.1']))
+    expect(models).toEqual(curatedCopilotModels)
   })
 
   test('returns error for Vertex connection test when JSON key is not configured', async () => {

@@ -9,9 +9,8 @@
 // Budget: ACTOR_MEMORY_TOKEN_BUDGET tokens, enforced via a simple
 // chars-per-token ratio (same approach as memoryDocuments.ts).
 //
-// This module is forward-compatible with Task 4 (CBS-aware dual injection).
-// For now the block is computed and carried through the runtime but NOT
-// injected into prompts.
+// This block is computed before the Director call and later injected as a
+// separate actor-visible system message by the CBS-aware dual-injection path.
 // ---------------------------------------------------------------------------
 
 /** Rough chars-per-token estimate — mirrors memoryDocuments.ts. */

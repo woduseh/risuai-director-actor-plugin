@@ -542,7 +542,7 @@ export async function registerContinuityDirectorPlugin(api: RisuaiApi): Promise<
         throw new Error(result.error)
       }
 
-      // ── Build actor-visible memory context (carried, not injected yet)
+      // ── Build actor-visible memory context for CBS-aware dual injection
       const memorySummaries = projectedMemory.summaries
         .slice()
         .sort((a, b) => b.recencyWeight - a.recencyWeight)

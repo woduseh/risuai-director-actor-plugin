@@ -38,7 +38,7 @@ export interface DirectorPostResponseInput {
 
 export interface DirectorPreRequestResult {
   brief: SceneBrief
-  /** Actor-visible long-memory context block (computed, not injected yet). */
+  /** Actor-visible long-memory context block carried for dual injection. */
   actorMemoryContext?: string
 }
 
