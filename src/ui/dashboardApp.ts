@@ -6,7 +6,7 @@ import type {
 } from '../contracts/types.js'
 import { DEFAULT_DIRECTOR_SETTINGS, createEmptyState } from '../contracts/types.js'
 import { buildDashboardCss, DASHBOARD_STYLE_ID, DASHBOARD_ROOT_CLASS } from './dashboardCss.js'
-import { buildDashboardMarkup, DASHBOARD_TABS } from './dashboardDom.js'
+import { buildDashboardMarkup, buildMemoryCachePage, DASHBOARD_TABS } from './dashboardDom.js'
 import type { DashboardMarkupInput } from './dashboardDom.js'
 import { DashboardLifecycle } from './dashboardLifecycle.js'
 import {
@@ -44,7 +44,7 @@ import {
   loadProviderModels,
 } from './dashboardModel.js'
 import type { ConnectionTestResult } from './dashboardModel.js'
-import { t, setLocale, getLocale } from './i18n.js'
+import { t, setLocale, getLocale, tabLabel } from './i18n.js'
 import type { DashboardLocale } from './i18n.js'
 import { BUILTIN_PROMPT_PRESET_ID } from '../director/prompt.js'
 import { backfillCurrentChat } from '../director/backfill.js'
@@ -524,6 +524,31 @@ class DashboardInstance {
     this.applyAllBusyStates()
 
     // Replay memory filter visibility after rerender
+    if (this.memoryFilterQuery) {
+      this.handleMemoryFilter(this.memoryFilterQuery)
+    }
+  }
+
+  /**
+   * Replace only the memory-cache page content while keeping the root,
+   * sidebar, footer and event listeners intact.  Falls back to
+   * `fullReRender()` when the page container is missing.
+   */
+  private memoryPageReRender(): void {
+    if (!this.root) return
+    const page = this.root.querySelector('#da-page-memory-cache')
+    if (!page) {
+      this.fullReRender()
+      return
+    }
+
+    this.clearArmedState()
+
+    const newHtml = `<h2 class="da-page-title">${tabLabel('memory-cache')}</h2>${buildMemoryCachePage(this.buildMarkupInput())}`
+    page.innerHTML = newHtml
+
+    this.applyAllBusyStates()
+
     if (this.memoryFilterQuery) {
       this.handleMemoryFilter(this.memoryFilterQuery)
     }
@@ -1408,12 +1433,12 @@ class DashboardInstance {
       kind: kind as 'summary' | 'continuity-fact' | 'world-fact' | 'entity' | 'relation',
       id,
     }
-    this.fullReRender()
+    this.memoryPageReRender()
   }
 
   private handleCancelMemoryEdit(): void {
     this.editingMemory = null
-    this.fullReRender()
+    this.memoryPageReRender()
   }
 
   private async handleSaveMemoryEdit(btn: HTMLElement): Promise<void> {
@@ -1496,7 +1521,7 @@ class DashboardInstance {
     }
 
     this.editingMemory = null
-    this.fullReRender()
+    this.memoryPageReRender()
   }
 
   private async handleBulkDeleteMemory(): Promise<void> {
@@ -1541,7 +1566,7 @@ class DashboardInstance {
     }
 
     this.selectedMemoryKeys.clear()
-    this.fullReRender()
+    this.memoryPageReRender()
   }
 
   // ── Memory filter ──────────────────────────────────────────────────────
@@ -1582,7 +1607,7 @@ class DashboardInstance {
         return current
       })
       this.canonicalState = structuredClone(nextState)
-      this.fullReRender()
+      this.memoryPageReRender()
       return
     }
 
@@ -1590,7 +1615,7 @@ class DashboardInstance {
     applyDelete(state)
     await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state))
     this.canonicalState = state
-    this.fullReRender()
+    this.memoryPageReRender()
   }
 
   // ── Memory add ──────────────────────────────────────────────────────
@@ -1629,7 +1654,7 @@ class DashboardInstance {
         return current
       })
       this.canonicalState = structuredClone(nextState)
-      this.fullReRender()
+      this.memoryPageReRender()
       return
     }
 
@@ -1637,7 +1662,7 @@ class DashboardInstance {
     applyAdd(state)
     await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state))
     this.canonicalState = state
-    this.fullReRender()
+    this.memoryPageReRender()
   }
 
   // ── Relation add (multi-field) ─────────────────────────────────────────
@@ -1660,7 +1685,7 @@ class DashboardInstance {
         return current
       })
       this.canonicalState = structuredClone(nextState)
-      this.fullReRender()
+      this.memoryPageReRender()
       return
     }
 
@@ -1668,7 +1693,7 @@ class DashboardInstance {
     upsertRelation(state, { sourceId, label, targetId })
     await this.store.storage.setItem(this.resolveStateKey(), structuredClone(state))
     this.canonicalState = state
-    this.fullReRender()
+    this.memoryPageReRender()
   }
 
   // ── Memory operations actions ──────────────────────────────────────

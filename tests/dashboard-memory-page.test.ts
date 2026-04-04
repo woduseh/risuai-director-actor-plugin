@@ -2349,3 +2349,321 @@ describe('embeddings/settings cross-link', () => {
     expect(activeBtn.getAttribute('data-da-target')).toBe('model-settings')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Task C: Bounded memory-page rerender
+// ---------------------------------------------------------------------------
+
+describe('bounded memory-page rerender', () => {
+  let api: ReturnType<typeof createMockRisuaiApi>
+  let store: DashboardStore
+  let currentState: DirectorPluginState
+
+  beforeEach(() => {
+    api = createMockRisuaiApi()
+    currentState = stateWithFullMemory()
+    store = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: async (mutator) => {
+        currentState = mutator(structuredClone(currentState))
+        return currentState
+      },
+    }
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  afterEach(async () => {
+    await closeDashboard()
+    document.head.innerHTML = ''
+    document.body.innerHTML = ''
+    setLocale('en')
+  })
+
+  test('root wrapper stays mounted after memory delete', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    // Capture the original root reference
+    const originalRoot = root
+
+    // Arm + execute delete
+    const delBtn = root.querySelector(
+      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+    ) as HTMLElement
+    delBtn.click() // arm
+    delBtn.click() // execute
+    await new Promise((r) => setTimeout(r, 50))
+
+    // Root element should be the same reference — not replaced
+    const currentRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    expect(currentRoot).toBe(originalRoot)
+  })
+
+  test('root wrapper stays mounted after memory add', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+    const originalRoot = root
+
+    const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+    addInput.value = 'New summary item'
+    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => setTimeout(r, 50))
+
+    const currentRoot = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    expect(currentRoot).toBe(originalRoot)
+  })
+
+  test('root wrapper stays mounted after memory edit save', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+    const originalRoot = root
+
+    // Enter edit mode
+    const editBtn = root.querySelector('[data-da-action="edit-memory-item"]') as HTMLElement
+    editBtn.click()
+
+    // Root should still be the same after entering edit mode
+    expect(document.querySelector(`.${DASHBOARD_ROOT_CLASS}`)).toBe(originalRoot)
+
+    // Save the edit
+    const saveBtn = root.querySelector('[data-da-action="save-memory-edit"]') as HTMLElement
+    const editInput = root.querySelector('[data-da-role="edit-summary-text"]') as HTMLInputElement
+    editInput.value = 'Updated summary text'
+    saveBtn.click()
+    await new Promise((r) => setTimeout(r, 50))
+
+    expect(document.querySelector(`.${DASHBOARD_ROOT_CLASS}`)).toBe(originalRoot)
+  })
+
+  test('root wrapper stays mounted after cancel memory edit', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+    const originalRoot = root
+
+    const editBtn = root.querySelector('[data-da-action="edit-memory-item"]') as HTMLElement
+    editBtn.click()
+    expect(document.querySelector(`.${DASHBOARD_ROOT_CLASS}`)).toBe(originalRoot)
+
+    const cancelBtn = root.querySelector('[data-da-action="cancel-memory-edit"]') as HTMLElement
+    cancelBtn.click()
+    expect(document.querySelector(`.${DASHBOARD_ROOT_CLASS}`)).toBe(originalRoot)
+  })
+
+  test('root wrapper stays mounted after bulk delete', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+    const originalRoot = root
+
+    // Select an item
+    const checkbox = root.querySelector('[data-da-role="memory-select"]') as HTMLInputElement
+    checkbox.checked = true
+    checkbox.dispatchEvent(new Event('change', { bubbles: true }))
+
+    // Arm + execute bulk delete
+    const bulkBtn = root.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLElement
+    bulkBtn.click() // arm
+    bulkBtn.click() // execute
+    await new Promise((r) => setTimeout(r, 50))
+
+    expect(document.querySelector(`.${DASHBOARD_ROOT_CLASS}`)).toBe(originalRoot)
+  })
+
+  test('memory-page mutations still update rendered content correctly', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    // Verify sum-1 is present
+    expect(root.querySelector('[data-da-item-id="sum-1"]')).not.toBeNull()
+
+    // Delete it
+    const delBtn = root.querySelector(
+      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+    ) as HTMLElement
+    delBtn.click() // arm
+    delBtn.click() // execute
+    await new Promise((r) => setTimeout(r, 50))
+
+    // sum-1 should be gone from the rendered DOM
+    expect(root.querySelector('[data-da-item-id="sum-1"]')).toBeNull()
+    // sum-2 should still be present
+    expect(root.querySelector('[data-da-item-id="sum-2"]')).not.toBeNull()
+  })
+
+  test('selection state survives memory-page rerender', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    // Select sum-2
+    const checkbox = root.querySelector(
+      '[data-da-item-key="summary:sum-2"]',
+    ) as HTMLInputElement
+    checkbox.checked = true
+    checkbox.dispatchEvent(new Event('change', { bubbles: true }))
+
+    // Add a new summary (triggers memory-page rerender)
+    const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+    addInput.value = 'New item'
+    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => setTimeout(r, 50))
+
+    // sum-2 checkbox should still be checked after rerender
+    const checkboxAfter = root.querySelector(
+      '[data-da-item-key="summary:sum-2"]',
+    ) as HTMLInputElement
+    expect(checkboxAfter).not.toBeNull()
+    expect(checkboxAfter.checked).toBe(true)
+  })
+
+  test('filter state survives memory-page rerender', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    // Type a filter
+    const filterInput = root.querySelector('[data-da-role="memory-filter"]') as HTMLInputElement
+    filterInput.value = 'dragon'
+    filterInput.dispatchEvent(new Event('input', { bubbles: true }))
+
+    // Add a new summary (triggers memory-page rerender)
+    const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+    addInput.value = 'New item'
+    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => setTimeout(r, 50))
+
+    // Filter input value should survive
+    const newFilterInput = root.querySelector('[data-da-role="memory-filter"]') as HTMLInputElement
+    expect(newFilterInput.value).toBe('dragon')
+
+    // Items not matching "dragon" should still be hidden
+    const items = root.querySelectorAll('.da-memory-item')
+    const hiddenItems = Array.from(items).filter((i) => i.classList.contains('da-hidden'))
+    expect(hiddenItems.length).toBeGreaterThan(0)
+  })
+
+  test('busy-disabled state is reapplied after memory-page rerender', async () => {
+    // Create a slow store so bulk-delete stays in-flight
+    const resolvers: Array<(s: DirectorPluginState) => void> = []
+    const slowStore: DashboardStore = {
+      storage: api.pluginStorage,
+      readCanonical: async () => currentState,
+      writeCanonical: (mutator) =>
+        new Promise<DirectorPluginState>((resolve) => {
+          currentState = mutator(structuredClone(currentState))
+          resolvers.push(() => resolve(currentState))
+        }),
+    }
+
+    await openDashboard(api, slowStore)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    // Select an item
+    const checkbox = root.querySelector('[data-da-role="memory-select"]') as HTMLInputElement
+    checkbox.checked = true
+    checkbox.dispatchEvent(new Event('change', { bubbles: true }))
+
+    // Arm + execute bulk delete (stays in flight because of slow store)
+    const bulkBtn = root.querySelector('[data-da-action="bulk-delete-memory"]') as HTMLElement
+    bulkBtn.click() // arm
+    bulkBtn.click() // execute
+
+    // Wait a tick for the busy guard to kick in
+    await new Promise((r) => setTimeout(r, 10))
+
+    // bulk-delete button should be disabled while in flight
+    const bulkBtnNow = root.querySelector(
+      '[data-da-action="bulk-delete-memory"]',
+    ) as HTMLButtonElement
+    expect(bulkBtnNow.disabled).toBe(true)
+
+    // Resolve the slow store
+    resolvers.shift()!()
+    await new Promise((r) => setTimeout(r, 50))
+  })
+
+  test('destructive arming is cleaned up after memory-page rerender', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    // Arm a delete button
+    const delBtn = root.querySelector(
+      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+    ) as HTMLElement
+    delBtn.click() // arm
+    expect(delBtn.classList.contains('da-btn--armed')).toBe(true)
+
+    // Trigger a memory-page rerender via add
+    const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+    addInput.value = 'Trigger rerender'
+    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => setTimeout(r, 50))
+
+    // After rerender, the delete button for sum-1 should NOT be armed
+    const freshDelBtn = root.querySelector(
+      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+    ) as HTMLElement
+    expect(freshDelBtn).not.toBeNull()
+    expect(freshDelBtn.classList.contains('da-btn--armed')).toBe(false)
+  })
+
+  test('sidebar and footer remain intact after memory-page rerender', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    // Get references to sidebar and footer elements
+    const sidebar = root.querySelector('.da-sidebar') as HTMLElement
+    const footer = root.querySelector('.da-footer') as HTMLElement
+    expect(sidebar).not.toBeNull()
+    expect(footer).not.toBeNull()
+
+    // Trigger memory-page rerender via add
+    const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+    addInput.value = 'Trigger rerender'
+    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => setTimeout(r, 50))
+
+    // Sidebar and footer should be the same DOM elements (not replaced)
+    expect(root.querySelector('.da-sidebar')).toBe(sidebar)
+    expect(root.querySelector('.da-footer')).toBe(footer)
+  })
+
+  test('add-relation routes through memory-page rerender', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+    const originalRoot = root
+
+    const srcInput = root.querySelector('[data-da-role="add-relation-source"]') as HTMLInputElement
+    const labelInput = root.querySelector('[data-da-role="add-relation-label"]') as HTMLInputElement
+    const tgtInput = root.querySelector('[data-da-role="add-relation-target"]') as HTMLInputElement
+    srcInput.value = 'ent-1'
+    labelInput.value = 'allies-with'
+    tgtInput.value = 'ent-2'
+
+    const addBtn = root.querySelector('[data-da-action="add-relation"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => setTimeout(r, 50))
+
+    // Root should be preserved
+    expect(document.querySelector(`.${DASHBOARD_ROOT_CLASS}`)).toBe(originalRoot)
+    // New relation should be rendered
+    expect(root.textContent).toContain('allies-with')
+  })
+})

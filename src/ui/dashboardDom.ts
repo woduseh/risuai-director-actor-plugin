@@ -516,7 +516,7 @@ function buildDiagnosticsSection(status: MemoryOpsStatus): string {
 // Memory cache page
 // ---------------------------------------------------------------------------
 
-function buildMemoryCachePage(input: DashboardMarkupInput): string {
+export function buildMemoryCachePage(input: DashboardMarkupInput): string {
   const { pluginState } = input
   const summaries = pluginState.memory.summaries
   const facts = pluginState.memory.continuityFacts
