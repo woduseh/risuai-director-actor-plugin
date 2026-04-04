@@ -48,6 +48,7 @@ import {
   createTurnRecoveryManager,
   attemptStartupRecovery,
 } from './runtime/turnRecovery.js'
+import { buildActorMemoryContext } from './adapter/actorMemoryContext.js'
 import { DiagnosticsManager } from './runtime/diagnostics.js'
 import { RefreshGuard } from './runtime/refreshGuard.js'
 import { openDashboard, createDashboardStore } from './ui/dashboardApp.js'
@@ -522,12 +523,13 @@ export async function registerContinuityDirectorPlugin(api: RisuaiApi): Promise<
       // ── Assemble Director prompt ───────────────────────────────────
       const promptPreset = resolvePromptPreset(state.settings)
       const notebookBlock = formatNotebookBlock(sessionNotebook.snapshot())
+      const projectedMemory = projectRetrievedMemory(state, retrieved)
 
       const service = createDirectorService(api, state.settings)
       const result = await service.preRequest({
         messages: input.messages,
         directorState: state.director,
-        memory: projectRetrievedMemory(state, retrieved),
+        memory: projectedMemory,
         assertiveness: state.settings.assertiveness,
         briefTokenCap: state.settings.briefTokenCap,
         promptPreset,
@@ -540,8 +542,24 @@ export async function registerContinuityDirectorPlugin(api: RisuaiApi): Promise<
         throw new Error(result.error)
       }
 
+      // ── Build actor-visible memory context (carried, not injected yet)
+      const memorySummaries = projectedMemory.summaries
+        .slice()
+        .sort((a, b) => b.recencyWeight - a.recencyWeight)
+        .slice(0, 10)
+        .map((s) => s.text)
+
+      const actorMemoryContext = buildActorMemoryContext({
+        notebookBlock: notebookBlock || '',
+        recalledDocsBlock,
+        memorySummaries,
+      })
+
       await store.writeFirst((current) => recordDirectorSuccess(current))
-      return result.brief
+      return {
+        brief: result.brief,
+        ...(actorMemoryContext ? { actorMemoryContext } : {}),
+      }
     },
 
     async postResponse(input: DirectorPostResponseInput) {

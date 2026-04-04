@@ -1,5 +1,6 @@
 import { vi } from 'vitest'
 import { bootstrapPlugin } from '../src/runtime/plugin.js'
+import type { DirectorPreRequestResult } from '../src/runtime/plugin.js'
 import type { MemoryUpdate, SceneBrief } from '../src/contracts/types.js'
 import { createMockRisuaiApi } from './helpers/mockRisuai.js'
 
@@ -27,13 +28,22 @@ const makeUpdate = (overrides?: Partial<MemoryUpdate>): MemoryUpdate => ({
   ...overrides
 })
 
+/** Wrap a SceneBrief into the DirectorPreRequestResult envelope. */
+const makePreResult = (
+  brief?: SceneBrief,
+  actorMemoryContext?: string,
+): DirectorPreRequestResult => ({
+  brief: brief ?? makeBrief(),
+  ...(actorMemoryContext !== undefined ? { actorMemoryContext } : {}),
+})
+
 describe('bootstrapPlugin', () => {
   test('registers hooks and settings UI', async () => {
     const api = createMockRisuaiApi()
 
     await bootstrapPlugin(api, {
       director: {
-        async preRequest(): Promise<SceneBrief | null> {
+        async preRequest() {
           return null
         },
         async postResponse(): Promise<MemoryUpdate | null> {
@@ -54,16 +64,18 @@ describe('bootstrapPlugin', () => {
 
     await bootstrapPlugin(api, {
       director: {
-        async preRequest(): Promise<SceneBrief> {
+        async preRequest(): Promise<DirectorPreRequestResult> {
           return {
-            confidence: 0.95,
-            pacing: 'tight',
-            beats: [{ goal: 'Escalate', reason: 'Pressure needed' }],
-            continuityLocks: ['The ring is still hidden.'],
-            ensembleWeights: { A: 1 },
-            styleInheritance: { genre: 'mythic' },
-            forbiddenMoves: ['Do not reveal the secret.'],
-            memoryHints: ['ring']
+            brief: {
+              confidence: 0.95,
+              pacing: 'tight',
+              beats: [{ goal: 'Escalate', reason: 'Pressure needed' }],
+              continuityLocks: ['The ring is still hidden.'],
+              ensembleWeights: { A: 1 },
+              styleInheritance: { genre: 'mythic' },
+              forbiddenMoves: ['Do not reveal the secret.'],
+              memoryHints: ['ring']
+            }
           }
         },
         async postResponse(): Promise<MemoryUpdate | null> {
@@ -96,16 +108,18 @@ describe('bootstrapPlugin', () => {
 
     await bootstrapPlugin(api, {
       director: {
-        async preRequest(): Promise<SceneBrief> {
+        async preRequest(): Promise<DirectorPreRequestResult> {
           return {
-            confidence: 0.95,
-            pacing: 'steady',
-            beats: [{ goal: 'Escalate', reason: 'Pressure needed' }],
-            continuityLocks: ['The ring is still hidden.'],
-            ensembleWeights: { A: 1 },
-            styleInheritance: { genre: 'mythic' },
-            forbiddenMoves: ['Do not reveal the secret.'],
-            memoryHints: ['ring']
+            brief: {
+              confidence: 0.95,
+              pacing: 'steady',
+              beats: [{ goal: 'Escalate', reason: 'Pressure needed' }],
+              continuityLocks: ['The ring is still hidden.'],
+              ensembleWeights: { A: 1 },
+              styleInheritance: { genre: 'mythic' },
+              forbiddenMoves: ['Do not reveal the secret.'],
+              memoryHints: ['ring']
+            }
           }
         },
         postResponse
@@ -171,7 +185,7 @@ describe('bootstrapPlugin', () => {
 
   test('skips director when circuit breaker is open', async () => {
     const api = createMockRisuaiApi()
-    const preRequest = vi.fn(async () => makeBrief())
+    const preRequest = vi.fn(async () => makePreResult())
 
     await bootstrapPlugin(api, {
       director: { preRequest, async postResponse() { return null } },
@@ -192,7 +206,7 @@ describe('bootstrapPlugin', () => {
 
   test('skips director for non-matching request types', async () => {
     const api = createMockRisuaiApi()
-    const preRequest = vi.fn(async () => makeBrief())
+    const preRequest = vi.fn(async () => makePreResult())
 
     await bootstrapPlugin(api, {
       director: { preRequest, async postResponse() { return null } },
@@ -213,7 +227,7 @@ describe('bootstrapPlugin', () => {
     const postResponse = vi.fn(async () => makeUpdate())
 
     await bootstrapPlugin(api, {
-      director: { async preRequest() { return makeBrief() }, postResponse }
+      director: { async preRequest() { return makePreResult() }, postResponse }
     })
 
     await api.runBeforeRequest([
@@ -230,7 +244,7 @@ describe('bootstrapPlugin', () => {
     const postResponse = vi.fn(async () => makeUpdate())
 
     await bootstrapPlugin(api, {
-      director: { async preRequest() { return makeBrief() }, postResponse }
+      director: { async preRequest() { return makePreResult() }, postResponse }
     })
 
     await api.runBeforeRequest([{ role: 'user', content: 'Go.' }])
@@ -271,7 +285,7 @@ describe('bootstrapPlugin', () => {
     const postResponse = vi.fn(async () => makeUpdate())
 
     await bootstrapPlugin(api, {
-      director: { async preRequest() { return makeBrief() }, postResponse }
+      director: { async preRequest() { return makePreResult() }, postResponse }
     })
 
     await api.runBeforeRequest([{ role: 'user', content: 'Go.' }])
@@ -282,6 +296,42 @@ describe('bootstrapPlugin', () => {
 
     expect(postResponse).toHaveBeenCalledTimes(0)
     vi.useRealTimers()
+  })
+
+  // ── Actor memory context plumbing ─────────────────────────────────
+
+  test('carries actorMemoryContext in turn cache without injecting into messages', async () => {
+    const api = createMockRisuaiApi()
+    const { TurnCache } = await import('../src/memory/turnCache.js')
+    const turnCache = new TurnCache()
+    const capturedTurnId: string[] = []
+
+    await bootstrapPlugin(api, {
+      director: {
+        async preRequest(input) {
+          capturedTurnId.push(input.turnId)
+          return makePreResult(undefined, 'Some actor long-memory context')
+        },
+        async postResponse() { return makeUpdate() },
+      },
+      turnCache,
+    })
+
+    const result = await api.runBeforeRequest([
+      { role: 'system', content: 'Rules.' },
+      { role: 'user', content: 'Continue.' }
+    ])
+
+    // Brief injection still works
+    expect(result.some((m) => m.content.includes('<director-brief'))).toBe(true)
+
+    // Actor memory context is NOT injected into messages
+    expect(result.every((m) => !m.content.includes('Some actor long-memory context'))).toBe(true)
+
+    // But it is stored in the turn cache
+    const turn = turnCache.get(capturedTurnId[0]!)
+    expect(turn).toBeDefined()
+    expect(turn!.actorMemoryContext).toBe('Some actor long-memory context')
   })
 
   // ── Regression: onShutdown lifecycle wiring ────────────────────────
@@ -331,7 +381,7 @@ describe('bootstrapPlugin', () => {
 
     await bootstrapPlugin(api, {
       director: {
-        async preRequest(): Promise<SceneBrief | null> {
+        async preRequest(): Promise<DirectorPreRequestResult | null> {
           throw new Error('model unavailable')
         },
         async postResponse(): Promise<MemoryUpdate | null> {
@@ -358,8 +408,8 @@ describe('bootstrapPlugin', () => {
 
     await bootstrapPlugin(api, {
       director: {
-        async preRequest(): Promise<SceneBrief> {
-          return makeBrief()
+        async preRequest(): Promise<DirectorPreRequestResult> {
+          return makePreResult()
         },
         async postResponse(): Promise<MemoryUpdate | null> {
           return makeUpdate()
@@ -385,7 +435,7 @@ describe('bootstrapPlugin', () => {
 
     await bootstrapPlugin(api, {
       director: {
-        async preRequest(): Promise<SceneBrief | null> {
+        async preRequest(): Promise<DirectorPreRequestResult | null> {
           return null
         },
         async postResponse(): Promise<MemoryUpdate | null> {

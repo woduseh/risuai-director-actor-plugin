@@ -293,7 +293,7 @@ describe('bootstrapPlugin turn recovery integration', () => {
 
     await bootstrapPlugin(api, {
       director: {
-        async preRequest() { return makeBrief() },
+        async preRequest() { return { brief: makeBrief() } },
         postResponse,
       },
       turnRecovery: recoveryManager,
@@ -324,7 +324,7 @@ describe('bootstrapPlugin turn recovery integration', () => {
 
     await bootstrapPlugin(api, {
       director: {
-        async preRequest() { return makeBrief() },
+        async preRequest() { return { brief: makeBrief() } },
         async postResponse() { return makeUpdate() },
       },
       turnRecovery: recoveryManager,
@@ -349,7 +349,7 @@ describe('bootstrapPlugin turn recovery integration', () => {
 
     await bootstrapPlugin(api, {
       director: {
-        async preRequest() { return makeBrief() },
+        async preRequest() { return { brief: makeBrief() } },
         async postResponse() { return makeUpdate() },
       },
       turnRecovery: recoveryManager,
@@ -375,7 +375,7 @@ describe('bootstrapPlugin turn recovery integration', () => {
 
     await bootstrapPlugin(api, {
       director: {
-        async preRequest() { return makeBrief() },
+        async preRequest() { return { brief: makeBrief() } },
         async postResponse() { return makeUpdate() },
       },
       turnRecovery: recoveryManager,
@@ -402,7 +402,7 @@ describe('bootstrapPlugin turn recovery integration', () => {
 
     await bootstrapPlugin(api, {
       director: {
-        async preRequest() { return makeBrief() },
+        async preRequest() { return { brief: makeBrief() } },
         async postResponse() { throw new Error('LLM unavailable') },
       },
       turnRecovery: recoveryManager,

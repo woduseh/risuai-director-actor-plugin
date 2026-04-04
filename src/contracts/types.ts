@@ -383,6 +383,8 @@ export interface TurnContext {
   originalMessages: OpenAIChat[]
   latestMessages?: OpenAIChat[]
   brief?: SceneBrief
+  /** Actor-visible long-memory context block (computed, not yet injected). */
+  actorMemoryContext?: string
   retrieval?: RetrievalResult
   lastOutputText?: string
   finalized: boolean

@@ -5,7 +5,8 @@ import type {
   MemoryUpdate,
   OpenAIChat,
   RetrievalResult,
-  SceneBrief
+  SceneBrief,
+  TurnContext,
 } from '../contracts/types.js'
 import { DEFAULT_DIRECTOR_SETTINGS } from '../contracts/types.js'
 import { injectDirectorBrief } from '../adapter/universalPromptAdapter.js'
@@ -35,8 +36,14 @@ export interface DirectorPostResponseInput {
   retrieval?: RetrievalResult
 }
 
+export interface DirectorPreRequestResult {
+  brief: SceneBrief
+  /** Actor-visible long-memory context block (computed, not injected yet). */
+  actorMemoryContext?: string
+}
+
 export interface DirectorFunctions {
-  preRequest(input: DirectorPreRequestInput): Promise<SceneBrief | null>
+  preRequest(input: DirectorPreRequestInput): Promise<DirectorPreRequestResult | null>
   postResponse(input: DirectorPostResponseInput): Promise<MemoryUpdate | null>
 }
 
@@ -222,7 +229,7 @@ export async function bootstrapPlugin(
     currentTurnId = turn.turnId
 
     try {
-      const brief = await director.preRequest({
+      const result = await director.preRequest({
         turnId: turn.turnId,
         type,
         messages
@@ -230,16 +237,20 @@ export async function bootstrapPlugin(
 
       await diagnostics?.recordHook('beforeRequest', type)
 
-      if (!brief) {
+      if (!result) {
         clearActiveTurn()
         return messages
       }
 
-      const injected = injectDirectorBrief(messages, brief, injectionMode)
-      turnCache.patch(turn.turnId, {
-        brief,
-        latestMessages: injected.messages
-      })
+      const injected = injectDirectorBrief(messages, result.brief, injectionMode)
+      const turnPatch: Partial<TurnContext> = {
+        brief: result.brief,
+        latestMessages: injected.messages,
+      }
+      if (result.actorMemoryContext !== undefined) {
+        turnPatch.actorMemoryContext = result.actorMemoryContext
+      }
+      turnCache.patch(turn.turnId, turnPatch)
 
       return injected.messages
     } catch (err) {
