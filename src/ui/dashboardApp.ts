@@ -533,6 +533,8 @@ class DashboardInstance {
    * Replace only the memory-cache page content while keeping the root,
    * sidebar, footer and event listeners intact.  Falls back to
    * `fullReRender()` when the page container is missing.
+   *
+   * Preserves keyboard focus and scroll position across the HTML swap.
    */
   private memoryPageReRender(): void {
     if (!this.root) return
@@ -544,6 +546,13 @@ class DashboardInstance {
 
     this.clearArmedState()
 
+    // Save focus target before rerender
+    const focusSelector = this.captureFocusSelector()
+
+    // Save scroll position
+    const content = this.root.querySelector('.da-content')
+    const scrollTop = content ? content.scrollTop : 0
+
     const newHtml = `${buildPageTitle('memory-cache')}${buildMemoryCachePage(this.buildMarkupInput())}`
     page.innerHTML = newHtml
 
@@ -552,6 +561,14 @@ class DashboardInstance {
     if (this.memoryFilterQuery) {
       this.handleMemoryFilter(this.memoryFilterQuery)
     }
+
+    // Restore scroll position
+    if (content) {
+      content.scrollTop = scrollTop
+    }
+
+    // Restore focus
+    this.restoreFocus(focusSelector)
   }
 
   private updateConnectionStatusDom(): void {
@@ -560,6 +577,46 @@ class DashboardInstance {
     if (!el) return
     el.setAttribute('data-da-status', this.connectionStatus.kind)
     el.textContent = this.connectionStatus.message
+  }
+
+  /**
+   * Build a CSS selector that can relocate the currently focused element
+   * after a DOM swap.  Returns null when focus is outside the dashboard.
+   */
+  private captureFocusSelector(): string | null {
+    const active = this.doc.activeElement as HTMLElement | null
+    if (!active || !this.root?.contains(active)) return null
+
+    // Prefer stable data-da-* attributes
+    const role = active.getAttribute('data-da-role')
+    if (role) return `[data-da-role="${role}"]`
+
+    const action = active.getAttribute('data-da-action')
+    const itemId = active.getAttribute('data-da-item-id')
+    if (action && itemId) return `[data-da-action="${action}"][data-da-item-id="${itemId}"]`
+    if (action) return `[data-da-action="${action}"]`
+
+    return null
+  }
+
+  /**
+   * Restore focus to the element matching `selector`.  Falls back to
+   * the memory filter input when the original target no longer exists.
+   */
+  private restoreFocus(selector: string | null): void {
+    if (!selector || !this.root) return
+
+    const target = this.root.querySelector(selector) as HTMLElement | null
+    if (target) {
+      target.focus()
+      return
+    }
+
+    // Fallback: focus the memory filter input (always present on memory page)
+    const fallback = this.root.querySelector('[data-da-role="memory-filter"]') as HTMLElement | null
+    if (fallback) {
+      fallback.focus()
+    }
   }
 
   private updateModelSelectDom(): void {
@@ -1404,6 +1461,7 @@ class DashboardInstance {
     await resetCanonical()
     this.selectedMemoryKeys.clear()
     this.editingMemory = null
+    this.memoryFilterQuery = ''
     await this.handleBackfillCurrentChat()
   }
 

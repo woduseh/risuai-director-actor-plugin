@@ -2590,7 +2590,7 @@ describe('bounded memory-page rerender', () => {
     expect(bulkBtnNow.disabled).toBe(true)
 
     // Resolve the slow store
-    resolvers.shift()!()
+    resolvers.shift()!(currentState)
     await new Promise((r) => setTimeout(r, 50))
   })
 
@@ -2642,6 +2642,84 @@ describe('bounded memory-page rerender', () => {
     // Sidebar and footer should be the same DOM elements (not replaced)
     expect(root.querySelector('.da-sidebar')).toBe(sidebar)
     expect(root.querySelector('.da-footer')).toBe(footer)
+  })
+
+  test('keyboard focus is restored to same element after memory-page rerender', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    // Focus the filter input before triggering a rerender
+    const filterInput = root.querySelector('[data-da-role="memory-filter"]') as HTMLInputElement
+    filterInput.focus()
+    expect(document.activeElement).toBe(filterInput)
+
+    // Add a new summary (triggers memory-page rerender)
+    const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+    addInput.value = 'Focus test item'
+    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => setTimeout(r, 50))
+
+    // Focus should be restored to the filter input (new DOM element with same role)
+    const newFilterInput = root.querySelector('[data-da-role="memory-filter"]') as HTMLInputElement
+    expect(document.activeElement).toBe(newFilterInput)
+  })
+
+  test('keyboard focus falls back to memory-filter when focused element is deleted', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    // Focus the delete button for sum-1
+    const delBtn = root.querySelector(
+      '[data-da-action="delete-summary"][data-da-item-id="sum-1"]',
+    ) as HTMLElement
+    delBtn.focus()
+    expect(document.activeElement).toBe(delBtn)
+
+    // Arm + execute delete (removes sum-1, so its delete button disappears)
+    delBtn.click() // arm
+    delBtn.click() // execute
+    await new Promise((r) => setTimeout(r, 50))
+
+    // The original button is gone; focus should fall back to the memory filter
+    const fallback = root.querySelector('[data-da-role="memory-filter"]') as HTMLElement
+    expect(document.activeElement).toBe(fallback)
+  })
+
+  test('scroll position is preserved across memory-page rerender', async () => {
+    await openDashboard(api, store)
+    const root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    navigateToMemoryTab(root)
+
+    // Spy on scrollTop via getter/setter to verify explicit save/restore
+    const content = root.querySelector('.da-content') as HTMLElement
+    let scrollTopValue = 0
+    const scrollTopSets: number[] = []
+    Object.defineProperty(content, 'scrollTop', {
+      get: () => scrollTopValue,
+      set: (v: number) => {
+        scrollTopSets.push(v)
+        scrollTopValue = v
+      },
+      configurable: true,
+    })
+
+    // Simulate scroll position
+    content.scrollTop = 200
+    scrollTopSets.length = 0 // clear the initial set
+
+    // Add a new summary (triggers memory-page rerender)
+    const addInput = root.querySelector('[data-da-role="add-summary-text"]') as HTMLInputElement
+    addInput.value = 'Scroll test item'
+    const addBtn = root.querySelector('[data-da-action="add-summary"]') as HTMLElement
+    addBtn.click()
+    await new Promise((r) => setTimeout(r, 50))
+
+    // The code should have explicitly restored scrollTop to 200
+    expect(scrollTopSets).toContain(200)
+    expect(content.scrollTop).toBe(200)
   })
 
   test('add-relation routes through memory-page rerender', async () => {

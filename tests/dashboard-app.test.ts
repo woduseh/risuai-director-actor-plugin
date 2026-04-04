@@ -697,6 +697,73 @@ describe('openDashboard', () => {
     expect(memoryPage.textContent).not.toContain('Outdated memory')
   })
 
+  test('regenerate-current-chat clears stale memory filter', async () => {
+    const host = api as unknown as Record<string, unknown>
+    host.getCharacter = async () => ({ chaId: 'cha-1', name: 'Hero' })
+    host.getCurrentCharacterIndex = async () => 0
+    host.getCurrentChatIndex = async () => 0
+    host.getChatFromIndex = async () => ({
+      id: 'chat-1',
+      name: 'Session 1',
+      lastDate: 1,
+      messages: [
+        { role: 'user', content: 'Where is the key?' },
+        { role: 'assistant', content: 'A hides the key under the altar.' },
+      ],
+    })
+
+    const seededState = createEmptyState()
+    seededState.memory.summaries.push({
+      id: 'old-summary',
+      text: 'Outdated memory',
+      recencyWeight: 0.2,
+      updatedAt: 1,
+    })
+    const scopeKey = (await resolveScopeStorageKey(api)).storageKey
+    store = { storage: api.pluginStorage, stateStorageKey: scopeKey }
+    await api.pluginStorage.setItem(scopeKey, seededState)
+
+    api.enqueueLlmResult({
+      type: 'success',
+      result: JSON.stringify({
+        status: 'pass',
+        turnScore: 0.8,
+        violations: [],
+        durableFacts: ['The key is hidden under the altar.'],
+        sceneDelta: { scenePhase: 'turn', activeCharacters: ['A'] },
+        entityUpdates: [],
+        relationUpdates: [],
+        memoryOps: [],
+      }),
+    })
+
+    await openDashboard(api, store)
+    let root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const memoryTabBtn = root.querySelector('[data-da-target="memory-cache"]') as HTMLElement
+    memoryTabBtn.click()
+
+    // Type a filter query
+    const filterInput = root.querySelector('[data-da-role="memory-filter"]') as HTMLInputElement
+    filterInput.value = 'Outdated'
+    filterInput.dispatchEvent(new Event('input', { bubbles: true }))
+
+    // Regenerate
+    const regenerateBtn = root.querySelector('[data-da-action="regenerate-current-chat"]') as HTMLElement
+    regenerateBtn.click() // arm
+    regenerateBtn.click() // confirm
+    await new Promise((r) => { setTimeout(r, 50) })
+
+    // After regenerate, the filter should be cleared
+    root = document.querySelector(`.${DASHBOARD_ROOT_CLASS}`) as HTMLElement
+    const newFilterInput = root.querySelector('[data-da-role="memory-filter"]') as HTMLInputElement
+    expect(newFilterInput?.value ?? '').toBe('')
+
+    // No items should be hidden by a stale filter
+    const items = root.querySelectorAll('.da-memory-item')
+    const hiddenItems = Array.from(items).filter((i) => i.classList.contains('da-hidden'))
+    expect(hiddenItems.length).toBe(0)
+  })
+
   // ── Memory Operations: Status card, force actions, fallback toggle ──
 
   test('renders memory ops status card on the memory page', async () => {

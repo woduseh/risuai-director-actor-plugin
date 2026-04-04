@@ -422,7 +422,7 @@ describe('buildDashboardMarkup', () => {
   test('memory selection checkboxes have aria-labels', () => {
     const state = createEmptyState()
     state.memory.summaries.push({ id: 's1', text: 'a', recencyWeight: 1, updatedAt: 1 })
-    state.memory.continuityFacts.push({ id: 'f1', text: 'b', updatedAt: 2 })
+    state.memory.continuityFacts.push({ id: 'f1', text: 'b', priority: 5 })
 
     const markup = buildDashboardMarkup({
       settings: normalizePersistedSettings({}),
