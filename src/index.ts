@@ -145,6 +145,64 @@ const LS_LAST_PROCESSED_CURSOR = 'continuity-director:extraction:cursor'
 /** Timeout for the recall prefetch before falling back to deterministic retrieval. */
 const RECALL_TIMEOUT_MS = 3000
 
+/**
+ * Build MemdirDocuments from an extraction update and persist them
+ * (optionally enriched with embeddings) into the given memdir store.
+ */
+async function persistExtractionDocuments(
+  update: MemoryUpdate,
+  scopeKey: string,
+  targetStore: MemdirStore,
+  deps: {
+    loadSettings: () => Promise<{ settings: DirectorPluginState['settings'] }>
+    api: RisuaiApi
+  },
+): Promise<void> {
+  const now = Date.now()
+  const docs: MemdirDocument[] = []
+
+  for (const fact of update.durableFacts) {
+    docs.push({
+      id: `ext-fact-${createId('f')}`,
+      type: 'plot',
+      title: fact.slice(0, 60),
+      description: fact,
+      scopeKey,
+      updatedAt: now,
+      source: 'extraction',
+      freshness: 'current',
+      tags: [],
+    })
+  }
+
+  for (const entityData of update.entityUpdates) {
+    const name = typeof entityData.name === 'string' ? entityData.name : 'unknown'
+    const facts = Array.isArray(entityData.facts) ? (entityData.facts as string[]).join('; ') : ''
+    docs.push({
+      id: `ext-entity-${createId('e')}`,
+      type: 'character',
+      title: name,
+      description: facts || name,
+      scopeKey,
+      updatedAt: now,
+      source: 'extraction',
+      freshness: 'current',
+      tags: [],
+    })
+  }
+
+  const { settings } = await deps.loadSettings()
+  const client = buildEmbeddingClient(deps.api, settings)
+  const version = client ? getVectorVersion(settings) : ''
+
+  for (const doc of docs) {
+    const final = client
+      ? await tryEnrichWithEmbedding(doc, client, version, (msg) => deps.api.log(msg))
+      : doc
+    await targetStore.putDocument(final)
+  }
+}
+
 function latestUserText(messages: readonly OpenAIChat[]): string {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     if (messages[index]?.role === 'user') {
@@ -271,56 +329,15 @@ export async function registerContinuityDirectorPlugin(api: RisuaiApi): Promise<
           return { applied: false, memoryUpdate: null }
         }
 
-        await diagnostics.recordWorkerSuccess('extraction', `applied=${true}`)
+        await diagnostics.recordWorkerSuccess('extraction', 'ok')
         return { applied: true, memoryUpdate: result.update }
       },
 
-      async persistDocuments(update: MemoryUpdate, ctx: ExtractionContext): Promise<void> {
-        const now = Date.now()
-        const docs: MemdirDocument[] = []
-
-        for (const fact of update.durableFacts) {
-          docs.push({
-            id: `ext-fact-${createId('f')}`,
-            type: 'plot',
-            title: fact.slice(0, 60),
-            description: fact,
-            scopeKey: memdirScopeKey,
-            updatedAt: now,
-            source: 'extraction',
-            freshness: 'current',
-            tags: [],
-          })
-        }
-
-        for (const entityData of update.entityUpdates) {
-          const name = typeof entityData.name === 'string' ? entityData.name : 'unknown'
-          const facts = Array.isArray(entityData.facts) ? (entityData.facts as string[]).join('; ') : ''
-          docs.push({
-            id: `ext-entity-${createId('e')}`,
-            type: 'character',
-            title: name,
-            description: facts || name,
-            scopeKey: memdirScopeKey,
-            updatedAt: now,
-            source: 'extraction',
-            freshness: 'current',
-            tags: [],
-          })
-        }
-
-        // Load settings/client/version once, reuse for all docs
-        const settings = (await store.load()).settings
-        const client = buildEmbeddingClient(api, settings)
-        const version = client ? getVectorVersion(settings) : ''
-
-        for (const doc of docs) {
-          // Enrich with embedding (if enabled) then persist once
-          const final = client
-            ? await tryEnrichWithEmbedding(doc, client, version, (msg) => api.log(msg))
-            : doc
-          await memdirStore.putDocument(final)
-        }
+      async persistDocuments(update: MemoryUpdate, _ctx: ExtractionContext): Promise<void> {
+        await persistExtractionDocuments(update, memdirScopeKey, memdirStore, {
+          loadSettings: () => store.load(),
+          api,
+        })
       },
 
       log(message: string): void {
@@ -784,12 +801,6 @@ export async function registerContinuityDirectorPlugin(api: RisuaiApi): Promise<
       }
 
       // Apply memory update to scoped canonical state
-      const applied = applyMemoryUpdate(state, result.update, {
-        turnId: `live-extract-${lastAssistantIdx}`,
-        userText: findLatestUserText(chat.messages, lastAssistantIdx),
-        responseText,
-        brief,
-      })
       await liveStore.writeFirst((s) => {
         const next = applyMemoryUpdate(s, result.update, {
           turnId: `live-extract-${lastAssistantIdx}`,
@@ -810,48 +821,12 @@ export async function registerContinuityDirectorPlugin(api: RisuaiApi): Promise<
       })
 
       // Persist extracted memdir documents for the live scope
-      const now = Date.now()
-      const docs: MemdirDocument[] = []
-      for (const fact of result.update.durableFacts) {
-        docs.push({
-          id: `ext-fact-${createId('f')}`,
-          type: 'plot',
-          title: fact.slice(0, 60),
-          description: fact,
-          scopeKey: liveMemdirScopeKey,
-          updatedAt: now,
-          source: 'extraction',
-          freshness: 'current',
-          tags: [],
-        })
-      }
-      for (const entityData of result.update.entityUpdates) {
-        const name = typeof entityData.name === 'string' ? entityData.name : 'unknown'
-        const facts = Array.isArray(entityData.facts) ? (entityData.facts as string[]).join('; ') : ''
-        docs.push({
-          id: `ext-entity-${createId('e')}`,
-          type: 'character',
-          title: name,
-          description: facts || name,
-          scopeKey: liveMemdirScopeKey,
-          updatedAt: now,
-          source: 'extraction',
-          freshness: 'current',
-          tags: [],
-        })
-      }
+      await persistExtractionDocuments(result.update, liveMemdirScopeKey, liveMemdirStore, {
+        loadSettings: () => liveStore.load(),
+        api,
+      })
 
-      const settings = (await liveStore.load()).settings
-      const client = buildEmbeddingClient(api, settings)
-      const version = client ? getVectorVersion(settings) : ''
-      for (const doc of docs) {
-        const final = client
-          ? await tryEnrichWithEmbedding(doc, client, version, (msg) => api.log(msg))
-          : doc
-        await liveMemdirStore.putDocument(final)
-      }
-
-      await liveDiagnostics.recordWorkerSuccess('extraction', `applied=${true}`)
+      await liveDiagnostics.recordWorkerSuccess('extraction', 'ok')
     }
     dashboardStore.forceDream = async () => {
       const blockStatus = liveRefreshGuard.checkBlocked()

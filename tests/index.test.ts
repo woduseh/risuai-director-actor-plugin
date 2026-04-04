@@ -339,36 +339,81 @@ describe('composition root wiring', () => {
     expect(docs.some((d) => d.source === 'migration')).toBe(true)
   })
 
-  test('dashboard store receives operator callbacks in production wiring', async () => {
+  test('rebuildForActiveScope auto-follow wires forceExtract that works without no-callback warning', async () => {
     const api = createMockRisuaiApi()
+    const openSpy = vi.spyOn(dashboardApp, 'openDashboard').mockResolvedValue()
 
-    api.enqueueLlmResult({
-      type: 'success',
-      result: JSON.stringify({
-        confidence: 0.9,
-        pacing: 'steady',
-        beats: [],
-        continuityLocks: [],
-        ensembleWeights: {},
-        styleInheritance: {},
-        forbiddenMoves: [],
-        memoryHints: [],
-      }),
+    // Stub scope resolver: first call (registration) = fallback,
+    // second call (rebuildForActiveScope inside openSettings) = different scope.
+    const scopeResolver = await import('../src/memory/scopeResolver.js')
+    const resolveStub = vi.spyOn(scopeResolver, 'resolveScopeStorageKey')
+
+    resolveStub.mockResolvedValueOnce({
+      storageKey: DIRECTOR_STATE_STORAGE_KEY,
+      isFallback: true,
     })
 
     await registerContinuityDirectorPlugin(api)
 
-    // The plugin should have registered a setting callback for the dashboard
+    // When openSettings calls buildDashboardStoreForCurrentScope, return a
+    // different scope so the different-scope branch is exercised.
+    resolveStub.mockResolvedValueOnce({
+      storageKey: 'scope-live-chat',
+      isFallback: false,
+    })
+
+    // Wire the chat APIs so tryGetChat returns a chat with an assistant turn
+    const extended = api as unknown as Record<string, unknown>
+    extended['getCharacter'] = async () => ({ chaId: 'char-1', name: 'Alice' })
+    extended['getCurrentCharacterIndex'] = async () => 0
+    extended['getCurrentChatIndex'] = async () => 0
+    extended['getChatFromIndex'] = async () => ({
+      name: 'Chat A',
+      lastDate: Date.now(),
+      messages: [
+        { role: 'user', content: 'Tell me a story.' },
+        { role: 'assistant', content: 'Once upon a time there was a dragon.' },
+      ],
+    })
+
+    // Enqueue the extraction LLM result for the forceExtract call
+    api.enqueueLlmResult({
+      type: 'success',
+      result: JSON.stringify({
+        status: 'pass',
+        turnScore: 0.85,
+        violations: [],
+        durableFacts: ['A dragon appeared.'],
+        sceneDelta: {},
+        entityUpdates: [],
+        relationUpdates: [],
+        memoryOps: [],
+      }),
+    })
+
     const settingEntry = api.__registerCalls.find((c) => c.kind === 'setting')
     expect(settingEntry).toBeDefined()
+    await settingEntry!.callback()
 
-    // The openSettings callback internally creates a dashboardStore.
-    // We can't directly inspect it, but we can verify no error is thrown
-    // when the setting is triggered (meaning the callbacks are wired).
-    // We need a container UI response — the dashboard opens via showContainer.
-    // Since we don't have a real DOM, calling the setting will attempt openDashboard
-    // which needs the container API. We verify it at least doesn't crash on init.
-    // The full E2E is better tested by the dashboard tests.
+    expect(openSpy).toHaveBeenCalledTimes(1)
+    const dashboardStore = openSpy.mock.calls[0]?.[1]
+    expect(dashboardStore).toBeDefined()
+
+    // The store should have forceExtract wired (no no-callback warning path)
+    expect(typeof dashboardStore?.forceExtract).toBe('function')
+
+    // Actually invoke forceExtract and verify it does scoped work
+    await dashboardStore!.forceExtract!()
+
+    // Verify memdir docs were persisted in the live scope
+    const liveMemdirStore = new MemdirStore(api.pluginStorage, 'scope-live-chat')
+    const docs = await liveMemdirStore.listDocuments()
+    expect(docs.some((d) => d.description.includes('dragon'))).toBe(true)
+
+    // Verify no "no callback" warning was logged
+    expect(api.__logs.every((l) => !l.includes('noCallback'))).toBe(true)
+
+    resolveStub.mockRestore()
   })
 
   test('openSettings wires a live scope rebuild callback into the dashboard store', async () => {
@@ -488,13 +533,10 @@ describe('composition root wiring', () => {
     expect(guardData!.shutdownTs).toBe(0)
   })
 
-  test('different-scope rebuild wires forceExtract into the dashboard store', async () => {
+  test('different-scope forceExtract extracts from live chat and persists to scoped memdir', async () => {
     const api = createMockRisuaiApi()
     const openSpy = vi.spyOn(dashboardApp, 'openDashboard').mockResolvedValue()
 
-    // resolveScopeStorageKey is called once at plugin registration (root scope)
-    // and once inside buildDashboardStoreForCurrentScope (live scope).
-    // We need the live scope call to return a different key.
     const scopeResolver = await import('../src/memory/scopeResolver.js')
     const resolveStub = vi.spyOn(scopeResolver, 'resolveScopeStorageKey')
 
@@ -512,6 +554,35 @@ describe('composition root wiring', () => {
       isFallback: false,
     })
 
+    // Wire the chat APIs so tryGetChat returns a chat with messages
+    const extended = api as unknown as Record<string, unknown>
+    extended['getCharacter'] = async () => ({ chaId: 'char-1', name: 'Hero' })
+    extended['getCurrentCharacterIndex'] = async () => 0
+    extended['getCurrentChatIndex'] = async () => 0
+    extended['getChatFromIndex'] = async () => ({
+      name: 'Adventure',
+      lastDate: Date.now(),
+      messages: [
+        { role: 'user', content: 'What happens next?' },
+        { role: 'assistant', content: 'The hero found a hidden artifact.' },
+      ],
+    })
+
+    // Enqueue extraction LLM result
+    api.enqueueLlmResult({
+      type: 'success',
+      result: JSON.stringify({
+        status: 'pass',
+        turnScore: 0.9,
+        violations: [],
+        durableFacts: ['The hero found a hidden artifact.'],
+        sceneDelta: { scenePhase: 'discovery' },
+        entityUpdates: [{ name: 'Hero', facts: ['Found artifact'] }],
+        relationUpdates: [],
+        memoryOps: [],
+      }),
+    })
+
     const settingEntry = api.__registerCalls.find((c) => c.kind === 'setting')
     expect(settingEntry).toBeDefined()
 
@@ -520,8 +591,28 @@ describe('composition root wiring', () => {
     expect(openSpy).toHaveBeenCalledTimes(1)
     const dashboardStore = openSpy.mock.calls[0]?.[1]
     expect(dashboardStore).toBeDefined()
-    expect(typeof dashboardStore?.rebuildForActiveScope).toBe('function')
     expect(typeof dashboardStore?.forceExtract).toBe('function')
+
+    // Invoke forceExtract and verify it performs scoped work
+    await dashboardStore!.forceExtract!()
+
+    // Verify memdir documents were persisted under the OTHER scope key
+    const scopedMemdirStore = new MemdirStore(api.pluginStorage, 'scope-other-chat')
+    const docs = await scopedMemdirStore.listDocuments()
+
+    expect(docs.length).toBeGreaterThan(0)
+    expect(docs.some((d) => d.description.includes('hidden artifact'))).toBe(true)
+    expect(docs.some((d) => d.type === 'character' && d.title === 'Hero')).toBe(true)
+
+    // Verify canonical state was updated in the scoped store
+    const { CanonicalStore } = await import('../src/memory/canonicalStore.js')
+    const scopedStore = new CanonicalStore(api.pluginStorage, {
+      storageKey: 'scope-other-chat',
+      migrateFromFlatKey: false,
+      memdirStore: scopedMemdirStore,
+    })
+    const scopedState = await scopedStore.load()
+    expect(scopedState.metrics.totalMemoryWrites).toBeGreaterThanOrEqual(1)
 
     resolveStub.mockRestore()
   })
