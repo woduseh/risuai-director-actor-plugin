@@ -355,6 +355,7 @@ export interface PromptTopology {
   latestUserIndex: number | null
   latestAssistantIndex: number | null
   constraintIndex: number | null
+  memoryIndex: number | null
   hasPrefill: boolean
 }
 

@@ -26,7 +26,7 @@ const LOREBOOK_PATTERN =
   /(?:\[world\s*info\]|\[lore(?:book)?\]|\bworld\s*info\s*:|lore\s*entry\s*:)/i
 
 const MEMORY_PATTERN =
-  /(?:\[(?:summary|recap|memory|context)\b|summary\s+of\s+(?:past|previous|recent)|chat\s+(?:history|summary)|previously\s+(?:on|in))/i
+  /(?:\[(?:(?:past\s+)?summary|recap|memory|context)\b|summary\s+of\s+(?:past|previous|recent)|chat\s+(?:history|summary)|previously\s+(?:on|in))/i
 
 const STYLE_REGISTER_PATTERN =
   /\b(?:writing\s+style|narrative\s+(?:style|voice|tone)|register\s*:|prose\s+style|stylistic\s+(?:guidance|direction)|tone\s*:|voice\s*:)\b/i
@@ -242,6 +242,7 @@ export function buildTopology(messages: readonly OpenAIChat[]): PromptTopology {
   let latestUserIndex: number | null = null
   let latestAssistantIndex: number | null = null
   let constraintIndex: number | null = null
+  let memoryIndex: number | null = null
   let hasPrefill = false
 
   for (const seg of segments) {
@@ -257,6 +258,9 @@ export function buildTopology(messages: readonly OpenAIChat[]): PromptTopology {
         break
       case 'constraint':
         constraintIndex = seg.index
+        break
+      case 'memory':
+        memoryIndex = seg.index
         break
       case 'prefill':
         hasPrefill = true
@@ -281,6 +285,7 @@ export function buildTopology(messages: readonly OpenAIChat[]): PromptTopology {
     latestUserIndex,
     latestAssistantIndex,
     constraintIndex,
+    memoryIndex,
     hasPrefill
   }
 }

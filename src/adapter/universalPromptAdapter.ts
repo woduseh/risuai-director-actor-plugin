@@ -24,6 +24,7 @@ export function classifyPromptTopology(messages: readonly OpenAIChat[]): PromptT
   let latestUserIndex: number | null = null
   let latestAssistantIndex: number | null = null
   let constraintIndex: number | null = null
+  let memoryIndex: number | null = null
   let hasPrefill = false
 
   for (const seg of segments) {
@@ -39,6 +40,9 @@ export function classifyPromptTopology(messages: readonly OpenAIChat[]): PromptT
         break
       case 'constraint':
         constraintIndex = seg.index
+        break
+      case 'memory':
+        memoryIndex = seg.index
         break
       case 'prefill':
         hasPrefill = true
@@ -59,6 +63,7 @@ export function classifyPromptTopology(messages: readonly OpenAIChat[]): PromptT
     latestUserIndex,
     latestAssistantIndex,
     constraintIndex,
+    memoryIndex,
     hasPrefill
   }
 }
@@ -247,4 +252,123 @@ function resolveAutoMode(
   }
   notes.push('No suitable landmark found; falling back to bottom.')
   return 'bottom'
+}
+
+// ─── Actor memory helpers ────────────────────────────────────────────────────
+
+const ACTOR_MEMORY_TAG = 'actor-memory'
+
+function makeActorMemoryMessage(context: string): OpenAIChat {
+  return {
+    role: 'system',
+    content: context,
+    __directorInjected: true,
+    __directorTag: ACTOR_MEMORY_TAG
+  }
+}
+
+/**
+ * Compute where the brief should be inserted (resolved position index).
+ * Hardens explicit modes against null anchors by falling back to bottom.
+ */
+function computeBriefPosition(
+  len: number,
+  topology: PromptTopology,
+  resolved: Exclude<InjectionMode, 'auto'>
+): number {
+  switch (resolved) {
+    case 'author-note':
+      return topology.authorNoteIndex != null
+        ? topology.authorNoteIndex + 1
+        : len
+    case 'adjacent-user':
+      return topology.latestUserIndex != null
+        ? topology.latestUserIndex
+        : len
+    case 'post-constraint':
+      return (topology.constraintIndex ?? len - 1) + 1
+    case 'bottom':
+    default:
+      return len
+  }
+}
+
+/**
+ * Compute where actor memory should be inserted.
+ * Strategy: memory landmark (auto only) → author note → latest user → bottom.
+ */
+function computeActorMemoryPosition(
+  len: number,
+  topology: PromptTopology,
+  mode: InjectionMode,
+  notes: string[]
+): number {
+  if (mode === 'auto' && topology.memoryIndex != null) {
+    notes.push('Memory landmark detected; injecting actor memory after it.')
+    return topology.memoryIndex + 1
+  }
+  if (topology.authorNoteIndex != null) {
+    notes.push('Injecting actor memory after author note.')
+    return topology.authorNoteIndex + 1
+  }
+  if (topology.latestUserIndex != null) {
+    notes.push('Injecting actor memory before latest user message.')
+    return topology.latestUserIndex
+  }
+  notes.push('No suitable landmark for actor memory; falling back to bottom.')
+  return len
+}
+
+/**
+ * Inject both the director brief and actor memory context as separate
+ * system messages. Strips all stale director artifacts first.
+ *
+ * Actor memory placement (auto mode):
+ *   P4 — after the memory / Past Summary landmark
+ *   P3 — after the author-note
+ *   P2 — before the latest user message
+ *   P1 — bottom
+ *
+ * Brief placement uses the existing strategy from `resolveAutoMode`.
+ */
+export function injectDirectorArtifacts(
+  messages: readonly OpenAIChat[],
+  brief: SceneBrief,
+  actorMemoryContext: string,
+  mode: InjectionMode
+): InjectionResult {
+  const cleaned = stripStaleInjections(messages)
+  const topology = classifyPromptTopology(cleaned)
+
+  const notes: string[] = []
+  const resolvedBriefMode =
+    mode === 'auto' ? resolveAutoMode(topology, notes) : mode
+
+  const briefPos = computeBriefPosition(cleaned.length, topology, resolvedBriefMode)
+  const memPos = computeActorMemoryPosition(cleaned.length, topology, mode, notes)
+
+  const briefMsg = makeDirectorMessage(brief)
+  const memoryMsg = makeActorMemoryMessage(actorMemoryContext)
+
+  // Insert from highest position first so earlier inserts don't shift indices.
+  // When positions are equal, splice both at once so memory lands before brief.
+  const result = [...cleaned]
+  if (memPos === briefPos) {
+    result.splice(memPos, 0, memoryMsg, briefMsg)
+  } else if (memPos > briefPos) {
+    result.splice(memPos, 0, memoryMsg)
+    result.splice(briefPos, 0, briefMsg)
+  } else {
+    result.splice(briefPos, 0, briefMsg)
+    result.splice(memPos, 0, memoryMsg)
+  }
+
+  const diagnostics: InjectionDiagnostics = {
+    strategy: resolvedBriefMode as Exclude<InjectionMode, 'auto'>,
+    topologyConfidence: topology.confidence,
+    degraded: resolvedBriefMode === 'bottom',
+    notes
+  }
+
+  return { messages: result, diagnostics }
 }

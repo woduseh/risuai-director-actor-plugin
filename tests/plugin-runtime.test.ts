@@ -298,19 +298,17 @@ describe('bootstrapPlugin', () => {
     vi.useRealTimers()
   })
 
-  // ── Actor memory context plumbing ─────────────────────────────────
+  // ── Actor memory context injection (Task 4) ───────────────────────
 
-  test('carries actorMemoryContext in turn cache without injecting into messages', async () => {
+  test('beforeRequest injects both actor memory and brief when actorMemoryContext is present', async () => {
     const api = createMockRisuaiApi()
     const { TurnCache } = await import('../src/memory/turnCache.js')
     const turnCache = new TurnCache()
-    const capturedTurnId: string[] = []
 
     await bootstrapPlugin(api, {
       director: {
-        async preRequest(input) {
-          capturedTurnId.push(input.turnId)
-          return makePreResult(undefined, 'Some actor long-memory context')
+        async preRequest() {
+          return makePreResult(undefined, '# Director Long Memory\n\nSome recalled context')
         },
         async postResponse() { return makeUpdate() },
       },
@@ -319,19 +317,18 @@ describe('bootstrapPlugin', () => {
 
     const result = await api.runBeforeRequest([
       { role: 'system', content: 'Rules.' },
+      { role: 'system', content: '[Past Summary]\nPreviously, the hero entered the cave.' },
       { role: 'user', content: 'Continue.' }
     ])
 
-    // Brief injection still works
-    expect(result.some((m) => m.content.includes('<director-brief'))).toBe(true)
+    // Both brief and actor memory should be injected
+    expect(result.some(m => m.content.includes('<director-brief'))).toBe(true)
+    expect(result.some(m => m.content.includes('Director Long Memory'))).toBe(true)
 
-    // Actor memory context is NOT injected into messages
-    expect(result.every((m) => !m.content.includes('Some actor long-memory context'))).toBe(true)
-
-    // But it is stored in the turn cache
-    const turn = turnCache.get(capturedTurnId[0]!)
-    expect(turn).toBeDefined()
-    expect(turn!.actorMemoryContext).toBe('Some actor long-memory context')
+    // Actor memory should appear after the Past Summary segment
+    const memorySegIdx = result.findIndex(m => m.content.includes('[Past Summary]'))
+    const actorMemIdx = result.findIndex(m => m.content.includes('Director Long Memory'))
+    expect(actorMemIdx).toBeGreaterThan(memorySegIdx)
   })
 
   // ── Regression: onShutdown lifecycle wiring ────────────────────────

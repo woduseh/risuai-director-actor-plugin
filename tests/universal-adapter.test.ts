@@ -1,4 +1,4 @@
-import { classifyPromptTopology, injectDirectorBrief, serializeDirectorBrief } from '../src/adapter/universalPromptAdapter.js'
+import { classifyPromptTopology, injectDirectorBrief, injectDirectorArtifacts, serializeDirectorBrief } from '../src/adapter/universalPromptAdapter.js'
 import type { OpenAIChat, SceneBrief } from '../src/contracts/types.js'
 
 const sampleBrief: SceneBrief = {
@@ -170,5 +170,89 @@ describe('universal prompt adapter', () => {
 
     expect(xml).toContain('name="A &amp; B"')
     expect(xml).toContain('name="C &lt; D"')
+  })
+
+  // ── Memory landmark & dual injection (Task 4) ────────────────────────
+
+  test('classifyPromptTopology exposes memoryIndex for a [Past Summary] message', () => {
+    const messages: OpenAIChat[] = [
+      { role: 'system', content: 'Main prompt rules.' },
+      { role: 'system', content: '[Past Summary]\nThe party entered the cave yesterday.' },
+      { role: 'system', content: 'Author Note: keep the romance restrained.' },
+      { role: 'user', content: 'Continue the scene.' }
+    ]
+
+    const topology = classifyPromptTopology(messages)
+
+    expect(topology.memoryIndex).toBe(1)
+    expect(topology.authorNoteIndex).toBe(2)
+  })
+
+  test('dual injection places actor memory after memory segment and brief after author note', () => {
+    const messages: OpenAIChat[] = [
+      { role: 'system', content: 'Main prompt rules.' },
+      { role: 'system', content: '[Past Summary]\nThe party entered the cave yesterday.' },
+      { role: 'system', content: 'Author Note: keep the romance restrained.' },
+      { role: 'user', content: 'Continue the scene.' }
+    ]
+
+    const result = injectDirectorArtifacts(
+      messages, sampleBrief, '# Director Long Memory\n\nSome memory', 'auto'
+    )
+
+    // Actor memory should be directly after the memory segment
+    const memorySegIdx = result.messages.findIndex(m => m.content.includes('[Past Summary]'))
+    const actorMemIdx = result.messages.findIndex(m => m.content.includes('Director Long Memory'))
+    const authorNoteIdx = result.messages.findIndex(m => m.content.includes('Author Note'))
+    const briefIdx = result.messages.findIndex(m => m.content.includes('<director-brief'))
+    const userIdx = result.messages.findIndex(m => m.role === 'user')
+
+    expect(actorMemIdx).toBe(memorySegIdx + 1)
+    expect(actorMemIdx).toBeLessThan(authorNoteIdx)
+    expect(briefIdx).toBe(authorNoteIdx + 1)
+    expect(briefIdx).toBeLessThan(userIdx)
+  })
+
+  test('dual injection falls back when no memory landmark exists', () => {
+    const messages: OpenAIChat[] = [
+      { role: 'system', content: 'Main prompt rules.' },
+      { role: 'system', content: 'Author Note: keep the romance restrained.' },
+      { role: 'user', content: 'Continue the scene.' }
+    ]
+
+    const result = injectDirectorArtifacts(
+      messages, sampleBrief, '# Director Long Memory\n\nSome memory', 'auto'
+    )
+
+    const authorNoteIdx = result.messages.findIndex(m => m.content.includes('Author Note'))
+    const actorMemIdx = result.messages.findIndex(m => m.content.includes('Director Long Memory'))
+    const briefIdx = result.messages.findIndex(m => m.content.includes('<director-brief'))
+
+    // Both should land after author note, actor memory before brief
+    expect(actorMemIdx).toBeGreaterThan(authorNoteIdx)
+    expect(briefIdx).toBeGreaterThan(authorNoteIdx)
+    expect(actorMemIdx).toBeLessThan(briefIdx)
+  })
+
+  test('stale director artifacts do not accumulate after dual reinjection', () => {
+    const messages: OpenAIChat[] = [
+      { role: 'system', content: 'Main prompt rules.' },
+      { role: 'system', content: '<director-brief version="1">OLD</director-brief>', __directorInjected: true, __directorTag: 'director-brief' },
+      { role: 'system', content: '# Director Long Memory\n\nOld memory', __directorInjected: true, __directorTag: 'actor-memory' },
+      { role: 'system', content: 'Author Note: keep the romance restrained.' },
+      { role: 'user', content: 'Continue the scene.' }
+    ]
+
+    const result = injectDirectorArtifacts(
+      messages, sampleBrief, '# Director Long Memory\n\nNew memory', 'auto'
+    )
+
+    const injected = result.messages.filter(m => m.__directorInjected)
+    expect(injected).toHaveLength(2)
+    expect(injected.some(m => m.__directorTag === 'director-brief')).toBe(true)
+    expect(injected.some(m => m.__directorTag === 'actor-memory')).toBe(true)
+    // Old content must be gone
+    expect(result.messages.every(m => !m.content.includes('OLD'))).toBe(true)
+    expect(result.messages.every(m => !m.content.includes('Old memory'))).toBe(true)
   })
 })

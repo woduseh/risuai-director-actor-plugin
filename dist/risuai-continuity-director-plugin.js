@@ -4472,7 +4472,7 @@ ${lines.join("\n").trimEnd()}`;
   var OUTPUT_FORMAT_PATTERN = /\b(?:respond\s+(?:in|with|using)\s+(?:json|xml|yaml|markdown|csv)|format\s*:|output\s+format|schema\s*:|structured\s+(?:output|response))\b/i;
   var PERSONA_PATTERN = /(?:\bcharacter\s*:|{{char}}|\bpersona\s*:|\bplay\s+(?:the\s+)?(?:role|part)\s+of\b)/i;
   var LOREBOOK_PATTERN = /(?:\[world\s*info\]|\[lore(?:book)?\]|\bworld\s*info\s*:|lore\s*entry\s*:)/i;
-  var MEMORY_PATTERN = /(?:\[(?:summary|recap|memory|context)\b|summary\s+of\s+(?:past|previous|recent)|chat\s+(?:history|summary)|previously\s+(?:on|in))/i;
+  var MEMORY_PATTERN = /(?:\[(?:(?:past\s+)?summary|recap|memory|context)\b|summary\s+of\s+(?:past|previous|recent)|chat\s+(?:history|summary)|previously\s+(?:on|in))/i;
   var STYLE_REGISTER_PATTERN = /\b(?:writing\s+style|narrative\s+(?:style|voice|tone)|register\s*:|prose\s+style|stylistic\s+(?:guidance|direction)|tone\s*:|voice\s*:)\b/i;
   var CHARACTER_RULES_PATTERN = /\b(?:character\s+rules|behavior(?:al)?\s+(?:rules|guidelines)|{{char}}\s+(?:must|should|will|always|never))\b/i;
   var PREFILL_MAX_LENGTH = 20;
@@ -4603,6 +4603,7 @@ ${lines.join("\n").trimEnd()}`;
     let latestUserIndex = null;
     let latestAssistantIndex = null;
     let constraintIndex = null;
+    let memoryIndex = null;
     let hasPrefill = false;
     for (const seg of segments) {
       switch (seg.kind) {
@@ -4617,6 +4618,9 @@ ${lines.join("\n").trimEnd()}`;
           break;
         case "constraint":
           constraintIndex = seg.index;
+          break;
+        case "memory":
+          memoryIndex = seg.index;
           break;
         case "prefill":
           hasPrefill = true;
@@ -4634,6 +4638,7 @@ ${lines.join("\n").trimEnd()}`;
       latestUserIndex,
       latestAssistantIndex,
       constraintIndex,
+      memoryIndex,
       hasPrefill
     };
   }
@@ -4662,6 +4667,7 @@ ${lines.join("\n").trimEnd()}`;
     let latestUserIndex = null;
     let latestAssistantIndex = null;
     let constraintIndex = null;
+    let memoryIndex = null;
     let hasPrefill = false;
     for (const seg of segments) {
       switch (seg.kind) {
@@ -4677,6 +4683,9 @@ ${lines.join("\n").trimEnd()}`;
         case "constraint":
           constraintIndex = seg.index;
           break;
+        case "memory":
+          memoryIndex = seg.index;
+          break;
         case "prefill":
           hasPrefill = true;
           break;
@@ -4691,6 +4700,7 @@ ${lines.join("\n").trimEnd()}`;
       latestUserIndex,
       latestAssistantIndex,
       constraintIndex,
+      memoryIndex,
       hasPrefill
     };
   }
@@ -4826,6 +4836,71 @@ ${lines.join("\n").trimEnd()}`;
     }
     notes.push("No suitable landmark found; falling back to bottom.");
     return "bottom";
+  }
+  var ACTOR_MEMORY_TAG = "actor-memory";
+  function makeActorMemoryMessage(context) {
+    return {
+      role: "system",
+      content: context,
+      __directorInjected: true,
+      __directorTag: ACTOR_MEMORY_TAG
+    };
+  }
+  function computeBriefPosition(len, topology, resolved) {
+    switch (resolved) {
+      case "author-note":
+        return topology.authorNoteIndex != null ? topology.authorNoteIndex + 1 : len;
+      case "adjacent-user":
+        return topology.latestUserIndex != null ? topology.latestUserIndex : len;
+      case "post-constraint":
+        return (topology.constraintIndex ?? len - 1) + 1;
+      case "bottom":
+      default:
+        return len;
+    }
+  }
+  function computeActorMemoryPosition(len, topology, mode, notes) {
+    if (mode === "auto" && topology.memoryIndex != null) {
+      notes.push("Memory landmark detected; injecting actor memory after it.");
+      return topology.memoryIndex + 1;
+    }
+    if (topology.authorNoteIndex != null) {
+      notes.push("Injecting actor memory after author note.");
+      return topology.authorNoteIndex + 1;
+    }
+    if (topology.latestUserIndex != null) {
+      notes.push("Injecting actor memory before latest user message.");
+      return topology.latestUserIndex;
+    }
+    notes.push("No suitable landmark for actor memory; falling back to bottom.");
+    return len;
+  }
+  function injectDirectorArtifacts(messages, brief, actorMemoryContext, mode) {
+    const cleaned = stripStaleInjections(messages);
+    const topology = classifyPromptTopology(cleaned);
+    const notes = [];
+    const resolvedBriefMode = mode === "auto" ? resolveAutoMode(topology, notes) : mode;
+    const briefPos = computeBriefPosition(cleaned.length, topology, resolvedBriefMode);
+    const memPos = computeActorMemoryPosition(cleaned.length, topology, mode, notes);
+    const briefMsg = makeDirectorMessage(brief);
+    const memoryMsg = makeActorMemoryMessage(actorMemoryContext);
+    const result = [...cleaned];
+    if (memPos === briefPos) {
+      result.splice(memPos, 0, memoryMsg, briefMsg);
+    } else if (memPos > briefPos) {
+      result.splice(memPos, 0, memoryMsg);
+      result.splice(briefPos, 0, briefMsg);
+    } else {
+      result.splice(briefPos, 0, briefMsg);
+      result.splice(memPos, 0, memoryMsg);
+    }
+    const diagnostics = {
+      strategy: resolvedBriefMode,
+      topologyConfidence: topology.confidence,
+      degraded: resolvedBriefMode === "bottom",
+      notes
+    };
+    return { messages: result, diagnostics };
   }
 
   // src/ui/dashboardCss.ts
@@ -8716,7 +8791,7 @@ ${lines.join("\n").trimEnd()}`;
           clearActiveTurn();
           return messages;
         }
-        const injected = injectDirectorBrief(messages, result.brief, injectionMode);
+        const injected = result.actorMemoryContext ? injectDirectorArtifacts(messages, result.brief, result.actorMemoryContext, injectionMode) : injectDirectorBrief(messages, result.brief, injectionMode);
         const turnPatch = {
           brief: result.brief,
           latestMessages: injected.messages

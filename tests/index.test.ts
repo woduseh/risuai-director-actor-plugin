@@ -59,8 +59,9 @@ describe('registerContinuityDirectorPlugin', () => {
       { role: 'user', content: 'Continue the scene.' }
     ])
 
-    expect(before[2]?.content).toContain('<director-brief version="1">')
-    expect(before[3]?.role).toBe('user')
+    expect(before[2]?.content).toContain('Director Long Memory')
+    expect(before[3]?.content).toContain('<director-brief version="1">')
+    expect(before[4]?.role).toBe('user')
 
     await api.runAfterRequest('A leaves with the hidden key.')
 

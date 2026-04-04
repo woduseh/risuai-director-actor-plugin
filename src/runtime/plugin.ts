@@ -9,7 +9,7 @@ import type {
   TurnContext,
 } from '../contracts/types.js'
 import { DEFAULT_DIRECTOR_SETTINGS } from '../contracts/types.js'
-import { injectDirectorBrief } from '../adapter/universalPromptAdapter.js'
+import { injectDirectorBrief, injectDirectorArtifacts } from '../adapter/universalPromptAdapter.js'
 import type { ExtractionContext } from '../memory/extractMemories.js'
 import { TurnCache } from '../memory/turnCache.js'
 import { registerPluginUi, showSettingsOverlay } from '../ui/settings.js'
@@ -242,7 +242,9 @@ export async function bootstrapPlugin(
         return messages
       }
 
-      const injected = injectDirectorBrief(messages, result.brief, injectionMode)
+      const injected = result.actorMemoryContext
+        ? injectDirectorArtifacts(messages, result.brief, result.actorMemoryContext, injectionMode)
+        : injectDirectorBrief(messages, result.brief, injectionMode)
       const turnPatch: Partial<TurnContext> = {
         brief: result.brief,
         latestMessages: injected.messages,
