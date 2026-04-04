@@ -1,10 +1,11 @@
-import { describe, test, expect, vi } from 'vitest'
+import { describe, test, expect, vi, beforeAll } from 'vitest'
 import {
   createEmbeddingClient,
   isProviderSupported,
   type EmbeddingClientConfig,
   type EmbeddingResult,
 } from '../src/memory/embeddingClient.js'
+import { createVertexServiceAccountJson } from './helpers/vertexTestUtils.js'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -54,8 +55,8 @@ describe('isProviderSupported', () => {
     expect(isProviderSupported('custom')).toBe(true)
   })
 
-  test('vertex is not supported', () => {
-    expect(isProviderSupported('vertex')).toBe(false)
+  test('vertex is supported', () => {
+    expect(isProviderSupported('vertex')).toBe(true)
   })
 
   test('unknown providers are not supported', () => {
@@ -240,22 +241,98 @@ describe('createEmbeddingClient — Google Gemini', () => {
 })
 
 // ---------------------------------------------------------------------------
-// createEmbeddingClient — unsupported providers
+// createEmbeddingClient — Vertex AI
 // ---------------------------------------------------------------------------
 
-describe('createEmbeddingClient — unsupported providers', () => {
-  test('vertex returns unsupported error without calling fetch', async () => {
-    const nativeFetch = vi.fn()
+describe('createEmbeddingClient — Vertex AI', () => {
+  let vertexJsonKey = ''
+
+  beforeAll(async () => {
+    vertexJsonKey = await createVertexServiceAccountJson()
+  })
+
+  test('vertex embeds with predict endpoint and parses vectors', async () => {
+    const nativeFetch = makeNativeFetch([
+      {
+        ok: true,
+        body: { access_token: 'ya29.vertex-token', expires_in: 3600 },
+      },
+      {
+        ok: true,
+        body: {
+          predictions: [{ embeddings: { values: [0.9, 0.8, 0.7] } }],
+        },
+      },
+    ])
 
     const client = createEmbeddingClient(
-      makeConfig({ provider: 'vertex' }),
+      makeConfig({
+        provider: 'vertex',
+        baseUrl: '',
+        apiKey: '',
+        model: 'text-embedding-005',
+        dimensions: 256,
+        vertexJsonKey,
+        vertexProject: '',
+        vertexLocation: '',
+      }),
       nativeFetch as never,
     )
     const result = await client.embed('test')
 
+    expect(result.ok).toBe(true)
+    expect((result as Extract<EmbeddingResult, { ok: true }>).vector).toEqual([
+      0.9, 0.8, 0.7,
+    ])
+
+    const [url, opts] = (nativeFetch as ReturnType<typeof vi.fn>).mock.calls[1]!
+    expect(url).toContain('/publishers/google/models/text-embedding-005:predict')
+    const body = JSON.parse(opts.body)
+    expect(body.parameters.outputDimensionality).toBe(256)
+  })
+
+  test('returns error when Vertex JSON key is empty', async () => {
+    const nativeFetch = vi.fn()
+
+    const client = createEmbeddingClient(
+      makeConfig({
+        provider: 'vertex',
+        baseUrl: '',
+        apiKey: '',
+        model: 'text-embedding-005',
+        vertexJsonKey: '',
+        vertexProject: '',
+        vertexLocation: '',
+      }),
+      nativeFetch as never,
+    )
+
+    const result = await client.embed('hello')
     expect(result.ok).toBe(false)
-    expect((result as Extract<EmbeddingResult, { ok: false }>).error).toContain('unsupported')
     expect(nativeFetch).not.toHaveBeenCalled()
+  })
+
+  test('returns error on Vertex API failure', async () => {
+    const nativeFetch = makeNativeFetch([
+      { ok: true, body: { access_token: 'ya29.test', expires_in: 3600 } },
+      { ok: false, status: 500, body: { error: 'server error' } },
+    ])
+
+    const client = createEmbeddingClient(
+      makeConfig({
+        provider: 'vertex',
+        baseUrl: '',
+        apiKey: '',
+        model: 'text-embedding-005',
+        vertexJsonKey,
+        vertexProject: '',
+        vertexLocation: '',
+      }),
+      nativeFetch as never,
+    )
+
+    const result = await client.embed('hello')
+    expect(result.ok).toBe(false)
   })
 })
 

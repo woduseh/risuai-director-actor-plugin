@@ -3,13 +3,12 @@
  *
  * Routes embedding requests through the RisuAI `nativeFetch` API
  * instead of raw browser fetch. Supports OpenAI-compatible providers
- * (openai, voyageai, custom) and Google Gemini embeddings.
- *
- * Vertex AI is explicitly unsupported in this slice — calls return a
- * graceful error without crashing retrieval.
+ * (openai, voyageai, custom), Google Gemini embeddings, and Vertex AI
+ * text embeddings authenticated with a service-account JSON key.
  */
 
 import type { EmbeddingProvider } from '../contracts/types.js'
+import { createVertexClient, type VertexClient } from '../provider/vertexClient.js'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -21,6 +20,9 @@ export interface EmbeddingClientConfig {
   apiKey: string
   model: string
   dimensions: number
+  vertexJsonKey?: string
+  vertexProject?: string
+  vertexLocation?: string
 }
 
 export type EmbeddingResult =
@@ -47,6 +49,7 @@ const SUPPORTED_PROVIDERS = new Set<string>([
   'openai',
   'voyageai',
   'google',
+  'vertex',
   'custom',
 ])
 
@@ -138,6 +141,33 @@ async function embedGemini(
 }
 
 // ---------------------------------------------------------------------------
+// Vertex embedding request
+// ---------------------------------------------------------------------------
+
+async function embedVertex(
+  text: string,
+  config: EmbeddingClientConfig,
+  nativeFetch: NativeFetchFn,
+  cachedClient: { ref: VertexClient | null },
+): Promise<EmbeddingResult> {
+  if (!config.vertexJsonKey) {
+    return { ok: false, error: 'Vertex AI JSON key is not configured for embeddings' }
+  }
+  if (!cachedClient.ref) {
+    cachedClient.ref = createVertexClient(nativeFetch)
+  }
+  const vector = await cachedClient.ref.embedText(
+    config.vertexJsonKey,
+    config.vertexProject ?? '',
+    config.vertexLocation ?? '',
+    config.model,
+    text,
+    config.dimensions,
+  )
+  return { ok: true, vector }
+}
+
+// ---------------------------------------------------------------------------
 // Client factory
 // ---------------------------------------------------------------------------
 
@@ -152,6 +182,9 @@ export function createEmbeddingClient(
   config: EmbeddingClientConfig,
   nativeFetch: NativeFetchFn,
 ): EmbeddingClient {
+  // Vertex client holder — cached across embed() calls to reuse OAuth tokens
+  const vertexClientCache: { ref: VertexClient | null } = { ref: null }
+
   async function embed(text: string): Promise<EmbeddingResult> {
     if (!isProviderSupported(config.provider)) {
       return {
@@ -163,6 +196,9 @@ export function createEmbeddingClient(
     try {
       if (config.provider === 'google') {
         return await embedGemini(text, config, nativeFetch)
+      }
+      if (config.provider === 'vertex') {
+        return await embedVertex(text, config, nativeFetch, vertexClientCache)
       }
       // openai, voyageai, custom all use OpenAI-compatible format
       return await embedOpenAICompatible(text, config, nativeFetch)

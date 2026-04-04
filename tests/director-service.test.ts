@@ -1,4 +1,4 @@
-import { describe, test, expect, vi } from 'vitest'
+import { describe, test, expect, vi, beforeAll } from 'vitest'
 import { createMockRisuaiApi } from './helpers/mockRisuai.js'
 import {
   DEFAULT_DIRECTOR_PROMPT_PRESET,
@@ -19,6 +19,7 @@ import {
 import {
   GITHUB_TOKEN_EXCHANGE_URL,
 } from '../src/provider/copilotClient.js'
+import { createVertexServiceAccountJson } from './helpers/vertexTestUtils.js'
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -171,6 +172,11 @@ describe('buildPostResponsePrompt', () => {
 
 describe('DirectorService', () => {
   const settings: DirectorSettings = { ...DEFAULT_DIRECTOR_SETTINGS }
+  let vertexJsonKey = ''
+
+  beforeAll(async () => {
+    vertexJsonKey = await createVertexServiceAccountJson()
+  })
 
   describe('preRequest', () => {
     test('returns ok:true with parsed SceneBrief on LLM success', async () => {
@@ -490,6 +496,98 @@ describe('DirectorService', () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.brief.confidence).toBe(0.85)
+    })
+  })
+
+  describe('Vertex provider', () => {
+    function vertexSettings(
+      overrides?: Partial<DirectorSettings>,
+    ): DirectorSettings {
+      return {
+        ...DEFAULT_DIRECTOR_SETTINGS,
+        directorProvider: 'vertex',
+        directorVertexJsonKey: vertexJsonKey,
+        directorModel: 'gemini-2.5-pro',
+        ...overrides,
+      }
+    }
+
+    test('uses nativeFetch for Vertex instead of runLLMModel', async () => {
+      const api = createMockRisuaiApi()
+      api.enqueueNativeFetchJson({ access_token: 'ya29.vertex-token', expires_in: 3600 })
+      api.enqueueNativeFetchJson({
+        candidates: [
+          {
+            content: {
+              parts: [{ text: VALID_BRIEF_JSON }],
+            },
+          },
+        ],
+      })
+
+      const spy = vi.spyOn(api, 'runLLMModel')
+      const svc = createDirectorService(api, vertexSettings())
+      const result = await svc.preRequest(makeDirectorContext())
+
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.brief.confidence).toBe(0.85)
+      expect(spy).not.toHaveBeenCalled()
+    })
+
+    test('returns ok:false for unsupported Vertex model families', async () => {
+      const api = createMockRisuaiApi()
+      const svc = createDirectorService(
+        api,
+        vertexSettings({ directorModel: 'claude-sonnet-4-6' }),
+      )
+      const result = await svc.preRequest(makeDirectorContext())
+
+      expect(result.ok).toBe(false)
+      if (result.ok) return
+      expect(result.error).toMatch(/gemini/i)
+    })
+
+    test('returns ok:false when Vertex generateContent fails', async () => {
+      const api = createMockRisuaiApi()
+      api.enqueueNativeFetchJson({ access_token: 'ya29.test', expires_in: 3600 })
+      api.enqueueNativeFetchJson({ error: 'Quota exceeded' }, { status: 429 })
+
+      const svc = createDirectorService(api, vertexSettings())
+      const result = await svc.preRequest(makeDirectorContext())
+
+      expect(result.ok).toBe(false)
+      if (result.ok) return
+      expect(result.error).toContain('LLM call failed')
+    })
+
+    test('Vertex postResponse parses MemoryUpdate from Gemini response', async () => {
+      const api = createMockRisuaiApi()
+      api.enqueueNativeFetchJson({ access_token: 'ya29.test', expires_in: 3600 })
+      api.enqueueNativeFetchJson({
+        candidates: [{ content: { parts: [{ text: VALID_UPDATE_JSON }] } }],
+      })
+
+      const svc = createDirectorService(api, vertexSettings())
+      const result = await svc.postResponse(makePostReviewContext())
+
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.update.status).toBe('pass')
+    })
+
+    test('non-Vertex providers still use host runLLMModel path', async () => {
+      const api = createMockRisuaiApi()
+      api.enqueueLlmResult({ type: 'success', result: VALID_BRIEF_JSON })
+
+      const spy = vi.spyOn(api, 'runLLMModel')
+      const svc = createDirectorService(api, {
+        ...DEFAULT_DIRECTOR_SETTINGS,
+        directorProvider: 'google',
+      })
+      await svc.preRequest(makeDirectorContext())
+
+      expect(spy).toHaveBeenCalledOnce()
     })
   })
 })

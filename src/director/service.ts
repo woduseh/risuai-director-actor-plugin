@@ -11,6 +11,10 @@ import {
   getSharedCopilotClient,
   type CopilotClient,
 } from '../provider/copilotClient.js'
+import {
+  getSharedVertexClient,
+  type VertexClient,
+} from '../provider/vertexClient.js'
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -58,6 +62,8 @@ export function createDirectorService(
     settings.directorProvider === 'copilot'
       ? getSharedCopilotClient(api)
       : null
+  const vertexClient: VertexClient | null =
+    settings.directorProvider === 'vertex' ? getSharedVertexClient(api) : null
 
   async function callLlm(
     messages: Array<{ role: string; content: string }>,
@@ -66,6 +72,22 @@ export function createDirectorService(
       try {
         const text = await copilotClient.complete(
           settings.directorCopilotToken,
+          settings.directorModel,
+          messages,
+        )
+        return { type: 'success', result: text }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        return { type: 'fail', result: msg }
+      }
+    }
+
+    if (vertexClient) {
+      try {
+        const text = await vertexClient.complete(
+          settings.directorVertexJsonKey,
+          settings.directorVertexProject,
+          settings.directorVertexLocation,
           settings.directorModel,
           messages,
         )

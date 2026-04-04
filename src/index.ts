@@ -72,10 +72,38 @@ function createId(prefix: string): string {
  */
 function buildEmbeddingClient(
   api: RisuaiApi,
-  settings: { embeddingsEnabled: boolean; embeddingProvider: string; embeddingBaseUrl: string; embeddingApiKey: string; embeddingModel: string; embeddingDimensions: number },
+  settings: {
+    embeddingsEnabled: boolean
+    embeddingProvider: string
+    embeddingBaseUrl: string
+    embeddingApiKey: string
+    embeddingVertexJsonKey: string
+    embeddingVertexProject: string
+    embeddingVertexLocation: string
+    embeddingModel: string
+    embeddingDimensions: number
+  },
 ): EmbeddingClient | null {
   if (!settings.embeddingsEnabled) return null
   if (!isProviderSupported(settings.embeddingProvider)) return null
+
+  if (settings.embeddingProvider === 'vertex') {
+    if (!settings.embeddingVertexJsonKey || !settings.embeddingModel) return null
+    return createEmbeddingClient(
+      {
+        provider: settings.embeddingProvider,
+        baseUrl: '',
+        apiKey: '',
+        model: settings.embeddingModel,
+        dimensions: settings.embeddingDimensions,
+        vertexJsonKey: settings.embeddingVertexJsonKey,
+        vertexProject: settings.embeddingVertexProject,
+        vertexLocation: settings.embeddingVertexLocation,
+      },
+      (url, opts) => api.nativeFetch(url, opts),
+    )
+  }
+
   if (!settings.embeddingApiKey || !settings.embeddingBaseUrl || !settings.embeddingModel) return null
 
   return createEmbeddingClient(

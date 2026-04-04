@@ -6,6 +6,7 @@ import type {
 } from '../contracts/types.js'
 import type { TranslationKey } from './i18n.js'
 import { getSharedCopilotClient } from '../provider/copilotClient.js'
+import { getSharedVertexClient } from '../provider/vertexClient.js'
 
 /* ------------------------------------------------------------------ */
 /*  Provider catalog                                                  */
@@ -36,12 +37,9 @@ export const DIRECTOR_PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     manualModelOnly: false,
     authMode: 'api-key',
     curatedModels: [
-      'gpt-4.1-mini',
-      'gpt-4.1',
-      'gpt-5.3-codex',
-      'gpt-5.4-nano',
       'gpt-5.4-mini',
       'gpt-5.4',
+      'gpt-5.4-nano',
       'gpt-5.4-pro',
     ]
   },
@@ -52,12 +50,9 @@ export const DIRECTOR_PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     manualModelOnly: true,
     authMode: 'api-key',
     curatedModels: [
-      'claude-3-5-haiku-latest',
-      'claude-3-5-sonnet-latest',
-      'claude-3-7-sonnet-latest',
+      'claude-haiku-4-5',
       'claude-sonnet-4-6',
       'claude-opus-4-6',
-      'claude-opus-4-6-fast',
     ]
   },
   {
@@ -67,13 +62,9 @@ export const DIRECTOR_PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     manualModelOnly: true,
     authMode: 'api-key',
     curatedModels: [
-      'gemini-2.0-flash',
-      'gemini-2.5-flash-preview-04-17',
-      'gemini-2.5-pro-preview-05-06',
-      'gemini-3.1-pro-preview',
-      'gemini-3.1-pro-preview-customtools',
-      'gemini-3.1-flash-lite-preview',
-      'gemini-3.1-flash-live-preview',
+      'gemini-2.5-flash-lite',
+      'gemini-2.5-flash',
+      'gemini-2.5-pro',
     ]
   },
   {
@@ -82,7 +73,12 @@ export const DIRECTOR_PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     baseUrl: 'https://api.githubcopilot.com/v1',
     manualModelOnly: true,
     authMode: 'oauth-device-flow',
-    curatedModels: ['gpt-4.1', 'gpt-5.4', 'claude-sonnet-4-6', 'claude-opus-4-6']
+    curatedModels: [
+      'gpt-5.4-mini',
+      'gpt-5.4',
+      'claude-sonnet-4-6',
+      'claude-opus-4-6',
+    ]
   },
   {
     id: 'vertex',
@@ -91,12 +87,8 @@ export const DIRECTOR_PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     manualModelOnly: true,
     authMode: 'manual-advanced',
     curatedModels: [
-      'gemini-2.5-pro-preview-05-06',
-      'gemini-3.1-pro-preview',
-      'gemini-3.1-pro-preview-customtools',
-      'gemini-3.1-flash-lite-preview',
-      'claude-sonnet-4-6',
-      'claude-opus-4-6',
+      'gemini-2.5-flash',
+      'gemini-2.5-pro',
     ]
   },
   {
@@ -267,7 +259,9 @@ interface OpenAIModelsResponseEntry {
  *   and returns a sorted, deduplicated list of model IDs.
  * - **copilot**: tries authenticated `/models` listing when a token is
  *   configured, then falls back to the curated list on failure.
- * - **anthropic / google / vertex**: returns the curated fallback list
+ * - **vertex**: tries authenticated publisher-model discovery when a JSON
+ *   key is configured, then falls back to the curated list on failure.
+ * - **anthropic / google**: returns the curated fallback list
  *   because these providers do not expose a simple `/models` endpoint.
  */
 export async function loadProviderModels(
@@ -278,14 +272,29 @@ export async function loadProviderModels(
   const catalogEntry = DIRECTOR_PROVIDER_CATALOG.find((e) => e.id === provider)
 
   // Copilot: try dynamic model listing when a token is configured
-    if (provider === 'copilot') {
-      if (settings.directorCopilotToken) {
-        try {
-          const client = getSharedCopilotClient(api)
-          return await client.listModels(settings.directorCopilotToken)
-        } catch {
-          // Fall through to curated list
+  if (provider === 'copilot') {
+    if (settings.directorCopilotToken) {
+      try {
+        const client = getSharedCopilotClient(api)
+        return await client.listModels(settings.directorCopilotToken)
+      } catch {
+        // Fall through to curated list
+      }
+    }
+    return [...(catalogEntry?.curatedModels ?? [])]
+  }
+
+  if (provider === 'vertex') {
+    if (settings.directorVertexJsonKey) {
+      try {
+        const client = getSharedVertexClient(api)
+        const models = await client.listModels(settings.directorVertexJsonKey)
+        if (models.length > 0) {
+          return models
         }
+      } catch {
+        // Fall through to curated list
+      }
     }
     return [...(catalogEntry?.curatedModels ?? [])]
   }
@@ -356,6 +365,22 @@ export async function testDirectorConnection(
       const client = getSharedCopilotClient(api)
       const models = await client.listModels(settings.directorCopilotToken)
       return { ok: true, models }
+    }
+
+    if (provider === 'vertex') {
+      if (!settings.directorVertexJsonKey) {
+        return { ok: false, error: 'Vertex JSON key is not configured' }
+      }
+      const client = getSharedVertexClient(api)
+      await client.getAccessToken(settings.directorVertexJsonKey)
+      const fallbackModels = [...(catalogEntry?.curatedModels ?? [])]
+      const models = await client
+        .listModels(settings.directorVertexJsonKey)
+        .catch(() => fallbackModels)
+      return {
+        ok: true,
+        models: models.length > 0 ? models : fallbackModels,
+      }
     }
 
     if (catalogEntry?.manualModelOnly) {
