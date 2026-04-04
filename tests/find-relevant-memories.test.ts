@@ -719,3 +719,124 @@ describe('formatRecalledDocsBlock', () => {
     expect(block).toContain('stale')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Vector prefilter integration
+// ---------------------------------------------------------------------------
+
+describe('findRelevantMemories — vector prefilter', () => {
+  test('narrows manifest to vector-prefiltered candidates when embeddings are available', async () => {
+    const docs = [
+      makeDoc({
+        id: 'near',
+        title: 'Near',
+        description: 'Near doc',
+        embedding: { vector: [1, 0, 0], version: 'emb-v1', embeddedAt: 1 },
+      }),
+      makeDoc({
+        id: 'far',
+        title: 'Far',
+        description: 'Far doc',
+        embedding: { vector: [0, 0, 1], version: 'emb-v1', embeddedAt: 1 },
+      }),
+    ]
+
+    const deps = makeDeps({
+      runRecallModel: vi.fn(async (_manifest, _text) => {
+        return { ok: true, text: '["near"]' }
+      }),
+    })
+
+    const result = await findRelevantMemories(deps, {
+      docs,
+      recentText: 'query',
+      memoryMdContent: '# MEMORY.md',
+      queryVector: [1, 0, 0],
+      vectorVersion: 'emb-v1',
+    })
+
+    expect(result.source).toBe('recall')
+    expect(result.selectedDocs).toHaveLength(1)
+    expect(result.selectedDocs[0]!.id).toBe('near')
+
+    // The manifest sent to recall model should only contain prefiltered docs
+    const manifestArg = (deps.runRecallModel as ReturnType<typeof vi.fn>).mock.calls[0]![0]
+    expect(manifestArg).toContain('near')
+    expect(manifestArg).not.toContain('far')
+  })
+
+  test('falls back to all docs when no embeddings are present', async () => {
+    const docs = [
+      makeDoc({ id: 'doc-1', title: 'Alice' }),
+      makeDoc({ id: 'doc-2', title: 'Bob' }),
+    ]
+
+    const deps = makeDeps({
+      runRecallModel: vi.fn(async () => ({ ok: true, text: '["doc-1","doc-2"]' })),
+    })
+
+    const result = await findRelevantMemories(deps, {
+      docs,
+      recentText: 'query',
+      memoryMdContent: '# MEMORY.md',
+      queryVector: [1, 0],
+      vectorVersion: 'emb-v1',
+    })
+
+    // No embeddings on docs means all docs go to manifest
+    expect(result.selectedDocs).toHaveLength(2)
+  })
+
+  test('includes docs with stale vector version in fallthrough', async () => {
+    const docs = [
+      makeDoc({
+        id: 'stale',
+        title: 'Stale',
+        embedding: { vector: [1, 0], version: 'emb-old', embeddedAt: 1 },
+      }),
+      makeDoc({
+        id: 'current',
+        title: 'Current',
+        embedding: { vector: [1, 0], version: 'emb-v1', embeddedAt: 2 },
+      }),
+    ]
+
+    const deps = makeDeps({
+      runRecallModel: vi.fn(async () => ({ ok: true, text: '["stale","current"]' })),
+    })
+
+    const result = await findRelevantMemories(deps, {
+      docs,
+      recentText: 'query',
+      memoryMdContent: '# MEMORY.md',
+      queryVector: [1, 0],
+      vectorVersion: 'emb-v1',
+    })
+
+    // Both docs should still be selectable — stale vectors just aren't prefiltered
+    expect(result.selectedDocs).toHaveLength(2)
+  })
+
+  test('works without queryVector (no prefilter applied)', async () => {
+    const docs = [
+      makeDoc({
+        id: 'doc-1',
+        embedding: { vector: [1, 0], version: 'emb-v1', embeddedAt: 1 },
+      }),
+    ]
+
+    const deps = makeDeps({
+      runRecallModel: vi.fn(async () => ({ ok: true, text: '["doc-1"]' })),
+    })
+
+    const result = await findRelevantMemories(deps, {
+      docs,
+      recentText: 'query',
+      memoryMdContent: '# MEMORY.md',
+      // no queryVector
+    })
+
+    expect(result.source).toBe('recall')
+    expect(result.selectedDocs).toHaveLength(1)
+  })
+})

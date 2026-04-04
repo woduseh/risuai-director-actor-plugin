@@ -286,6 +286,114 @@ describe('MemdirStore', () => {
     })
   })
 
+  describe('embedding metadata on documents', () => {
+    it('stores and retrieves a document with embedding metadata', async () => {
+      const doc: MemdirDocument = {
+        id: 'emb-1',
+        type: 'character',
+        title: 'Alice',
+        description: 'A warrior',
+        scopeKey,
+        updatedAt: Date.now(),
+        source: 'extraction',
+        freshness: 'current',
+        tags: [],
+        embedding: {
+          vector: [0.1, 0.2, 0.3],
+          version: 'emb-abc123',
+          embeddedAt: Date.now(),
+        },
+      }
+      await store.putDocument(doc)
+      const retrieved = await store.getDocument('emb-1')
+      expect(retrieved!.embedding).toBeDefined()
+      expect(retrieved!.embedding!.vector).toEqual([0.1, 0.2, 0.3])
+      expect(retrieved!.embedding!.version).toBe('emb-abc123')
+    })
+
+    it('document without embedding has undefined embedding field', async () => {
+      const doc: MemdirDocument = {
+        id: 'no-emb-1',
+        type: 'world',
+        title: 'Place',
+        description: 'A place',
+        scopeKey,
+        updatedAt: Date.now(),
+        source: 'extraction',
+        freshness: 'current',
+        tags: [],
+      }
+      await store.putDocument(doc)
+      const retrieved = await store.getDocument('no-emb-1')
+      expect(retrieved!.embedding).toBeUndefined()
+    })
+
+    it('updates embedding metadata on an existing document', async () => {
+      const doc: MemdirDocument = {
+        id: 'upd-emb-1',
+        type: 'character',
+        title: 'Bob',
+        description: 'A mage',
+        scopeKey,
+        updatedAt: 1000,
+        source: 'extraction',
+        freshness: 'current',
+        tags: [],
+        embedding: {
+          vector: [0.1, 0.2],
+          version: 'emb-v1',
+          embeddedAt: 1000,
+        },
+      }
+      await store.putDocument(doc)
+
+      const updated: MemdirDocument = {
+        ...doc,
+        updatedAt: 2000,
+        embedding: {
+          vector: [0.3, 0.4],
+          version: 'emb-v2',
+          embeddedAt: 2000,
+        },
+      }
+      await store.putDocument(updated)
+
+      const retrieved = await store.getDocument('upd-emb-1')
+      expect(retrieved!.embedding!.version).toBe('emb-v2')
+      expect(retrieved!.embedding!.vector).toEqual([0.3, 0.4])
+    })
+
+    it('counts embedding status across documents', async () => {
+      const docs: MemdirDocument[] = [
+        {
+          id: 'e1', type: 'character', title: 'A', description: 'a',
+          scopeKey, updatedAt: 1, source: 'extraction', freshness: 'current',
+          tags: [],
+          embedding: { vector: [0.1], version: 'emb-v1', embeddedAt: 1 },
+        },
+        {
+          id: 'e2', type: 'world', title: 'B', description: 'b',
+          scopeKey, updatedAt: 2, source: 'extraction', freshness: 'current',
+          tags: [],
+          embedding: { vector: [0.2], version: 'emb-v2', embeddedAt: 2 },
+        },
+        {
+          id: 'e3', type: 'plot', title: 'C', description: 'c',
+          scopeKey, updatedAt: 3, source: 'extraction', freshness: 'current',
+          tags: [],
+        },
+      ]
+      for (const d of docs) await store.putDocument(d)
+
+      const allDocs = await store.listDocuments()
+      const withEmb = allDocs.filter((d) => d.embedding != null)
+      const withoutEmb = allDocs.filter((d) => d.embedding == null)
+
+      expect(withEmb).toHaveLength(2)
+      expect(withoutEmb).toHaveLength(1)
+    })
+  })
+
   describe('MEMORY.md key', () => {
     it('uses the dedicated memory-md namespace key', async () => {
       const memoryMd = '# MEMORY.md\n\nNo documents yet.'

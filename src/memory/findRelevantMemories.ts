@@ -11,6 +11,10 @@
 import type { MemdirDocument, MemdirFreshness } from '../contracts/types.js'
 import { rankDocsByKeywordOverlap } from './retrieval.js'
 import {
+  vectorPrefilter,
+  type VectorCandidate,
+} from './vectorRetrieval.js'
+import {
   isTransientError,
   withRetry,
   type RetryOptions,
@@ -53,6 +57,10 @@ export interface FindRelevantMemoriesInput {
   maxResults?: number
   /** Override current time for testing. */
   nowMs?: number
+  /** Query embedding vector for vector prefilter (optional). */
+  queryVector?: number[]
+  /** Current vector version fingerprint for staleness detection. */
+  vectorVersion?: string
 }
 
 export interface RecallResult {
@@ -200,8 +208,44 @@ export async function findRelevantMemories(
     return result
   }
 
+  // ── Vector prefilter ──────────────────────────────────────────────
+  // When a query vector and vector version are provided, narrow the
+  // candidate set to docs with current embeddings that score well.
+  // Docs without embeddings or with stale versions pass through
+  // unfiltered to preserve keyword fallback access.
+  let manifestDocs = input.docs
+  if (input.queryVector && input.vectorVersion) {
+    const candidates: VectorCandidate[] = []
+    const unembedded: MemdirDocument[] = []
+
+    for (const doc of input.docs) {
+      if (
+        doc.embedding &&
+        doc.embedding.version === input.vectorVersion &&
+        doc.embedding.vector.length > 0
+      ) {
+        candidates.push({ id: doc.id, vector: doc.embedding.vector })
+      } else {
+        unembedded.push(doc)
+      }
+    }
+
+    if (candidates.length > 0) {
+      const prefiltered = vectorPrefilter(candidates, input.queryVector, {
+        maxResults: maxResults * 2,
+        minSimilarity: 0.1,
+      })
+      const prefilteredIds = new Set(prefiltered.map((r) => r.id))
+      const prefilteredDocs = input.docs.filter((d) => prefilteredIds.has(d.id))
+      // Merge prefiltered + unembedded (don't block docs missing vectors)
+      const mergedIds = new Set(prefilteredDocs.map((d) => d.id))
+      for (const ue of unembedded) mergedIds.add(ue.id)
+      manifestDocs = input.docs.filter((d) => mergedIds.has(d.id))
+    }
+  }
+
   // Format manifest (headers only — no full bodies)
-  const manifest = formatManifest(input.docs)
+  const manifest = formatManifest(manifestDocs)
 
   // Try recall model (with retry for transient failures)
   try {

@@ -59,6 +59,16 @@ export type MemdirDocumentType = (typeof MEMDIR_DOCUMENT_TYPES)[number]
 export type MemdirFreshness = 'current' | 'stale' | 'archived'
 export type MemdirSource = 'extraction' | 'operator' | 'migration' | 'manual'
 
+/** Embedding metadata stored alongside a memdir document. */
+export interface EmbeddingMeta {
+  /** The embedding vector. */
+  vector: number[]
+  /** Vector version fingerprint (from embedding settings at embed time). */
+  version: string
+  /** Epoch ms when this embedding was computed. */
+  embeddedAt: number
+}
+
 /** A single addressable memory document in the virtual memdir. */
 export interface MemdirDocument {
   id: string
@@ -70,6 +80,8 @@ export interface MemdirDocument {
   source: MemdirSource
   freshness: MemdirFreshness
   tags: string[]
+  /** Optional embedding metadata — present when embeddings are enabled. */
+  embedding?: EmbeddingMeta
 }
 
 /** Manifest / index for a scope's memdir documents. */
