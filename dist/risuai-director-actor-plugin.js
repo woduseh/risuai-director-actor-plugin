@@ -1,7 +1,7 @@
 //@name risuai-director-actor-plugin
 //@display-name RisuAI Director Actor
 //@api 3.0
-//@version 0.5.0
+//@version 0.6.0
 //@description Director-Actor collaborative long-memory plugin for RisuAI Plugin V3
 
 "use strict";

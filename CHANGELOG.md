@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.6.0] - 2026-04-04
+
+### Added
+
+- Repository-side GitGuardian configuration for generated bundle false positives under `dist/**`
+- Opt-in embedding retrieval runtime with host-safe provider clients, vector-version invalidation, embed-on-persist, per-scope refresh, and dashboard cache status reporting
+- Read-only Memory Workbench memdir inspector with type/freshness/source filters, per-document embedding state, `MEMORY.md` preview, and session notebook snapshot
+
+### Changed
+
+- Memdir recall can now use an embedding-based candidate prefilter before recall-model selection while preserving the existing deterministic retrieval spine
+- Dashboard memory operations now report embedding support plus ready/stale/missing cache counts and expose a manual **Refresh Embeddings** action
+
+### Fixed
+
+- Embedding cache status now reports provider support honestly and no longer relies on UI-layer overrides
+- Persist-time embedding enrichment now stores each new memdir document once instead of double-writing on the embedding path
+- Memory Workbench filter handling now distinguishes empty scopes from no-match filter states and validates DOM-derived filter values before applying them
+
 ## [0.5.0] - 2026-04-04
 
 ### Added
