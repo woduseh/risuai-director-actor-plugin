@@ -305,6 +305,7 @@ export async function registerContinuityDirectorPlugin(api: RisuaiApi): Promise<
 
         const promptPreset = resolvePromptPreset(state.settings)
         const service = createDirectorService(api, state.settings)
+        const notebookBlock = formatNotebookBlock(sessionNotebook.snapshot())
         let result
         try {
           result = await service.postResponse({
@@ -314,6 +315,7 @@ export async function registerContinuityDirectorPlugin(api: RisuaiApi): Promise<
             directorState: state.director,
             memory: state.memory,
             assertiveness: state.settings.assertiveness,
+            notebookBlock,
             promptPreset,
           })
         } catch (err) {
@@ -592,6 +594,7 @@ export async function registerContinuityDirectorPlugin(api: RisuaiApi): Promise<
 
       const promptPreset = resolvePromptPreset(state.settings)
       const service = createDirectorService(api, state.settings)
+      const notebookBlock = formatNotebookBlock(sessionNotebook.snapshot())
       const result = await service.postResponse({
         responseText: input.content,
         brief: input.brief,
@@ -599,6 +602,7 @@ export async function registerContinuityDirectorPlugin(api: RisuaiApi): Promise<
         directorState: state.director,
         memory: state.memory,
         assertiveness: state.settings.assertiveness,
+        notebookBlock,
         promptPreset,
       })
 

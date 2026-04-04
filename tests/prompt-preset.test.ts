@@ -207,4 +207,43 @@ describe('director prompt presets', () => {
     expect(preRequestMsgs[1]?.content).toContain('[assistant] Literal {{scenePhase}} token')
     expect(postResponseMsgs[1]?.content).toContain('Echo {{recentConversation}} exactly.')
   })
+
+  test('default post-response preset adds durable-memory extraction heuristics', () => {
+    const messages = buildPostResponsePrompt(makePostReviewContext())
+    const systemContent = messages[0]?.content ?? ''
+
+    expect(systemContent).toContain('Store state deltas, not baseline restatements.')
+    expect(systemContent).toContain('Distinguish attempt from result and consequence.')
+    expect(systemContent).toContain('Prioritize open threads, commitments, consequences, and relationship changes.')
+  })
+
+  test('default post-response preset includes notebook reference when provided', () => {
+    const ctx = {
+      ...makePostReviewContext(),
+      notebookBlock: '## Session Notebook\n- The oath remains binding.',
+    }
+
+    const messages = buildPostResponsePrompt(ctx)
+    const userContent = messages[1]?.content ?? ''
+
+    expect(userContent).toContain('## Already Known Notebook Context')
+    expect(userContent).toContain('The oath remains binding.')
+  })
+
+  test('post-response prompt replaces missing notebook placeholders with empty text', () => {
+    const preset = {
+      ...DEFAULT_DIRECTOR_PROMPT_PRESET,
+      postResponseUserTemplate:
+        'Notebook:\n{{notebookBlock}}\nResponse:\n{{responseText}}',
+    }
+    const ctx = makePostReviewContext({
+      promptPreset: preset,
+    })
+
+    const messages = buildPostResponsePrompt(ctx)
+    const userContent = messages[1]?.content ?? ''
+
+    expect(userContent).toContain('Notebook:\n\nResponse:\n')
+    expect(userContent).not.toContain('{{notebookBlock}}')
+  })
 })

@@ -32,6 +32,8 @@ export interface PostReviewContext {
   directorState: DirectorState
   memory: CanonicalMemory
   assertiveness: DirectorAssertiveness
+  /** Optional session notebook block used as already-known context for deduping. */
+  notebookBlock?: string
   promptPreset?: DirectorPromptPreset
 }
 
@@ -136,6 +138,12 @@ export const DEFAULT_DIRECTOR_PROMPT_PRESET: DirectorPromptPreset = {
     '- Score turn quality (0–1) based on brief adherence, continuity, characterisation.',
     '- List violations (continuity breaks, forbidden moves used, OOC behaviour).',
     '- Extract durable facts worth remembering long-term.',
+    '- Store state deltas, not baseline restatements.',
+    '- Distinguish attempt from result and consequence.',
+    '- Prioritize open threads, commitments, consequences, and relationship changes.',
+    '- Exclude ambient flavor, routine repetition, unchanged canon, and prompt/meta scaffolding.',
+    '- Treat notebook context as already known when present; only restate it if this turn changed it.',
+    '- Write durable facts so each item is self-contained and retrieval-friendly.',
     '- Produce memory operations for the storage layer.',
     '- "pass" = acceptable, "soft-fail" = minor issues, "hard-fail" = severe violations.',
     '',
@@ -143,7 +151,7 @@ export const DEFAULT_DIRECTOR_PROMPT_PRESET: DirectorPromptPreset = {
   ].join('\n'),
 
   postResponseUserTemplate: [
-    '## SceneBrief Used',
+    '{{notebookReferenceBlock}}## SceneBrief Used',
     '{{sceneBriefJson}}',
     '',
     '## Current State',
@@ -202,6 +210,18 @@ function formatArcs(state: DirectorState): string {
   return active.map((a) => `- ${a.label} (weight ${a.weight})`).join('\n')
 }
 
+function formatNotebookReferenceBlock(notebookBlock?: string): string {
+  const trimmed = notebookBlock?.trim()
+  if (!trimmed) return ''
+  return [
+    '## Already Known Notebook Context',
+    'Use this as already-known context; do not restate it unless the response changed it.',
+    trimmed,
+    '',
+    '',
+  ].join('\n')
+}
+
 // ---------------------------------------------------------------------------
 // Template engine
 // ---------------------------------------------------------------------------
@@ -255,10 +275,15 @@ export function buildPostResponsePrompt(ctx: PostReviewContext): OpenAIChat[] {
     currentSceneId: ctx.directorState.currentSceneId,
     scenePhase: ctx.directorState.scenePhase,
     recentConversation: formatConversationTail(ctx.messages, preset.maxRecentMessages),
+    notebookBlock: ctx.notebookBlock ? ctx.notebookBlock + '\n' : '',
+    notebookReferenceBlock: formatNotebookReferenceBlock(ctx.notebookBlock),
   }
+
+  const rawUser = applyTemplate(preset.postResponseUserTemplate, vars)
+  const cleanUser = rawUser.replace(/\n{3,}/g, '\n\n')
 
   return [
     { role: 'system', content: applyTemplate(preset.postResponseSystemTemplate, vars) },
-    { role: 'user', content: applyTemplate(preset.postResponseUserTemplate, vars) },
+    { role: 'user', content: cleanUser },
   ]
 }
